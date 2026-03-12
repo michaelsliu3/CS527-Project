@@ -23,7 +23,6 @@ project.lock.json
 *.nuget.props
 *.nuget.targets
 .nuget/
-launchSettings.json
 
 # === Node / React ===
 node_modules/
