@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKEND_DIR="$ROOT_DIR/plzbuyme-backend"
+FRONTEND_DIR="$ROOT_DIR/plzbuyme-frontend"
+
+cleanup() {
+    echo ""
+    echo "Shutting down..."
+    kill $BACKEND_PID 2>/dev/null || true
+    kill $FRONTEND_PID 2>/dev/null || true
+    wait 2>/dev/null
+    echo "Done."
+}
+trap cleanup EXIT INT TERM
+
+# ── Ensure dotnet is on PATH (Homebrew) ─────────────────────────────
+if ! command -v dotnet &>/dev/null; then
+    if [ -d "/opt/homebrew/opt/dotnet@8/libexec" ]; then
+        export DOTNET_ROOT="/opt/homebrew/opt/dotnet@8/libexec"
+        export PATH="$DOTNET_ROOT:$PATH"
+    else
+        echo "Error: dotnet SDK not found. Install with: brew install dotnet@8"
+        exit 1
+    fi
+fi
+
+# ── Backend ─────────────────────────────────────────────────────────
+echo "==> Starting backend (ASP.NET Core)..."
+cd "$BACKEND_DIR"
+dotnet run --project PlzBuyMe.Api &
+BACKEND_PID=$!
+
+# ── Frontend ────────────────────────────────────────────────────────
+if [ -d "$FRONTEND_DIR" ] && [ -f "$FRONTEND_DIR/package.json" ]; then
+    echo "==> Starting frontend (Vite)..."
+    cd "$FRONTEND_DIR"
+    npm run dev &
+    FRONTEND_PID=$!
+else
+    echo "==> Frontend not scaffolded yet — skipping."
+    FRONTEND_PID=""
+fi
+
+echo ""
+echo "==> Backend:  https://localhost:5062  (Swagger: https://localhost:5062/swagger)"
+echo "==> Frontend: http://localhost:5173"
+echo "==> Press Ctrl+C to stop all services."
+echo ""
+
+wait
