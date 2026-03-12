@@ -1,0 +1,48 @@
+# === Project-specific ===
+.cursor/
+.docs/
+
+# === .NET / C# ===
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+bld/
+[Ll]og/
+[Ll]ogs/
+*.nupkg
+*.snupkg
+project.lock.json
+*.nuget.props
+*.nuget.targets
+.nuget/
+launchSettings.json
+
+# === Node / React ===
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+
+# === OS ===
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# === IDEs ===
+.vs/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
