@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PlzBuyMe.Api.Data;
+using PlzBuyMe.Api.Services;
 using Serilog;
 
 namespace PlzBuyMe.Api;
@@ -105,6 +106,9 @@ public class Program
             options.AddPolicy("RepOrAdmin", p => p.RequireRole("customer_rep", "admin"));
             options.AddPolicy("EndUser", p => p.RequireRole("end_user"));
         });
+
+        // ── Services ─────────────────────────────────────────────────
+        builder.Services.AddScoped<IAuthService, AuthService>();
 
         // ── CORS ────────────────────────────────────────────────────
         builder.Services.AddCors(options =>
