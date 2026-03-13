@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BACKEND_DIR="$ROOT_DIR/plzbuyme-backend"
+FRONTEND_DIR="$ROOT_DIR/plzbuyme-frontend"
+
+PASSED=0
+FAILED=0
+
+run_suite() {
+    local name="$1"
+    shift
+    echo ""
+    echo "════════════════════════════════════════════════"
+    echo "  $name"
+    echo "════════════════════════════════════════════════"
+    if "$@"; then
+        echo "  ✓ $name passed"
+        ((PASSED++))
+    else
+        echo "  ✗ $name FAILED"
+        ((FAILED++))
+    fi
+}
+
+# ── Ensure dotnet is on PATH (Homebrew) ─────────────────────────────
+if ! command -v dotnet &>/dev/null; then
+    if [ -d "/opt/homebrew/opt/dotnet@8/libexec" ]; then
+        export DOTNET_ROOT="/opt/homebrew/opt/dotnet@8/libexec"
+        export PATH="$DOTNET_ROOT:$PATH"
+    fi
+fi
+
+# ── Backend Tests ───────────────────────────────────────────────────
+if [ -d "$BACKEND_DIR" ]; then
+    run_suite "Backend Tests (dotnet test)" dotnet test "$BACKEND_DIR" --verbosity normal
+else
+    echo "==> Backend not found — skipping."
+fi
+
+# ── Frontend Tests ──────────────────────────────────────────────────
+if [ -d "$FRONTEND_DIR" ] && [ -f "$FRONTEND_DIR/package.json" ]; then
+    run_suite "Frontend Tests (vitest)" npx vitest run --dir "$FRONTEND_DIR"
+else
+    echo ""
+    echo "==> Frontend not scaffolded yet — skipping."
+fi
+
+# ── Summary ─────────────────────────────────────────────────────────
+echo ""
+echo "════════════════════════════════════════════════"
+echo "  Results: $PASSED passed, $FAILED failed"
+echo "════════════════════════════════════════════════"
+
+[ "$FAILED" -eq 0 ] || exit 1
