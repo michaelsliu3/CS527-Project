@@ -32,7 +32,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
-            return BadRequest("Username and password are required.");
+            return BadRequest("Username or email and password are required.");
         var result = await _authService.LoginAsync(dto);
         if (result == null)
             return Unauthorized("Invalid credentials or account is inactive.");

@@ -1,7 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using FluentAssertions;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using PlzBuyMe.Api.Dtos.Auth;
 using PlzBuyMe.Api.Models;
 using PlzBuyMe.Api.Services;
 using PlzBuyMe.Api.Data;
@@ -90,5 +90,32 @@ public class AuthServiceTests
         var token = authService.GenerateJwt(user);
         var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
         jwt.Claims.Should().Contain(c => c.Value == "admin");
+    }
+
+    [Fact]
+    public async Task Login_ByEmail_ReturnsSameUserAsLoginByUsername()
+    {
+        using var context = TestDbContextFactory.Create();
+        var password = "secret123";
+        var user = new User
+        {
+            Username = "alice",
+            Email = "alice@example.com",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+            Role = UserRole.EndUser,
+            IsActive = true
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var authService = CreateAuthService(context);
+        var byUsername = await authService.LoginAsync(new LoginDto { Username = "alice", Password = password });
+        var byEmail = await authService.LoginAsync(new LoginDto { Username = "alice@example.com", Password = password });
+
+        byUsername.Should().NotBeNull();
+        byEmail.Should().NotBeNull();
+        byUsername!.UserId.Should().Be(byEmail!.UserId);
+        byUsername.Username.Should().Be("alice");
+        byEmail.Username.Should().Be("alice");
     }
 }

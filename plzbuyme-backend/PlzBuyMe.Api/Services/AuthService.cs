@@ -87,7 +87,8 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponseDto?> LoginAsync(LoginDto dto)
     {
-        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
+        var login = dto.Username.Trim();
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == login || u.Email == login);
         if (user == null)
             return null;
         if (!VerifyPassword(dto.Password, user.PasswordHash))
