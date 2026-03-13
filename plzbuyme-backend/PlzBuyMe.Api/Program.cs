@@ -132,14 +132,22 @@ public class Program
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
-            app.UseSwaggerUI();
+            app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "PlzBuyMe API v1"));
+            // Skip HTTPS redirect in dev so http://localhost:5081/swagger works
+        }
+        else
+        {
+            app.UseHttpsRedirection();
         }
 
-        app.UseHttpsRedirection();
         app.UseSerilogRequestLogging();
         app.UseCors("AllowFrontend");
         app.UseAuthentication();
         app.UseAuthorization();
+
+        // Simple endpoint to verify server is up (no DB, no Swagger required)
+        app.MapGet("/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
+
         app.MapControllers();
     }
 }
