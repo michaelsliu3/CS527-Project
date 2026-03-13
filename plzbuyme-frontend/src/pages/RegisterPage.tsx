@@ -7,17 +7,34 @@ import {
   Container,
   Field,
   Input,
+  Spinner,
+  Text,
   VStack,
 } from '@chakra-ui/react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { isAxiosError } from 'axios'
 
 interface RegisterForm {
   username: string
   email: string
   password: string
   confirmPassword: string
+}
+
+function getRegisterErrorMessage(err: unknown): string {
+  if (isAxiosError(err)) {
+    if (err.code === 'ERR_NETWORK') {
+      return 'Could not reach the server. Check your connection and try again.'
+    }
+    const data = err.response?.data
+    if (typeof data === 'string' && data.length > 0) return data
+    if (err.response?.status === 400) {
+      return typeof data === 'string' ? data : 'Username or email already in use, or invalid input.'
+    }
+  }
+  return 'Registration failed. Please try again.'
 }
 
 export function RegisterPage() {
@@ -49,11 +66,7 @@ export function RegisterPage() {
       await registerUser(data.username, data.email, data.password)
       navigate('/', { replace: true })
     } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: unknown } }).response?.data
-          : null
-      setError(typeof message === 'string' ? message : 'Registration failed. Please try again.')
+      setError(getRegisterErrorMessage(err))
     } finally {
       setSubmitting(false)
     }
@@ -64,15 +77,22 @@ export function RegisterPage() {
       <Card.Root p={6}>
         <Card.Header>
           <Card.Title>Create account</Card.Title>
+          {submitting && (
+            <Text fontSize="sm" color="gray.600" _dark={{ color: 'gray.400' }} mt={1} display="flex" alignItems="center" gap={2}>
+              <Spinner size="sm" /> Creating your account…
+            </Text>
+          )}
         </Card.Header>
         <Card.Body>
           <form onSubmit={handleSubmit(onSubmit)}>
             <VStack gap={4} align="stretch">
               {error && (
-                <Alert.Root status="error">
+                <Alert.Root status="error" variant="solid">
                   <Alert.Indicator />
-                  <Alert.Title>Registration failed</Alert.Title>
-                  <Alert.Description>{error}</Alert.Description>
+                  <Box flex={1}>
+                    <Alert.Title>Registration failed</Alert.Title>
+                    <Alert.Description>{error}</Alert.Description>
+                  </Box>
                 </Alert.Root>
               )}
               <Field.Root invalid={!!errors.username}>
@@ -80,6 +100,7 @@ export function RegisterPage() {
                 <Input
                   type="text"
                   autoComplete="username"
+                  disabled={submitting}
                   {...register('username', { required: 'Username is required' })}
                 />
                 {errors.username && (
@@ -91,6 +112,7 @@ export function RegisterPage() {
                 <Input
                   type="email"
                   autoComplete="email"
+                  disabled={submitting}
                   {...register('email', {
                     required: 'Email is required',
                     pattern: {
@@ -106,6 +128,7 @@ export function RegisterPage() {
                 <Input
                   type="password"
                   autoComplete="new-password"
+                  disabled={submitting}
                   {...register('password', {
                     required: 'Password is required',
                     minLength: {
@@ -123,6 +146,7 @@ export function RegisterPage() {
                 <Input
                   type="password"
                   autoComplete="new-password"
+                  disabled={submitting}
                   {...register('confirmPassword', {
                     required: 'Please confirm your password',
                     validate: (v) => v === password || 'Passwords do not match',
@@ -140,7 +164,7 @@ export function RegisterPage() {
                   disabled={submitting}
                   loading={submitting as boolean}
                 >
-                  Register
+                  {submitting ? 'Creating account…' : 'Register'}
                 </Button>
               </Box>
             </VStack>

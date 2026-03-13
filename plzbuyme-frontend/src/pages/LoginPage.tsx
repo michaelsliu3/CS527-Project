@@ -7,15 +7,35 @@ import {
   Container,
   Field,
   Input,
+  Spinner,
+  Text,
   VStack,
 } from '@chakra-ui/react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { isAxiosError } from 'axios'
 
 interface LoginForm {
   username: string
   password: string
+}
+
+function getLoginErrorMessage(err: unknown): string {
+  if (isAxiosError(err)) {
+    if (err.code === 'ERR_NETWORK') {
+      return 'Could not reach the server. Check your connection and try again.'
+    }
+    const data = err.response?.data
+    if (typeof data === 'string' && data.length > 0) return data
+    if (err.response?.status === 401) {
+      return 'Invalid username/email or password, or account is inactive.'
+    }
+    if (err.response?.status === 400) {
+      return typeof data === 'string' ? data : 'Invalid request. Please check your input.'
+    }
+  }
+  return 'Login failed. Please try again.'
 }
 
 export function LoginPage() {
@@ -37,11 +57,7 @@ export function LoginPage() {
       await login(data.username, data.password)
       navigate(from, { replace: true })
     } catch (err: unknown) {
-      const message =
-        err && typeof err === 'object' && 'response' in err
-          ? (err as { response?: { data?: unknown } }).response?.data
-          : null
-      setError(typeof message === 'string' ? message : 'Login failed. Please try again.')
+      setError(getLoginErrorMessage(err))
     } finally {
       setSubmitting(false)
     }
@@ -52,15 +68,22 @@ export function LoginPage() {
       <Card.Root p={6}>
         <Card.Header>
           <Card.Title>Log in</Card.Title>
+          {submitting && (
+            <Text fontSize="sm" color="gray.600" _dark={{ color: 'gray.400' }} mt={1} display="flex" alignItems="center" gap={2}>
+              <Spinner size="sm" /> Logging you in…
+            </Text>
+          )}
         </Card.Header>
         <Card.Body>
           <form onSubmit={handleSubmit(onSubmit)}>
             <VStack gap={4} align="stretch">
               {error && (
-                <Alert.Root status="error">
+                <Alert.Root status="error" variant="solid">
                   <Alert.Indicator />
-                  <Alert.Title>Login failed</Alert.Title>
-                  <Alert.Description>{error}</Alert.Description>
+                  <Box flex={1}>
+                    <Alert.Title>Login failed</Alert.Title>
+                    <Alert.Description>{error}</Alert.Description>
+                  </Box>
                 </Alert.Root>
               )}
               <Field.Root invalid={!!formState.errors.username}>
@@ -68,6 +91,7 @@ export function LoginPage() {
                 <Input
                   type="text"
                   autoComplete="username"
+                  disabled={submitting}
                   {...register('username', { required: 'Username or email is required' })}
                 />
                 {formState.errors.username && (
@@ -79,6 +103,7 @@ export function LoginPage() {
                 <Input
                   type="password"
                   autoComplete="current-password"
+                  disabled={submitting}
                   {...register('password', { required: 'Password is required' })}
                 />
                 {formState.errors.password && (
@@ -93,7 +118,7 @@ export function LoginPage() {
                   disabled={submitting}
                   loading={submitting as boolean}
                 >
-                  Log in
+                  {submitting ? 'Logging in…' : 'Log in'}
                 </Button>
               </Box>
             </VStack>
