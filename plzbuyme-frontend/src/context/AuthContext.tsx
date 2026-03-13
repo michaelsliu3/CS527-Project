@@ -38,8 +38,8 @@ interface AuthResponse {
 interface AuthContextValue {
   user: AuthUser | null
   loading: boolean
-  login: (username: string, password: string) => Promise<void>
-  register: (username: string, email: string, password: string) => Promise<void>
+  login: (username: string, password: string) => Promise<{ username: string }>
+  register: (username: string, email: string, password: string) => Promise<{ username: string }>
   logout: () => void
 }
 
@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hydrate()
   }, [hydrate])
 
-  const login = useCallback(async (username: string, password: string) => {
+  const login = useCallback(async (username: string, password: string): Promise<{ username: string }> => {
     const { data } = await apiClient.post<AuthResponse>('auth/login', {
       username,
       password,
@@ -98,10 +98,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: data.email,
       role: data.role,
     })
+    return { username: data.username }
   }, [])
 
   const register = useCallback(
-    async (username: string, email: string, password: string) => {
+    async (username: string, email: string, password: string): Promise<{ username: string }> => {
       const { data } = await apiClient.post<AuthResponse>('auth/register', {
         username,
         email,
@@ -114,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: data.email,
         role: data.role,
       })
+      return { username: data.username }
     },
     []
   )

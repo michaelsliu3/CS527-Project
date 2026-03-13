@@ -51,6 +51,7 @@ export function RegisterPage() {
   const navigate = useNavigate()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successUsername, setSuccessUsername] = useState<string | null>(null)
 
   const {
     register,
@@ -70,13 +71,15 @@ export function RegisterPage() {
 
   const onSubmit = async (data: RegisterForm) => {
     setError(null)
+    setSuccessUsername(null)
     setSubmitting(true)
     try {
-      await registerUser(data.username, data.email, data.password)
-      navigate('/', { replace: true })
+      const { username } = await registerUser(data.username, data.email, data.password)
+      setSubmitting(false)
+      setSuccessUsername(username)
+      setTimeout(() => navigate('/', { replace: true }), 1500)
     } catch (err: unknown) {
       setError(getRegisterErrorMessage(err))
-    } finally {
       setSubmitting(false)
     }
   }
@@ -95,6 +98,17 @@ export function RegisterPage() {
         <Card.Body>
           <form onSubmit={handleSubmit(onSubmit)}>
             <VStack gap={4} align="stretch">
+              {successUsername && (
+                <Alert.Root status="success" variant="solid">
+                  <Alert.Indicator />
+                  <Box flex={1}>
+                    <Alert.Title>Account created</Alert.Title>
+                    <Alert.Description>
+                      Welcome, <strong>{successUsername}</strong>! You’re logged in. Redirecting…
+                    </Alert.Description>
+                  </Box>
+                </Alert.Root>
+              )}
               {error && (
                 <Alert.Root status="error" variant="solid">
                   <Alert.Indicator />
@@ -109,7 +123,7 @@ export function RegisterPage() {
                 <Input
                   type="text"
                   autoComplete="username"
-                  disabled={submitting}
+                  disabled={submitting || !!successUsername}
                   {...register('username', { required: 'Username is required' })}
                 />
                 {errors.username && (
@@ -121,7 +135,7 @@ export function RegisterPage() {
                 <Input
                   type="email"
                   autoComplete="email"
-                  disabled={submitting}
+                  disabled={submitting || !!successUsername}
                   {...register('email', {
                     required: 'Email is required',
                     pattern: {
@@ -137,7 +151,7 @@ export function RegisterPage() {
                 <Input
                   type="password"
                   autoComplete="new-password"
-                  disabled={submitting}
+                  disabled={submitting || !!successUsername}
                   {...register('password', {
                     required: 'Password is required',
                     minLength: {
@@ -155,7 +169,7 @@ export function RegisterPage() {
                 <Input
                   type="password"
                   autoComplete="new-password"
-                  disabled={submitting}
+                  disabled={submitting || !!successUsername}
                   {...register('confirmPassword', {
                     required: 'Please confirm your password',
                     validate: (v) => v === password || 'Passwords do not match',
@@ -170,10 +184,10 @@ export function RegisterPage() {
                   type="submit"
                   colorPalette="brand"
                   width="full"
-                  disabled={submitting}
+                  disabled={submitting || !!successUsername}
                   loading={submitting as boolean}
                 >
-                  {submitting ? 'Creating account…' : 'Register'}
+                  {successUsername ? 'Redirecting…' : submitting ? 'Creating account…' : 'Register'}
                 </Button>
               </Box>
             </VStack>

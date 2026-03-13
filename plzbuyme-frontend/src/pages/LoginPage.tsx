@@ -52,19 +52,22 @@ export function LoginPage() {
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/'
 
   const [error, setError] = useState<string | null>(null)
+  const [successUsername, setSuccessUsername] = useState<string | null>(null)
   const { register, handleSubmit, formState } = useForm<LoginForm>({
     defaultValues: { username: '', password: '' },
   })
 
   const onSubmit = async (data: LoginForm) => {
     setError(null)
+    setSuccessUsername(null)
     setSubmitting(true)
     try {
-      await login(data.username, data.password)
-      navigate(from, { replace: true })
+      const { username } = await login(data.username, data.password)
+      setSubmitting(false)
+      setSuccessUsername(username)
+      setTimeout(() => navigate(from, { replace: true }), 1500)
     } catch (err: unknown) {
       setError(getLoginErrorMessage(err))
-    } finally {
       setSubmitting(false)
     }
   }
@@ -83,6 +86,17 @@ export function LoginPage() {
         <Card.Body>
           <form onSubmit={handleSubmit(onSubmit)}>
             <VStack gap={4} align="stretch">
+              {successUsername && (
+                <Alert.Root status="success" variant="solid">
+                  <Alert.Indicator />
+                  <Box flex={1}>
+                    <Alert.Title>Welcome back!</Alert.Title>
+                    <Alert.Description>
+                      You’re logged in as <strong>{successUsername}</strong>. Redirecting…
+                    </Alert.Description>
+                  </Box>
+                </Alert.Root>
+              )}
               {error && (
                 <Alert.Root status="error" variant="solid">
                   <Alert.Indicator />
@@ -97,7 +111,7 @@ export function LoginPage() {
                 <Input
                   type="text"
                   autoComplete="username"
-                  disabled={submitting}
+                  disabled={submitting || !!successUsername}
                   {...register('username', { required: 'Username or email is required' })}
                 />
                 {formState.errors.username && (
@@ -109,7 +123,7 @@ export function LoginPage() {
                 <Input
                   type="password"
                   autoComplete="current-password"
-                  disabled={submitting}
+                  disabled={submitting || !!successUsername}
                   {...register('password', { required: 'Password is required' })}
                 />
                 {formState.errors.password && (
@@ -121,10 +135,10 @@ export function LoginPage() {
                   type="submit"
                   colorPalette="brand"
                   width="full"
-                  disabled={submitting}
+                  disabled={submitting || !!successUsername}
                   loading={submitting as boolean}
                 >
-                  {submitting ? 'Logging in…' : 'Log in'}
+                  {successUsername ? 'Redirecting…' : submitting ? 'Logging in…' : 'Log in'}
                 </Button>
               </Box>
             </VStack>
