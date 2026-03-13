@@ -71,4 +71,54 @@ public class SeedDataTests
             fields.Should().Contain(f => f.FieldName == "Exterior Color");
         }
     }
+
+    [Fact]
+    public void Seed_IsIdempotent_CallingTwiceDoesNotDuplicate()
+    {
+        using var context = TestDbContextFactory.Create();
+        SeedData.Initialize(context);
+        SeedData.Initialize(context);
+
+        context.Users.Count().Should().Be(4, "seed guard should prevent duplicate seeding");
+        context.Categories.Count().Should().Be(8);
+        context.Items.Count().Should().Be(2);
+    }
+
+    [Fact]
+    public void Seed_CreatesSampleItemsWithFieldValuesAndBids()
+    {
+        using var context = TestDbContextFactory.Create();
+        SeedData.Initialize(context);
+
+        var items = context.Items.ToList();
+        items.Should().HaveCount(2);
+        items.Should().Contain(i => i.Title == "2022 Toyota Camry SE");
+        items.Should().Contain(i => i.Title == "2020 Honda Civic LX");
+
+        var camry = items.Single(i => i.Title.Contains("Camry"));
+        camry.Status.Should().Be(ItemStatus.Active);
+        camry.InitialPrice.Should().Be(22000.00m);
+        camry.CurrentPrice.Should().Be(23000.00m);
+
+        var camryFields = context.ItemFieldValues.Where(f => f.ItemId == camry.Id).ToList();
+        camryFields.Should().HaveCount(8, "each item should have 8 field values");
+
+        var bids = context.Bids.Where(b => b.ItemId == camry.Id).ToList();
+        bids.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void Seed_NoBidsByAdminRole()
+    {
+        using var context = TestDbContextFactory.Create();
+        SeedData.Initialize(context);
+
+        var adminIds = context.Users
+            .Where(u => u.Role == UserRole.Admin)
+            .Select(u => u.Id)
+            .ToList();
+
+        var adminBids = context.Bids.Where(b => adminIds.Contains(b.BidderId)).ToList();
+        adminBids.Should().BeEmpty("admin users should not have any bids in seed data");
+    }
 }
