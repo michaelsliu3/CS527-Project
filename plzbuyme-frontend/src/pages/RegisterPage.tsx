@@ -23,15 +23,24 @@ interface RegisterForm {
   confirmPassword: string
 }
 
+/** Auth error shape returned by the API (AuthErrorDto) */
+interface AuthErrorResponse {
+  code?: string
+  message?: string
+}
+
 function getRegisterErrorMessage(err: unknown): string {
   if (isAxiosError(err)) {
     if (err.code === 'ERR_NETWORK') {
       return 'Could not reach the server. Check your connection and try again.'
     }
-    const data = err.response?.data
+    const data = err.response?.data as AuthErrorResponse | string | undefined
+    if (data && typeof data === 'object' && typeof data.message === 'string' && data.message.length > 0) {
+      return data.message
+    }
     if (typeof data === 'string' && data.length > 0) return data
     if (err.response?.status === 400) {
-      return typeof data === 'string' ? data : 'Username or email already in use, or invalid input.'
+      return 'Registration failed. Please check your input and try again.'
     }
   }
   return 'Registration failed. Please try again.'

@@ -112,15 +112,17 @@ public class AuthServiceTests
         var byUsername = await authService.LoginAsync(new LoginDto { Username = "alice", Password = password });
         var byEmail = await authService.LoginAsync(new LoginDto { Username = "alice@example.com", Password = password });
 
-        byUsername.Should().NotBeNull();
-        byEmail.Should().NotBeNull();
-        byUsername!.UserId.Should().Be(byEmail!.UserId);
-        byUsername.Username.Should().Be("alice");
-        byEmail.Username.Should().Be("alice");
+        byUsername.Success.Should().BeTrue();
+        byEmail.Success.Should().BeTrue();
+        byUsername.Data.Should().NotBeNull();
+        byEmail.Data.Should().NotBeNull();
+        byUsername.Data!.UserId.Should().Be(byEmail.Data!.UserId);
+        byUsername.Data.Username.Should().Be("alice");
+        byEmail.Data!.Username.Should().Be("alice");
     }
 
     [Fact]
-    public async Task Login_ByEmail_WithWrongPassword_ReturnsNull()
+    public async Task Login_ByEmail_WithWrongPassword_ReturnsInvalidPassword()
     {
         using var context = TestDbContextFactory.Create();
         var user = new User
@@ -137,17 +139,19 @@ public class AuthServiceTests
         var authService = CreateAuthService(context);
         var result = await authService.LoginAsync(new LoginDto { Username = "bob@example.com", Password = "wrong" });
 
-        result.Should().BeNull();
+        result.Success.Should().BeFalse();
+        result.FailureReason.Should().Be(LoginFailureReason.InvalidPassword);
     }
 
     [Fact]
-    public async Task Login_ByEmail_WhenUserNotFound_ReturnsNull()
+    public async Task Login_ByEmail_WhenUserNotFound_ReturnsUserNotFound()
     {
         using var context = TestDbContextFactory.Create();
         var authService = CreateAuthService(context);
 
         var result = await authService.LoginAsync(new LoginDto { Username = "nobody@example.com", Password = "any" });
 
-        result.Should().BeNull();
+        result.Success.Should().BeFalse();
+        result.FailureReason.Should().Be(LoginFailureReason.UserNotFound);
     }
 }

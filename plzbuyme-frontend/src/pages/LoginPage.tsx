@@ -21,18 +21,24 @@ interface LoginForm {
   password: string
 }
 
+/** Auth error shape returned by the API (AuthErrorDto) */
+interface AuthErrorResponse {
+  code?: string
+  message?: string
+}
+
 function getLoginErrorMessage(err: unknown): string {
   if (isAxiosError(err)) {
     if (err.code === 'ERR_NETWORK') {
       return 'Could not reach the server. Check your connection and try again.'
     }
-    const data = err.response?.data
-    if (typeof data === 'string' && data.length > 0) return data
-    if (err.response?.status === 401) {
-      return 'Invalid username/email or password, or account is inactive.'
+    const data = err.response?.data as AuthErrorResponse | string | undefined
+    if (data && typeof data === 'object' && typeof data.message === 'string' && data.message.length > 0) {
+      return data.message
     }
-    if (err.response?.status === 400) {
-      return typeof data === 'string' ? data : 'Invalid request. Please check your input.'
+    if (typeof data === 'string' && data.length > 0) return data
+    if (err.response?.status === 401 || err.response?.status === 400) {
+      return 'Invalid request. Please check your input and try again.'
     }
   }
   return 'Login failed. Please try again.'
