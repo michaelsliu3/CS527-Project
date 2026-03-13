@@ -118,4 +118,36 @@ public class AuthServiceTests
         byUsername.Username.Should().Be("alice");
         byEmail.Username.Should().Be("alice");
     }
+
+    [Fact]
+    public async Task Login_ByEmail_WithWrongPassword_ReturnsNull()
+    {
+        using var context = TestDbContextFactory.Create();
+        var user = new User
+        {
+            Username = "bob",
+            Email = "bob@example.com",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("correct"),
+            Role = UserRole.EndUser,
+            IsActive = true
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var authService = CreateAuthService(context);
+        var result = await authService.LoginAsync(new LoginDto { Username = "bob@example.com", Password = "wrong" });
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Login_ByEmail_WhenUserNotFound_ReturnsNull()
+    {
+        using var context = TestDbContextFactory.Create();
+        var authService = CreateAuthService(context);
+
+        var result = await authService.LoginAsync(new LoginDto { Username = "nobody@example.com", Password = "any" });
+
+        result.Should().BeNull();
+    }
 }

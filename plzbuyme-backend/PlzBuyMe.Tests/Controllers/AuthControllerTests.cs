@@ -110,6 +110,32 @@ public class AuthControllerTests
     }
 
     [Fact]
+    public async Task Login_WithEmailInUsernameField_ReturnsOkWithJwt()
+    {
+        var response = new AuthResponseDto
+        {
+            Token = "jwt-from-email-login",
+            Username = "seller1",
+            Email = "seller1@example.com",
+            Role = "end_user",
+            UserId = 2
+        };
+        var mock = new Mock<IAuthService>();
+        mock.Setup(s => s.LoginAsync(It.IsAny<LoginDto>())).ReturnsAsync(response);
+        var controller = CreateController(mock);
+
+        var dto = new LoginDto { Username = "seller1@example.com", Password = "password" };
+        var result = await controller.Login(dto);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeOfType<AuthResponseDto>().Subject;
+        body.Token.Should().Be("jwt-from-email-login");
+        body.Username.Should().Be("seller1");
+        body.Email.Should().Be("seller1@example.com");
+        mock.Verify(s => s.LoginAsync(It.Is<LoginDto>(l => l.Username == "seller1@example.com" && l.Password == "password")), Times.Once);
+    }
+
+    [Fact]
     public async Task Login_WhenWrongPassword_ReturnsUnauthorized()
     {
         var mock = new Mock<IAuthService>();
