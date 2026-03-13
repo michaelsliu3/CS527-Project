@@ -121,8 +121,19 @@ public static class SeedData
             new ItemFieldValue { ItemId = item1.Id, FieldId = fuelField.Id, Value = "Gasoline" },
             new ItemFieldValue { ItemId = item1.Id, FieldId = colorField.Id, Value = "Silver" }
         );
+        var bidder2 = new User
+        {
+            Username = "bidder2",
+            Email = "bidder2@example.com",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("password"),
+            Role = UserRole.EndUser,
+            IsActive = true
+        };
+        db.Users.Add(bidder2);
+        db.SaveChanges();
+
         db.Bids.Add(new Bid { ItemId = item1.Id, BidderId = bidder.Id, Amount = 22500.00m, IsAuto = false });
-        db.Bids.Add(new Bid { ItemId = item1.Id, BidderId = admin.Id, Amount = 23000.00m, IsAuto = false });
+        db.Bids.Add(new Bid { ItemId = item1.Id, BidderId = bidder2.Id, Amount = 23000.00m, IsAuto = false });
         db.SaveChanges();
 
         // ── Sample car listing 2: Honda Civic ──

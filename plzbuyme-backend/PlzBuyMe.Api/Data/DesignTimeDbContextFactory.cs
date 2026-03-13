@@ -19,7 +19,7 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
             .Build();
 
         var connectionString = config.GetConnectionString("DefaultConnection")
-            ?? "Server=localhost;Database=plzbuyme;User=root;Password=;";
+            ?? "Server=localhost;Database=plzbuyme;User=root;Password=password;";
 
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
         // Fixed version avoids connection at design time; migration is generated from the model only.

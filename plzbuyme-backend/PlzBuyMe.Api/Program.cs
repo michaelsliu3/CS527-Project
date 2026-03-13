@@ -33,9 +33,6 @@ public class Program
             {
                 var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
                 var connectionString = config.GetConnectionString("DefaultConnection");
-                
-                Log.Information("Connection string: {ConnectionString}", connectionString);
-
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 try
                 {
