@@ -21,27 +21,27 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
-            return BadRequest("Username, email, and password are required.");
+            return BadRequest(new AuthErrorDto { Code = "ValidationError", Message = "Username, email, and password are required." });
         if (dto.Password.Length < 6)
-            return BadRequest("Password must be at least 6 characters.");
+            return BadRequest(new AuthErrorDto { Code = "ValidationError", Message = "Password must be at least 6 characters." });
         var atIndex = dto.Email.Trim().IndexOf('@');
         if (atIndex <= 0 || atIndex == dto.Email.Trim().Length - 1)
-            return BadRequest("Email must be a valid email address.");
+            return BadRequest(new AuthErrorDto { Code = "ValidationError", Message = "Email must be a valid email address." });
         var result = await _authService.RegisterAsync(dto);
-        if (result == null)
-            return BadRequest("Username or email already in use.");
-        return Ok(result);
+        if (!result.Success && result.FailureReason.HasValue)
+            return BadRequest(AuthControllerHelper.ToErrorDto(result.FailureReason.Value));
+        return Ok(result.Data);
     }
 
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
-            return BadRequest("Username or email, and password, are required.");
+            return BadRequest(new AuthErrorDto { Code = "ValidationError", Message = "Username or email, and password, are required." });
         var result = await _authService.LoginAsync(dto);
-        if (result == null)
-            return Unauthorized("Invalid credentials or account is inactive.");
-        return Ok(result);
+        if (!result.Success && result.FailureReason.HasValue)
+            return Unauthorized(AuthControllerHelper.ToErrorDto(result.FailureReason.Value));
+        return Ok(result.Data);
     }
 
     [Authorize]

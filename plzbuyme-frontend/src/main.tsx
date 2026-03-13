@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { ChakraProvider } from '@chakra-ui/react'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
+import { AuthProvider } from './context/AuthContext'
 import { system } from './theme'
 import './index.css'
 
@@ -10,7 +11,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ChakraProvider value={system}>
       <BrowserRouter>
-        <App />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
       </BrowserRouter>
     </ChakraProvider>
   </StrictMode>

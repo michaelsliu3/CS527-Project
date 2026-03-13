@@ -56,14 +56,14 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public async Task<AuthResponseDto?> RegisterAsync(RegisterDto dto)
+    public async Task<RegisterResult> RegisterAsync(RegisterDto dto)
     {
         var username = dto.Username.Trim();
         var email = dto.Email.Trim();
         if (await _db.Users.AnyAsync(u => u.Username == username))
-            return null;
+            return new RegisterResult { FailureReason = RegisterFailureReason.UsernameTaken };
         if (await _db.Users.AnyAsync(u => u.Email == email))
-            return null;
+            return new RegisterResult { FailureReason = RegisterFailureReason.EmailTaken };
 
         var user = new User
         {
@@ -77,35 +77,41 @@ public class AuthService : IAuthService
         await _db.SaveChangesAsync();
 
         var token = GenerateJwt(user);
-        return new AuthResponseDto
+        return new RegisterResult
         {
-            Token = token,
-            Username = user.Username,
-            Email = user.Email,
-            Role = RoleToClaimValue(user.Role),
-            UserId = user.Id
+            Data = new AuthResponseDto
+            {
+                Token = token,
+                Username = user.Username,
+                Email = user.Email,
+                Role = RoleToClaimValue(user.Role),
+                UserId = user.Id
+            }
         };
     }
 
-    public async Task<AuthResponseDto?> LoginAsync(LoginDto dto)
+    public async Task<LoginResult> LoginAsync(LoginDto dto)
     {
         var login = dto.Username.Trim();
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Username == login || u.Email == login);
         if (user == null)
-            return null;
+            return new LoginResult { FailureReason = LoginFailureReason.UserNotFound };
         if (!VerifyPassword(dto.Password, user.PasswordHash))
-            return null;
+            return new LoginResult { FailureReason = LoginFailureReason.InvalidPassword };
         if (!user.IsActive)
-            return null;
+            return new LoginResult { FailureReason = LoginFailureReason.AccountInactive };
 
         var token = GenerateJwt(user);
-        return new AuthResponseDto
+        return new LoginResult
         {
-            Token = token,
-            Username = user.Username,
-            Email = user.Email,
-            Role = RoleToClaimValue(user.Role),
-            UserId = user.Id
+            Data = new AuthResponseDto
+            {
+                Token = token,
+                Username = user.Username,
+                Email = user.Email,
+                Role = RoleToClaimValue(user.Role),
+                UserId = user.Id
+            }
         };
     }
 

@@ -44,7 +44,7 @@ public class AuthControllerTests
             UserId = 10
         };
         var mock = new Mock<IAuthService>();
-        mock.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>())).ReturnsAsync(response);
+        mock.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>())).ReturnsAsync(new RegisterResult { Data = response });
         var controller = CreateController(mock);
 
         var dto = new RegisterDto { Username = "newuser", Email = "new@example.com", Password = "pass123" };
@@ -59,30 +59,36 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task Register_WhenDuplicateUsername_ReturnsBadRequest()
+    public async Task Register_WhenDuplicateUsername_ReturnsBadRequest_WithUsernameTakenCode()
     {
         var mock = new Mock<IAuthService>();
-        mock.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>())).ReturnsAsync((AuthResponseDto?)null);
+        mock.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>())).ReturnsAsync(new RegisterResult { FailureReason = RegisterFailureReason.UsernameTaken });
         var controller = CreateController(mock);
 
         var dto = new RegisterDto { Username = "admin", Email = "other@example.com", Password = "pass12" };
         var result = await controller.Register(dto);
 
-        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        var body = badRequest.Value.Should().BeOfType<AuthErrorDto>().Subject;
+        body.Code.Should().Be(nameof(RegisterFailureReason.UsernameTaken));
+        body.Message.Should().NotBeNullOrEmpty();
         mock.Verify(s => s.RegisterAsync(It.IsAny<RegisterDto>()), Times.Once);
     }
 
     [Fact]
-    public async Task Register_WhenDuplicateEmail_ReturnsBadRequest()
+    public async Task Register_WhenDuplicateEmail_ReturnsBadRequest_WithEmailTakenCode()
     {
         var mock = new Mock<IAuthService>();
-        mock.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>())).ReturnsAsync((AuthResponseDto?)null);
+        mock.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>())).ReturnsAsync(new RegisterResult { FailureReason = RegisterFailureReason.EmailTaken });
         var controller = CreateController(mock);
 
         var dto = new RegisterDto { Username = "newuser", Email = "admin@plzbuy.me", Password = "pass12" };
         var result = await controller.Register(dto);
 
-        result.Should().BeOfType<BadRequestObjectResult>();
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        var body = badRequest.Value.Should().BeOfType<AuthErrorDto>().Subject;
+        body.Code.Should().Be(nameof(RegisterFailureReason.EmailTaken));
+        body.Message.Should().NotBeNullOrEmpty();
     }
 
     [Fact]
@@ -115,7 +121,7 @@ public class AuthControllerTests
             UserId = 1
         };
         var mock = new Mock<IAuthService>();
-        mock.Setup(s => s.LoginAsync(It.IsAny<LoginDto>())).ReturnsAsync(response);
+        mock.Setup(s => s.LoginAsync(It.IsAny<LoginDto>())).ReturnsAsync(new LoginResult { Data = response });
         var controller = CreateController(mock);
 
         var dto = new LoginDto { Username = "admin", Password = "admin123" };
@@ -139,7 +145,7 @@ public class AuthControllerTests
             UserId = 2
         };
         var mock = new Mock<IAuthService>();
-        mock.Setup(s => s.LoginAsync(It.IsAny<LoginDto>())).ReturnsAsync(response);
+        mock.Setup(s => s.LoginAsync(It.IsAny<LoginDto>())).ReturnsAsync(new LoginResult { Data = response });
         var controller = CreateController(mock);
 
         var dto = new LoginDto { Username = "seller1@example.com", Password = "password" };
@@ -154,29 +160,35 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task Login_WhenWrongPassword_ReturnsUnauthorized()
+    public async Task Login_WhenWrongPassword_ReturnsUnauthorized_WithInvalidPasswordCode()
     {
         var mock = new Mock<IAuthService>();
-        mock.Setup(s => s.LoginAsync(It.IsAny<LoginDto>())).ReturnsAsync((AuthResponseDto?)null);
+        mock.Setup(s => s.LoginAsync(It.IsAny<LoginDto>())).ReturnsAsync(new LoginResult { FailureReason = LoginFailureReason.InvalidPassword });
         var controller = CreateController(mock);
 
         var dto = new LoginDto { Username = "admin", Password = "wrong" };
         var result = await controller.Login(dto);
 
-        result.Should().BeOfType<UnauthorizedObjectResult>();
+        var unauthorized = result.Should().BeOfType<UnauthorizedObjectResult>().Subject;
+        var body = unauthorized.Value.Should().BeOfType<AuthErrorDto>().Subject;
+        body.Code.Should().Be(nameof(LoginFailureReason.InvalidPassword));
+        body.Message.Should().NotBeNullOrEmpty();
     }
 
     [Fact]
-    public async Task Login_WhenInactiveUser_ReturnsUnauthorized()
+    public async Task Login_WhenInactiveUser_ReturnsUnauthorized_WithAccountInactiveCode()
     {
         var mock = new Mock<IAuthService>();
-        mock.Setup(s => s.LoginAsync(It.IsAny<LoginDto>())).ReturnsAsync((AuthResponseDto?)null);
+        mock.Setup(s => s.LoginAsync(It.IsAny<LoginDto>())).ReturnsAsync(new LoginResult { FailureReason = LoginFailureReason.AccountInactive });
         var controller = CreateController(mock);
 
         var dto = new LoginDto { Username = "inactiveuser", Password = "pass" };
         var result = await controller.Login(dto);
 
-        result.Should().BeOfType<UnauthorizedObjectResult>();
+        var unauthorized = result.Should().BeOfType<UnauthorizedObjectResult>().Subject;
+        var body = unauthorized.Value.Should().BeOfType<AuthErrorDto>().Subject;
+        body.Code.Should().Be(nameof(LoginFailureReason.AccountInactive));
+        body.Message.Should().NotBeNullOrEmpty();
     }
 
     [Fact]

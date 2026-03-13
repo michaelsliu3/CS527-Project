@@ -3,21 +3,25 @@ import { render, screen } from '@testing-library/react'
 import { ChakraProvider } from '@chakra-ui/react'
 import { BrowserRouter } from 'react-router-dom'
 import App from '../App'
+import { AuthProvider } from '../context/AuthContext'
 import { system } from '../theme'
 
 function renderApp() {
   return render(
     <ChakraProvider value={system}>
       <BrowserRouter>
-        <App />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
       </BrowserRouter>
     </ChakraProvider>
   )
 }
 
 describe('App', () => {
-  it('renders placeholder for home route', () => {
+  it('renders home page with CTA', () => {
     renderApp()
-    expect(screen.getByText(/HomePage.*placeholder/i)).toBeInTheDocument()
+    expect(screen.getByText(/Welcome to plzbuy.me/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Browse Auctions/i })).toBeInTheDocument()
   })
 })
