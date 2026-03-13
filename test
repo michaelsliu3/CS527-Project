@@ -41,7 +41,7 @@ fi
 
 # ── Frontend Tests ──────────────────────────────────────────────────
 if [ -d "$FRONTEND_DIR" ] && [ -f "$FRONTEND_DIR/package.json" ]; then
-    run_suite "Frontend Tests (vitest)" npx vitest run --dir "$FRONTEND_DIR"
+    run_suite "Frontend Tests (vitest)" bash -c "cd \"$FRONTEND_DIR\" && npx vitest run"
 else
     echo ""
     echo "==> Frontend not scaffolded yet — skipping."
