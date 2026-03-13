@@ -28,12 +28,19 @@ public class Program
 
             var app = builder.Build();
 
-            // Run migration and seed only when database is reachable (skipped when e.g. dotnet ef migrations add runs with no MySQL).
+            // Ensure MySQL database exists, then run migrations and seed (skipped when e.g. dotnet ef runs with no MySQL).
             using (var scope = app.Services.CreateScope())
             {
+                var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+                var connectionString = config.GetConnectionString("DefaultConnection");
+                
+                Log.Information("Connection string: {ConnectionString}", connectionString);
+
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 try
                 {
+                    if (!string.IsNullOrEmpty(connectionString))
+                        DatabaseEnsure.EnsureDatabaseExists(connectionString);
                     if (db.Database.CanConnect())
                     {
                         db.Database.Migrate();
