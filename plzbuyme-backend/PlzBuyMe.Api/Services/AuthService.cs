@@ -58,15 +58,17 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponseDto?> RegisterAsync(RegisterDto dto)
     {
-        if (await _db.Users.AnyAsync(u => u.Username == dto.Username))
+        var username = dto.Username.Trim();
+        var email = dto.Email.Trim();
+        if (await _db.Users.AnyAsync(u => u.Username == username))
             return null;
-        if (await _db.Users.AnyAsync(u => u.Email == dto.Email))
+        if (await _db.Users.AnyAsync(u => u.Email == email))
             return null;
 
         var user = new User
         {
-            Username = dto.Username.Trim(),
-            Email = dto.Email.Trim(),
+            Username = username,
+            Email = email,
             PasswordHash = HashPassword(dto.Password),
             Role = UserRole.EndUser,
             IsActive = true
@@ -139,7 +141,7 @@ public class AuthService : IAuthService
             UserRole.Admin => "admin",
             UserRole.CustomerRep => "customer_rep",
             UserRole.EndUser => "end_user",
-            _ => "end_user"
+            _ => throw new ArgumentOutOfRangeException(nameof(role), role, "Unknown user role.")
         };
     }
 }

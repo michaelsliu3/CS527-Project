@@ -78,7 +78,16 @@ public class Program
 
         // ── JWT Authentication ──────────────────────────────────────
         var jwtSection = builder.Configuration.GetSection("Jwt");
-        var key = Encoding.UTF8.GetBytes(jwtSection["Key"]!);
+        var jwtKey = jwtSection["Key"];
+        if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32)
+            throw new InvalidOperationException("Jwt:Key must be set and at least 32 characters.");
+        if (string.IsNullOrWhiteSpace(jwtSection["Issuer"]))
+            throw new InvalidOperationException("Jwt:Issuer must be set.");
+        if (string.IsNullOrWhiteSpace(jwtSection["Audience"]))
+            throw new InvalidOperationException("Jwt:Audience must be set.");
+        if (!int.TryParse(jwtSection["ExpiresInMinutes"], out var expiresMinutes) || expiresMinutes < 1)
+            throw new InvalidOperationException("Jwt:ExpiresInMinutes must be a positive integer.");
+        var key = Encoding.UTF8.GetBytes(jwtKey);
 
         builder.Services.AddAuthentication(options =>
         {

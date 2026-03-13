@@ -22,6 +22,11 @@ public class AuthController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
             return BadRequest("Username, email, and password are required.");
+        if (dto.Password.Length < 6)
+            return BadRequest("Password must be at least 6 characters.");
+        var atIndex = dto.Email.Trim().IndexOf('@');
+        if (atIndex <= 0 || atIndex == dto.Email.Trim().Length - 1)
+            return BadRequest("Email must be a valid email address.");
         var result = await _authService.RegisterAsync(dto);
         if (result == null)
             return BadRequest("Username or email already in use.");
@@ -32,7 +37,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.Password))
-            return BadRequest("Username or email and password are required.");
+            return BadRequest("Username or email, and password, are required.");
         var result = await _authService.LoginAsync(dto);
         if (result == null)
             return Unauthorized("Invalid credentials or account is inactive.");

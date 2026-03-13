@@ -65,7 +65,7 @@ public class AuthControllerTests
         mock.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>())).ReturnsAsync((AuthResponseDto?)null);
         var controller = CreateController(mock);
 
-        var dto = new RegisterDto { Username = "admin", Email = "other@example.com", Password = "pass" };
+        var dto = new RegisterDto { Username = "admin", Email = "other@example.com", Password = "pass12" };
         var result = await controller.Register(dto);
 
         result.Should().BeOfType<BadRequestObjectResult>();
@@ -79,9 +79,27 @@ public class AuthControllerTests
         mock.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>())).ReturnsAsync((AuthResponseDto?)null);
         var controller = CreateController(mock);
 
-        var dto = new RegisterDto { Username = "newuser", Email = "admin@plzbuy.me", Password = "pass" };
+        var dto = new RegisterDto { Username = "newuser", Email = "admin@plzbuy.me", Password = "pass12" };
         var result = await controller.Register(dto);
 
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task Register_WhenPasswordTooShort_ReturnsBadRequest()
+    {
+        var controller = CreateController(new Mock<IAuthService>());
+        var dto = new RegisterDto { Username = "u", Email = "u@example.com", Password = "12345" };
+        var result = await controller.Register(dto);
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task Register_WhenEmailInvalid_ReturnsBadRequest()
+    {
+        var controller = CreateController(new Mock<IAuthService>());
+        var dto = new RegisterDto { Username = "user", Email = "notanemail", Password = "password" };
+        var result = await controller.Register(dto);
         result.Should().BeOfType<BadRequestObjectResult>();
     }
 
