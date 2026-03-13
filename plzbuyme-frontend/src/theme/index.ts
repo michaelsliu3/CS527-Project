@@ -17,6 +17,10 @@ const config = defineConfig({
           900: { value: '#01101c' },
         },
       },
+      fonts: {
+        body: { value: '"Inter", system-ui, sans-serif' },
+        heading: { value: '"Inter", system-ui, sans-serif' },
+      },
     },
   },
 })
