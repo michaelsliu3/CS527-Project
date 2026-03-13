@@ -11,6 +11,12 @@ import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { HiOutlineBell, HiOutlineUserCircle } from 'react-icons/hi'
 
+const darkBg = '#09090b'
+const navBg = '#0f0f11'
+const navBorder = '#27272a'
+const linkColor = '#d4d4d8'
+const linkHover = '#ffffff'
+
 export function Layout() {
   const { user, loading, logout } = useAuth()
   const navigate = useNavigate()
@@ -22,64 +28,64 @@ export function Layout() {
 
   if (loading) {
     return (
-      <Flex minH="100vh" align="center" justify="center">
-        <Spinner size="xl" />
+      <Flex minH="100vh" align="center" justify="center" bg={darkBg}>
+        <Spinner size="xl" color="brand.400" />
       </Flex>
     )
   }
 
   return (
-    <Box minH="100vh">
-      <Box as="nav" borderBottomWidth="1px" py={3} bg="white" _dark={{ bg: 'gray.800' }}>
+    <Box minH="100vh" bg={darkBg} color="white">
+      <Box as="nav" borderBottomWidth="1px" borderColor={navBorder} py={3} bg={navBg}>
         <Container maxW="container.xl">
           <Flex align="center" justify="space-between" gap={4}>
             <RouterLink to="/">
-              <Heading size="md" color="brand.500">
+              <Heading size="md" color="brand.400">
                 plzbuy.me
               </Heading>
             </RouterLink>
-            <Flex align="center" gap={2}>
-              <RouterLink to="/auctions" style={{ fontWeight: 500 }}>
+            <Flex align="center" gap={4}>
+              <RouterLink to="/auctions" style={{ fontWeight: 500, color: linkColor }}>
                 Auctions
               </RouterLink>
               {user ? (
                 <>
                   {user.role === 'end_user' && (
                     <>
-                      <RouterLink to="/my-auctions" style={{ fontWeight: 500 }}>
+                      <RouterLink to="/my-auctions" style={{ fontWeight: 500, color: linkColor }}>
                         My Auctions
                       </RouterLink>
-                      <RouterLink to="/alerts" style={{ fontWeight: 500 }}>
+                      <RouterLink to="/alerts" style={{ fontWeight: 500, color: linkColor }}>
                         Alerts
                       </RouterLink>
                     </>
                   )}
-                  <RouterLink to="/notifications" aria-label="Notifications" style={{ padding: 8, display: 'inline-flex' }}>
+                  <RouterLink to="/notifications" aria-label="Notifications" style={{ padding: 8, display: 'inline-flex', color: linkColor }}>
                     <HiOutlineBell size={20} />
                   </RouterLink>
                   <Menu.Root>
                     <Menu.Trigger>
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" color={linkColor} _hover={{ color: linkHover, bg: 'whiteAlpha.100' }}>
                         <HiOutlineUserCircle size={18} style={{ marginRight: 6 }} />
                         {user.username}
                       </Button>
                     </Menu.Trigger>
                     <Menu.Positioner>
-                      <Menu.Content>
-                        <Menu.Item value="profile" onClick={() => navigate('/profile')}>
+                      <Menu.Content bg="#18181b" borderColor={navBorder}>
+                        <Menu.Item value="profile" onClick={() => navigate('/profile')} color={linkColor} _hover={{ bg: 'whiteAlpha.100', color: linkHover }}>
                           Profile
                         </Menu.Item>
                         {(user.role === 'customer_rep' || user.role === 'admin') && (
-                          <Menu.Item value="rep" onClick={() => navigate('/rep')}>
+                          <Menu.Item value="rep" onClick={() => navigate('/rep')} color={linkColor} _hover={{ bg: 'whiteAlpha.100', color: linkHover }}>
                             Rep Dashboard
                           </Menu.Item>
                         )}
                         {user.role === 'admin' && (
-                          <Menu.Item value="admin" onClick={() => navigate('/admin')}>
+                          <Menu.Item value="admin" onClick={() => navigate('/admin')} color={linkColor} _hover={{ bg: 'whiteAlpha.100', color: linkHover }}>
                             Admin
                           </Menu.Item>
                         )}
-                        <Menu.Item value="logout" onClick={handleLogout}>
+                        <Menu.Item value="logout" onClick={handleLogout} color={linkColor} _hover={{ bg: 'whiteAlpha.100', color: linkHover }}>
                           Logout
                         </Menu.Item>
                       </Menu.Content>
@@ -88,10 +94,10 @@ export function Layout() {
                 </>
               ) : (
                 <>
-                  <Button variant="outline" size="sm" onClick={() => navigate('/login')}>
+                  <Button variant="outline" size="sm" color={linkColor} borderColor={navBorder} _hover={{ bg: 'whiteAlpha.100', color: linkHover }} onClick={() => navigate('/login')}>
                     Login
                   </Button>
-                  <Button colorPalette="brand" size="sm" onClick={() => navigate('/register')}>
+                  <Button bg="brand.500" color="white" _hover={{ bg: 'brand.400' }} size="sm" onClick={() => navigate('/register')}>
                     Register
                   </Button>
                 </>

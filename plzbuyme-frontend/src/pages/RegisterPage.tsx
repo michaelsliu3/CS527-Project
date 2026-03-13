@@ -48,11 +48,11 @@ function getRegisterErrorMessage(err: unknown): string {
   return 'Registration failed. Please try again.'
 }
 
-const darkBg = '#0c0c0e'
-const borderColor = '#2a2a2e'
-const labelColor = '#a1a1aa'
-const mutedColor = '#71717a'
-const inputBg = '#1a1a1e'
+const darkBg = '#09090b'
+const inputBg = '#18181b'
+const borderColor = '#52525b'
+const labelColor = '#e4e4e7'
+const mutedColor = '#d4d4d8'
 
 export function RegisterPage() {
   const { register: registerUser } = useAuth()
@@ -99,9 +99,9 @@ export function RegisterPage() {
     bg: inputBg,
     borderColor,
     color: 'white',
-    _hover: { borderColor: '#3a3a3e' },
+    _hover: { borderColor: '#71717a' },
     _focus: { borderColor: 'brand.400', boxShadow: '0 0 0 1px var(--chakra-colors-brand-400)' },
-    _placeholder: { color: '#52525b' },
+    _placeholder: { color: '#a1a1aa' },
     css: { '&:-webkit-autofill': { WebkitTextFillColor: 'white', WebkitBoxShadow: `0 0 0 1000px ${inputBg} inset` } },
   }
 
@@ -158,7 +158,6 @@ export function RegisterPage() {
                   </Field.Label>
                   <Input
                     type="text"
-                    autoComplete="username"
                     disabled={submitting || !!successUsername}
                     {...inputStyles}
                     {...register('username', { required: 'Username is required' })}
@@ -174,7 +173,6 @@ export function RegisterPage() {
                   </Field.Label>
                   <Input
                     type="email"
-                    autoComplete="email"
                     disabled={submitting || !!successUsername}
                     {...inputStyles}
                     {...register('email', {
@@ -195,7 +193,6 @@ export function RegisterPage() {
                   <Box position="relative" w="full">
                     <Input
                       type={showPassword ? 'text' : 'password'}
-                      autoComplete="new-password"
                       pr="3rem"
                       disabled={submitting || !!successUsername}
                       {...inputStyles}
@@ -235,7 +232,6 @@ export function RegisterPage() {
                   <Box position="relative" w="full">
                     <Input
                       type={showConfirm ? 'text' : 'password'}
-                      autoComplete="new-password"
                       pr="3rem"
                       disabled={submitting || !!successUsername}
                       {...inputStyles}

@@ -6,13 +6,13 @@ export function HomePage() {
   return (
     <Container maxW="container.md">
       <Box textAlign="center" py={12}>
-        <Heading size="xl" mb={4}>
+        <Heading size="xl" mb={4} color="white">
           Welcome to plzbuy.me
         </Heading>
-        <Text fontSize="lg" color="gray.600" _dark={{ color: 'gray.400' }} mb={8}>
+        <Text fontSize="lg" color="#d4d4d8" mb={8}>
           Buy and sell through timed auctions. Browse active listings and place your bids.
         </Text>
-        <Button colorPalette="brand" size="lg" onClick={() => navigate('/auctions')}>
+        <Button bg="brand.500" color="white" _hover={{ bg: 'brand.400' }} size="lg" onClick={() => navigate('/auctions')}>
           Browse Auctions
         </Button>
       </Box>

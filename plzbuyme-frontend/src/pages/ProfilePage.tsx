@@ -88,21 +88,26 @@ export function ProfilePage() {
   const displayProfile = profile ?? (user ? { id: user.id, username: user.username, email: user.email, role: user.role } : null)
   if (!displayProfile) return null
 
+  const cardBg = '#18181b'
+  const borderClr = '#27272a'
+  const labelClr = '#e4e4e7'
+  const inputBg = '#09090b'
+
   return (
     <Container maxW="md">
-      <Card.Root p={6}>
+      <Card.Root p={6} bg={cardBg} borderColor={borderClr} borderWidth="1px">
         <Card.Header>
-          <Card.Title>Profile</Card.Title>
+          <Card.Title color="white">Profile</Card.Title>
         </Card.Header>
         <Card.Body>
           <Box as="form" display="flex" flexDirection="column" gap={4}>
             <Field.Root>
-              <Field.Label>Username</Field.Label>
-              <Input value={displayProfile.username} readOnly disabled />
+              <Field.Label color={labelClr}>Username</Field.Label>
+              <Input value={displayProfile.username} readOnly disabled bg={inputBg} borderColor={borderClr} color="white" />
             </Field.Root>
             <Field.Root>
-              <Field.Label>Email</Field.Label>
-              <Input type="email" value={displayProfile.email} readOnly disabled />
+              <Field.Label color={labelClr}>Email</Field.Label>
+              <Input type="email" value={displayProfile.email} readOnly disabled bg={inputBg} borderColor={borderClr} color="white" />
             </Field.Root>
             <Box pt={2}>
               <Button
@@ -121,13 +126,13 @@ export function ProfilePage() {
       <Dialog.Root open={deleteDialog.open} onOpenChange={({ open: isOpen }) => { if (!isOpen) deleteDialog.onClose() }}>
         <Dialog.Backdrop />
         <Dialog.Positioner>
-          <Dialog.Content>
-            <Dialog.Header>Delete account?</Dialog.Header>
-            <Dialog.Body>
+          <Dialog.Content bg={cardBg} borderColor={borderClr} borderWidth="1px">
+            <Dialog.Header color="white">Delete account?</Dialog.Header>
+            <Dialog.Body color="#d4d4d8">
               This will soft-delete your account. You will be logged out and cannot sign in again with this account.
             </Dialog.Body>
             <Dialog.Footer>
-              <Button variant="outline" onClick={deleteDialog.onClose}>
+              <Button variant="outline" color="#d4d4d8" borderColor={borderClr} _hover={{ bg: 'whiteAlpha.100' }} onClick={deleteDialog.onClose}>
                 Cancel
               </Button>
               <Button colorPalette="red" onClick={handleDeleteAccount} loading={deleting as boolean}>

@@ -46,11 +46,11 @@ function getLoginErrorMessage(err: unknown): string {
   return 'Login failed. Please try again.'
 }
 
-const darkBg = '#0c0c0e'
-const borderColor = '#2a2a2e'
-const labelColor = '#a1a1aa'
-const mutedColor = '#71717a'
-const inputBg = '#1a1a1e'
+const darkBg = '#09090b'
+const inputBg = '#18181b'
+const borderColor = '#52525b'
+const labelColor = '#e4e4e7'
+const mutedColor = '#d4d4d8'
 
 export function LoginPage() {
   const { login } = useAuth()
@@ -86,9 +86,9 @@ export function LoginPage() {
     bg: inputBg,
     borderColor,
     color: 'white',
-    _hover: { borderColor: '#3a3a3e' },
+    _hover: { borderColor: '#71717a' },
     _focus: { borderColor: 'brand.400', boxShadow: '0 0 0 1px var(--chakra-colors-brand-400)' },
-    _placeholder: { color: '#52525b' },
+    _placeholder: { color: '#a1a1aa' },
     css: { '&:-webkit-autofill': { WebkitTextFillColor: 'white', WebkitBoxShadow: `0 0 0 1000px ${inputBg} inset` } },
   }
 
@@ -145,7 +145,6 @@ export function LoginPage() {
                   </Field.Label>
                   <Input
                     type="text"
-                    autoComplete="username"
                     disabled={submitting || !!successUsername}
                     {...inputStyles}
                     {...register('username', { required: 'Email or username is required' })}
@@ -162,7 +161,6 @@ export function LoginPage() {
                   <Box position="relative" w="full">
                     <Input
                       type={showPassword ? 'text' : 'password'}
-                      autoComplete="current-password"
                       pr="3rem"
                       disabled={submitting || !!successUsername}
                       {...inputStyles}
