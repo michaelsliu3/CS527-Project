@@ -13,10 +13,10 @@ function Placeholder({ name }: { name: string }) {
 function App() {
   return (
     <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route element={<Layout />}>
         <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
         <Route path="/auctions" element={<Placeholder name="AuctionListPage" />} />
         <Route path="/auctions/create" element={<Placeholder name="CreateAuctionPage" />} />
         <Route path="/auctions/:id" element={<Placeholder name="AuctionDetailPage" />} />
