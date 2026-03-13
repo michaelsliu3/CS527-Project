@@ -10,11 +10,9 @@ import {
 import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { HiOutlineBell, HiOutlineUserCircle } from 'react-icons/hi'
+import { dark } from '../theme/colors'
 
-const darkBg = '#09090b'
-const navBg = '#0f0f11'
-const navBorder = '#27272a'
-const linkColor = '#d4d4d8'
+const linkColor = dark.muted
 const linkHover = '#ffffff'
 
 export function Layout() {
@@ -28,15 +26,15 @@ export function Layout() {
 
   if (loading) {
     return (
-      <Flex minH="100vh" align="center" justify="center" bg={darkBg}>
+      <Flex minH="100vh" align="center" justify="center" bg={dark.bg}>
         <Spinner size="xl" color="brand.400" />
       </Flex>
     )
   }
 
   return (
-    <Box minH="100vh" bg={darkBg} color="white">
-      <Box as="nav" borderBottomWidth="1px" borderColor={navBorder} py={3} bg={navBg}>
+    <Box minH="100vh" bg={dark.bg} color="white">
+      <Box as="nav" borderBottomWidth="1px" borderColor={dark.borderSubtle} py={3} bg={dark.navBg}>
         <Container maxW="container.xl">
           <Flex align="center" justify="space-between" gap={4}>
             <RouterLink to="/">
@@ -71,7 +69,7 @@ export function Layout() {
                       </Button>
                     </Menu.Trigger>
                     <Menu.Positioner>
-                      <Menu.Content bg="#18181b" borderColor={navBorder}>
+                      <Menu.Content bg={dark.cardBg} borderColor={dark.borderSubtle}>
                         <Menu.Item value="profile" onClick={() => navigate('/profile')} color={linkColor} _hover={{ bg: 'whiteAlpha.100', color: linkHover }}>
                           Profile
                         </Menu.Item>
@@ -94,7 +92,7 @@ export function Layout() {
                 </>
               ) : (
                 <>
-                  <Button variant="outline" size="sm" color={linkColor} borderColor={navBorder} _hover={{ bg: 'whiteAlpha.100', color: linkHover }} onClick={() => navigate('/login')}>
+                  <Button variant="outline" size="sm" color={linkColor} borderColor={dark.borderSubtle} _hover={{ bg: 'whiteAlpha.100', color: linkHover }} onClick={() => navigate('/login')}>
                     Login
                   </Button>
                   <Button bg="brand.500" color="white" _hover={{ bg: 'brand.400' }} size="sm" onClick={() => navigate('/register')}>

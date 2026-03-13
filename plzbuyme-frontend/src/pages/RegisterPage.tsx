@@ -18,6 +18,7 @@ import { useNavigate, Link as RouterLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { isAxiosError } from 'axios'
 import { HiEye, HiEyeOff } from 'react-icons/hi'
+import { dark } from '../theme/colors'
 
 interface RegisterForm {
   username: string
@@ -47,12 +48,6 @@ function getRegisterErrorMessage(err: unknown): string {
   }
   return 'Registration failed. Please try again.'
 }
-
-const darkBg = '#09090b'
-const inputBg = '#18181b'
-const borderColor = '#52525b'
-const labelColor = '#e4e4e7'
-const mutedColor = '#d4d4d8'
 
 export function RegisterPage() {
   const { register: registerUser } = useAuth()
@@ -96,17 +91,17 @@ export function RegisterPage() {
 
   const inputStyles = {
     size: 'lg' as const,
-    bg: inputBg,
-    borderColor,
+    bg: dark.inputBg,
+    borderColor: dark.border,
     color: 'white',
-    _hover: { borderColor: '#71717a' },
+    _hover: { borderColor: dark.hoverBorder },
     _focus: { borderColor: 'brand.400', boxShadow: '0 0 0 1px var(--chakra-colors-brand-400)' },
-    _placeholder: { color: '#a1a1aa' },
-    css: { '&:-webkit-autofill': { WebkitTextFillColor: 'white', WebkitBoxShadow: `0 0 0 1000px ${inputBg} inset` } },
+    _placeholder: { color: dark.placeholder },
+    css: { '&:-webkit-autofill': { WebkitTextFillColor: 'white', WebkitBoxShadow: `0 0 0 1000px ${dark.inputBg} inset` } },
   }
 
   return (
-    <Flex className="dark" minH="100vh" align="center" justify="center" bg={darkBg} px={4} py={10}>
+    <Flex className="dark" minH="100vh" align="center" justify="center" bg={dark.bg} px={4} py={10}>
       <Container maxW="md" p={0}>
         <Stack gap={8} align="center">
           <Heading size="lg" fontWeight="bold" color="brand.400">
@@ -117,11 +112,11 @@ export function RegisterPage() {
             <Heading size="2xl" fontWeight="bold" color="white">
               Create your account
             </Heading>
-            <Text color={mutedColor} fontSize="md">
+            <Text color={dark.muted} fontSize="md">
               Get started with plzbuy.me
             </Text>
             {submitting && (
-              <Text fontSize="sm" color={mutedColor} mt={1} display="flex" alignItems="center" justifyContent="center" gap={2}>
+              <Text fontSize="sm" color={dark.muted} mt={1} display="flex" alignItems="center" justifyContent="center" gap={2}>
                 <Spinner size="sm" color="brand.400" /> Creating your account…
               </Text>
             )}
@@ -153,7 +148,7 @@ export function RegisterPage() {
             <form onSubmit={handleSubmit(onSubmit)}>
               <Stack gap={5}>
                 <Field.Root invalid={!!errors.username}>
-                  <Field.Label color={labelColor} fontWeight="medium" fontSize="sm">
+                  <Field.Label color={dark.label} fontWeight="medium" fontSize="sm">
                     Username
                   </Field.Label>
                   <Input
@@ -168,7 +163,7 @@ export function RegisterPage() {
                 </Field.Root>
 
                 <Field.Root invalid={!!errors.email}>
-                  <Field.Label color={labelColor} fontWeight="medium" fontSize="sm">
+                  <Field.Label color={dark.label} fontWeight="medium" fontSize="sm">
                     Email
                   </Field.Label>
                   <Input
@@ -187,7 +182,7 @@ export function RegisterPage() {
                 </Field.Root>
 
                 <Field.Root invalid={!!errors.password}>
-                  <Field.Label color={labelColor} fontWeight="medium" fontSize="sm">
+                  <Field.Label color={dark.label} fontWeight="medium" fontSize="sm">
                     Password
                   </Field.Label>
                   <Box position="relative" w="full">
@@ -213,7 +208,7 @@ export function RegisterPage() {
                       top="50%"
                       transform="translateY(-50%)"
                       zIndex={2}
-                      color={mutedColor}
+                      color={dark.muted}
                       _hover={{ color: 'white', bg: 'transparent' }}
                       onClick={() => setShowPassword((v) => !v)}
                     >
@@ -226,7 +221,7 @@ export function RegisterPage() {
                 </Field.Root>
 
                 <Field.Root invalid={!!errors.confirmPassword}>
-                  <Field.Label color={labelColor} fontWeight="medium" fontSize="sm">
+                  <Field.Label color={dark.label} fontWeight="medium" fontSize="sm">
                     Confirm password
                   </Field.Label>
                   <Box position="relative" w="full">
@@ -249,7 +244,7 @@ export function RegisterPage() {
                       top="50%"
                       transform="translateY(-50%)"
                       zIndex={2}
-                      color={mutedColor}
+                      color={dark.muted}
                       _hover={{ color: 'white', bg: 'transparent' }}
                       onClick={() => setShowConfirm((v) => !v)}
                     >
@@ -279,7 +274,7 @@ export function RegisterPage() {
             </form>
           </Box>
 
-          <Text textAlign="center" fontSize="sm" color={mutedColor}>
+          <Text textAlign="center" fontSize="sm" color={dark.muted}>
             Already have an account?{' '}
             <RouterLink
               to="/login"

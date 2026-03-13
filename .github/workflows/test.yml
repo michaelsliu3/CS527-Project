@@ -34,7 +34,6 @@ jobs:
   frontend-tests:
     name: Frontend Tests
     runs-on: ubuntu-latest
-    if: hashFiles('plzbuyme-frontend/package.json') != ''
     defaults:
       run:
         working-directory: plzbuyme-frontend

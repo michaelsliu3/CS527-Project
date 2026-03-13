@@ -13,6 +13,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { apiClient } from '../api/client'
+import { dark } from '../theme/colors'
 
 interface Profile {
   id: number
@@ -76,8 +77,8 @@ export function ProfilePage() {
     if (loadError) {
       return (
         <Container maxW="md">
-          <Card.Root p={6}>
-            <Card.Body>Failed to load profile.</Card.Body>
+          <Card.Root p={6} bg={dark.cardBg} borderColor={dark.borderSubtle} borderWidth="1px">
+            <Card.Body color={dark.muted}>Failed to load profile.</Card.Body>
           </Card.Root>
         </Container>
       )
@@ -88,26 +89,21 @@ export function ProfilePage() {
   const displayProfile = profile ?? (user ? { id: user.id, username: user.username, email: user.email, role: user.role } : null)
   if (!displayProfile) return null
 
-  const cardBg = '#18181b'
-  const borderClr = '#27272a'
-  const labelClr = '#e4e4e7'
-  const inputBg = '#09090b'
-
   return (
     <Container maxW="md">
-      <Card.Root p={6} bg={cardBg} borderColor={borderClr} borderWidth="1px">
+      <Card.Root p={6} bg={dark.cardBg} borderColor={dark.borderSubtle} borderWidth="1px">
         <Card.Header>
           <Card.Title color="white">Profile</Card.Title>
         </Card.Header>
         <Card.Body>
           <Box as="form" display="flex" flexDirection="column" gap={4}>
             <Field.Root>
-              <Field.Label color={labelClr}>Username</Field.Label>
-              <Input value={displayProfile.username} readOnly disabled bg={inputBg} borderColor={borderClr} color="white" />
+              <Field.Label color={dark.label}>Username</Field.Label>
+              <Input value={displayProfile.username} readOnly disabled bg={dark.bg} borderColor={dark.borderSubtle} color="white" />
             </Field.Root>
             <Field.Root>
-              <Field.Label color={labelClr}>Email</Field.Label>
-              <Input type="email" value={displayProfile.email} readOnly disabled bg={inputBg} borderColor={borderClr} color="white" />
+              <Field.Label color={dark.label}>Email</Field.Label>
+              <Input type="email" value={displayProfile.email} readOnly disabled bg={dark.bg} borderColor={dark.borderSubtle} color="white" />
             </Field.Root>
             <Box pt={2}>
               <Button
@@ -126,13 +122,13 @@ export function ProfilePage() {
       <Dialog.Root open={deleteDialog.open} onOpenChange={({ open: isOpen }) => { if (!isOpen) deleteDialog.onClose() }}>
         <Dialog.Backdrop />
         <Dialog.Positioner>
-          <Dialog.Content bg={cardBg} borderColor={borderClr} borderWidth="1px">
+          <Dialog.Content bg={dark.cardBg} borderColor={dark.borderSubtle} borderWidth="1px">
             <Dialog.Header color="white">Delete account?</Dialog.Header>
-            <Dialog.Body color="#d4d4d8">
+            <Dialog.Body color={dark.muted}>
               This will soft-delete your account. You will be logged out and cannot sign in again with this account.
             </Dialog.Body>
             <Dialog.Footer>
-              <Button variant="outline" color="#d4d4d8" borderColor={borderClr} _hover={{ bg: 'whiteAlpha.100' }} onClick={deleteDialog.onClose}>
+              <Button variant="outline" color={dark.muted} borderColor={dark.borderSubtle} _hover={{ bg: 'whiteAlpha.100' }} onClick={deleteDialog.onClose}>
                 Cancel
               </Button>
               <Button colorPalette="red" onClick={handleDeleteAccount} loading={deleting as boolean}>

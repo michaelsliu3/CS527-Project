@@ -43,9 +43,9 @@ describe('LoginPage', () => {
       },
     })
     renderLoginPage()
-    await user.type(screen.getByLabelText(/Username or email/i), 'testuser')
+    await user.type(screen.getByLabelText(/Email or username/i), 'testuser')
     await user.type(screen.getByLabelText(/Password/i), 'password123')
-    await user.click(screen.getByRole('button', { name: /Log in/i }))
+    await user.click(screen.getByRole('button', { name: /Sign in/i }))
     await waitFor(() => {
       expect(client.apiClient.post).toHaveBeenCalledWith('auth/login', {
         username: 'testuser',

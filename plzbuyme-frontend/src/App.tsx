@@ -7,7 +7,7 @@ import { RegisterPage } from './pages/RegisterPage'
 import { ProfilePage } from './pages/ProfilePage'
 
 function Placeholder({ name }: { name: string }) {
-  return <div>{name} (placeholder)</div>
+  return <div style={{ color: '#d4d4d8', padding: '2rem', textAlign: 'center' }}>{name} (placeholder)</div>
 }
 
 function App() {
