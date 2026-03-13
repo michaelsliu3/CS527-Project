@@ -28,6 +28,24 @@ public class Program
 
             var app = builder.Build();
 
+            // Run migration and seed only when database is reachable (skipped when e.g. dotnet ef migrations add runs with no MySQL).
+            using (var scope = app.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                try
+                {
+                    if (db.Database.CanConnect())
+                    {
+                        db.Database.Migrate();
+                        SeedData.Initialize(db);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Migration or seed skipped (e.g. no DB or design-time).");
+                }
+            }
+
             ConfigurePipeline(app);
 
             app.Run();
@@ -48,8 +66,10 @@ public class Program
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Missing DefaultConnection");
 
+        // Use fixed server version so design-time (e.g. dotnet ef migrations add) does not require a live MySQL connection.
+        var serverVersion = new MySqlServerVersion(new Version(8, 0));
         builder.Services.AddDbContext<AppDbContext>(options =>
-            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
+            options.UseMySql(connectionString, serverVersion));
 
         // ── JWT Authentication ──────────────────────────────────────
         var jwtSection = builder.Configuration.GetSection("Jwt");
