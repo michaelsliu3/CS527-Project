@@ -59,7 +59,7 @@ public class NotificationsControllerTests
         var unreadCount = (int)type.GetProperty("unreadCount")!.GetValue(ok.Value)!;
         var items = (System.Collections.IEnumerable)type.GetProperty("items")!.GetValue(ok.Value)!;
         unreadCount.Should().Be(1);
-        items.Cast<object>().Should().HaveCount(1, "only unread notifications are returned");
+        items.Cast<object>().Should().HaveCount(2, "all notifications returned (unread first), unreadCount is 1");
     }
 
     [Fact]

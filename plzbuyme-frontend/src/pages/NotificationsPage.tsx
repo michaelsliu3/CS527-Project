@@ -15,6 +15,7 @@ import { dark } from '../theme/colors'
 const NOTIFICATION_ICONS: Record<string, React.ElementType> = {
   outbid: HiOutlineExclamation,
   auto_limit_reached: HiOutlineLightningBolt,
+  auto_bid_placed: HiOutlineLightningBolt,
   auction_won: HiOutlineTrophy,
   alert_match: HiOutlineTag,
   reserve_not_met: HiOutlineExclamation,
@@ -26,10 +27,14 @@ function NotificationIcon({ type }: { type: string }) {
 }
 
 function formatTime(createdAt: string) {
-  const d = new Date(createdAt)
+  const iso = createdAt.endsWith('Z') || /[-+]\d{2}:?\d{2}$/.test(createdAt)
+    ? createdAt
+    : createdAt + 'Z'
+  const d = new Date(iso)
   const now = new Date()
   const diffMs = now.getTime() - d.getTime()
   const diffMins = Math.floor(diffMs / 60000)
+  if (diffMins < 0) return d.toLocaleDateString()
   if (diffMins < 1) return 'Just now'
   if (diffMins < 60) return `${diffMins}m ago`
   const diffHours = Math.floor(diffMins / 60)
@@ -62,22 +67,30 @@ export function NotificationsPage() {
     fetchNotifications()
   }, [])
 
-  const handleMarkRead = async (n: NotificationItem) => {
+  const handleViewAuction = async (n: NotificationItem) => {
+    if (n.isRead) {
+      navigate(`/auctions/${n.itemId!}`)
+      return
+    }
     try {
       await markNotificationRead(n.id)
-      setItems((prev) => prev.filter((item) => item.id !== n.id))
+      setItems((prev) =>
+        prev.map((item) => (item.id === n.id ? { ...item, isRead: true } : item))
+      )
       window.dispatchEvent(new CustomEvent('notifications-updated'))
+      navigate(`/auctions/${n.itemId!}`)
     } catch {
       showErrorToast('Error', 'Failed to mark as read.')
     }
   }
 
   const handleMarkAllRead = async () => {
-    if (items.length === 0) return
+    const unread = items.filter((i) => !i.isRead)
+    if (unread.length === 0) return
     setMarkAllLoading(true)
     try {
       await markAllNotificationsRead()
-      setItems([])
+      setItems((prev) => prev.map((i) => ({ ...i, isRead: true })))
       window.dispatchEvent(new CustomEvent('notifications-updated'))
     } catch {
       showErrorToast('Error', 'Failed to mark all as read.')
@@ -86,13 +99,15 @@ export function NotificationsPage() {
     }
   }
 
+  const hasUnread = items.some((i) => !i.isRead)
+
   return (
     <Container maxW="container.md">
       <Flex justify="space-between" align="center" mb={6}>
         <Text fontSize="2xl" fontWeight="bold" color="white">
           Notifications
         </Text>
-        {items.length > 0 && (
+        {hasUnread && (
           <Button
             size="sm"
             colorScheme="brand"
@@ -124,17 +139,16 @@ export function NotificationsPage() {
           {items.map((n) => (
             <Box
               key={n.id}
-              as="button"
               textAlign="left"
               p={4}
               bg={dark.cardBg}
               borderRadius="md"
               borderWidth="1px"
               borderColor={dark.borderSubtle}
-              _hover={{ bg: dark.inputBg }}
-              onClick={() => handleMarkRead(n)}
-              fontWeight="semibold"
-              data-testid="notification-unread"
+              fontWeight={n.isRead ? 'normal' : 'semibold'}
+              opacity={n.isRead ? 0.65 : 1}
+              transition="opacity 0.2s"
+              data-testid={n.isRead ? 'notification-read' : 'notification-unread'}
             >
               <Flex gap={3} align="flex-start">
                 <Box mt={0.5}>
@@ -156,8 +170,7 @@ export function NotificationsPage() {
                         _hover={{ textDecoration: 'underline' }}
                         onClick={(e: React.MouseEvent) => {
                           e.stopPropagation()
-                          handleMarkRead(n)
-                          navigate(`/auctions/${n.itemId}`)
+                          handleViewAuction(n)
                         }}
                       >
                         View auction →

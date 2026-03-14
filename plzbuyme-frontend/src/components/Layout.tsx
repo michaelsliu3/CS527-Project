@@ -24,13 +24,14 @@ export function Layout() {
     listNotifications()
       .then((res) => {
         setUnreadCount(res.data.unreadCount)
-        const ids = new Set(res.data.items.map((n) => n.id))
+        const unreadItems = res.data.items.filter((n) => !n.isRead)
+        const unreadIds = new Set(unreadItems.map((n) => n.id))
         if (!hasInitialFetchRef.current) {
           hasInitialFetchRef.current = true
-          lastKnownUnreadIdsRef.current = ids
+          lastKnownUnreadIdsRef.current = unreadIds
         } else {
           const known = lastKnownUnreadIdsRef.current
-          for (const n of res.data.items) {
+          for (const n of unreadItems) {
             if (!known.has(n.id)) {
               const path =
                 n.itemId != null ? `/auctions/${n.itemId}` : '/notifications'
@@ -45,7 +46,7 @@ export function Layout() {
               })
             }
           }
-          lastKnownUnreadIdsRef.current = ids
+          lastKnownUnreadIdsRef.current = unreadIds
         }
       })
       .catch(() => setUnreadCount(0))

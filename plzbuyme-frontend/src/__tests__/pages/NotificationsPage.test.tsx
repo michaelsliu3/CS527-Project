@@ -14,6 +14,15 @@ vi.mock('../../api/notifications', () => ({
   markAllNotificationsRead: vi.fn(),
 }))
 
+const mockNavigate = vi.fn()
+vi.mock('react-router-dom', async (importOriginal) => {
+  const orig = await importOriginal<typeof import('react-router-dom')>()
+  return {
+    ...orig,
+    useNavigate: () => mockNavigate,
+  }
+})
+
 function renderNotificationsPage() {
   return render(
     <ChakraProvider value={system}>
@@ -62,7 +71,7 @@ describe('NotificationsPage', () => {
     expect(screen.queryByTestId('notification-read')).not.toBeInTheDocument()
   })
 
-  it('mark-read removes notification from list', async () => {
+  it('View auction marks as read and dims notification', async () => {
     const user = userEvent.setup()
     vi.mocked(notificationsApi.listNotifications).mockResolvedValue({
       data: {
@@ -70,9 +79,9 @@ describe('NotificationsPage', () => {
           {
             id: 1,
             userId: 1,
-            itemId: null,
-            message: 'Unread notification',
-            type: 'alert_match',
+            itemId: 42,
+            message: 'You were outbid',
+            type: 'outbid',
             isRead: false,
             createdAt: new Date().toISOString(),
           },
@@ -93,18 +102,17 @@ describe('NotificationsPage', () => {
     } as never)
     renderNotificationsPage()
     await waitFor(() => {
-      expect(screen.getByText('Unread notification')).toBeInTheDocument()
+      expect(screen.getByText('You were outbid')).toBeInTheDocument()
     })
-    const notificationButton = screen.getByText('Unread notification').closest('button')
-    expect(notificationButton).toBeInTheDocument()
-    await user.click(notificationButton!)
+    await user.click(screen.getByText('View auction →'))
     await waitFor(() => {
       expect(notificationsApi.markNotificationRead).toHaveBeenCalledWith(1)
-      expect(screen.queryByText('Unread notification')).not.toBeInTheDocument()
+      expect(screen.getByText('You were outbid')).toBeInTheDocument()
+      expect(screen.getByTestId('notification-read')).toBeInTheDocument()
     })
   })
 
-  it('mark all as read button clears list', async () => {
+  it('mark all as read dims all notifications', async () => {
     const user = userEvent.setup()
     vi.mocked(notificationsApi.listNotifications).mockResolvedValue({
       data: {
@@ -140,7 +148,8 @@ describe('NotificationsPage', () => {
     await user.click(screen.getByTestId('mark-all-read'))
     await waitFor(() => {
       expect(notificationsApi.markAllNotificationsRead).toHaveBeenCalled()
-      expect(screen.queryByText('First')).not.toBeInTheDocument()
+      expect(screen.getByText('First')).toBeInTheDocument()
+      expect(screen.getByTestId('notification-read')).toBeInTheDocument()
     })
   })
 })
