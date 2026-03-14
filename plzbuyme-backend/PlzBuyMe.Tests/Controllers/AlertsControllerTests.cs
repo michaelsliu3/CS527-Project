@@ -1,10 +1,10 @@
-using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using PlzBuyMe.Api.Controllers;
 using PlzBuyMe.Api.Dtos.Alerts;
 using PlzBuyMe.Api.Services;
+using PlzBuyMe.Tests.Helpers;
 using Xunit;
 
 namespace PlzBuyMe.Tests.Controllers;
@@ -18,16 +18,7 @@ public class AlertsControllerTests
 
     private static void SetEndUser(ControllerBase controller, int userId)
     {
-        var identity = new ClaimsIdentity("Test");
-        identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, userId.ToString()));
-        identity.AddClaim(new Claim(ClaimTypes.Role, "end_user"));
-        var principal = new ClaimsPrincipal(identity);
-        controller.ControllerContext = new ControllerContext
-        {
-            HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext { User = principal },
-            RouteData = new Microsoft.AspNetCore.Routing.RouteData(),
-            ActionDescriptor = new Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor()
-        };
+        ControllerTestHelpers.SetUser(controller, userId, "end_user");
     }
 
     [Fact]
@@ -44,7 +35,7 @@ public class AlertsControllerTests
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
-        mock.Setup(s => s.CreateAlertAsync(10, It.IsAny<CreateAlertDto>())).ReturnsAsync(response);
+        mock.Setup(s => s.CreateAlertAsync(10, It.IsAny<CreateAlertDto>())).ReturnsAsync(new CreateAlertResultDto { Alert = response });
         var controller = CreateController(mock.Object);
         SetEndUser(controller, 10);
 
@@ -57,6 +48,43 @@ public class AlertsControllerTests
         body.Keyword.Should().Be("Tesla");
         body.UserId.Should().Be(10);
         mock.Verify(s => s.CreateAlertAsync(10, It.Is<CreateAlertDto>(d => d.Keyword == "Tesla" && d.CategoryId == 5)), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateAlert_WhenServiceReturnsError_ReturnsBadRequest()
+    {
+        var mock = new Mock<IAlertService>();
+        mock.Setup(s => s.CreateAlertAsync(10, It.IsAny<CreateAlertDto>()))
+            .ReturnsAsync(new CreateAlertResultDto { ErrorMessage = "Invalid category." });
+        var controller = CreateController(mock.Object);
+        SetEndUser(controller, 10);
+
+        var dto = new CreateAlertDto { CategoryId = 999, Keyword = null, Criteria = null };
+        var result = await controller.Create(dto);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().Be("Invalid category.");
+    }
+
+    [Fact]
+    public async Task List_ReturnsOnlyCurrentUserAlerts()
+    {
+        var mock = new Mock<IAlertService>();
+        var alerts = new List<AlertResponseDto>
+        {
+            new() { Id = 1, UserId = 10, CategoryId = 5, Keyword = "Tesla", IsActive = true, CreatedAt = DateTime.UtcNow }
+        };
+        mock.Setup(s => s.GetAlertsForUserAsync(10)).ReturnsAsync(alerts);
+        var controller = CreateController(mock.Object);
+        SetEndUser(controller, 10);
+
+        var result = await controller.List();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var list = ok.Value.Should().BeAssignableTo<IReadOnlyList<AlertResponseDto>>().Subject;
+        list.Should().ContainSingle();
+        list[0].UserId.Should().Be(10);
+        mock.Verify(s => s.GetAlertsForUserAsync(10), Times.Once);
     }
 
     [Fact]

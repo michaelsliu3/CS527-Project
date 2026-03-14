@@ -119,6 +119,7 @@ public class Program
         // ── Services ─────────────────────────────────────────────────
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<IAlertService, AlertService>();
+        builder.Services.AddScoped<INotificationService, NotificationService>();
         builder.Services.AddScoped<IAuctionService, AuctionService>();
         builder.Services.AddHostedService<AuctionCloseService>();
 

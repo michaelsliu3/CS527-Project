@@ -1,10 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos.Notifications;
-using PlzBuyMe.Api.Models;
+using PlzBuyMe.Api.Services;
 
 namespace PlzBuyMe.Api.Controllers;
 
@@ -13,11 +11,11 @@ namespace PlzBuyMe.Api.Controllers;
 [Authorize]
 public class NotificationsController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly INotificationService _notificationService;
 
-    public NotificationsController(AppDbContext db)
+    public NotificationsController(INotificationService notificationService)
     {
-        _db = db;
+        _notificationService = notificationService;
     }
 
     [HttpGet]
@@ -26,25 +24,8 @@ public class NotificationsController : ControllerBase
         var userId = GetCurrentUserId();
         if (userId == null)
             return Forbid();
-
-        var notifications = await _db.Notifications
-            .Where(n => n.UserId == userId.Value)
-            .OrderByDescending(n => n.CreatedAt)
-            .ToListAsync();
-        var unreadCount = notifications.Count(n => !n.IsRead);
-
-        var items = notifications.Select(n => new NotificationDto
-        {
-            Id = n.Id,
-            UserId = n.UserId,
-            ItemId = n.ItemId,
-            Message = n.Message,
-            Type = ToSnakeCase(n.Type.ToString()),
-            IsRead = n.IsRead,
-            CreatedAt = n.CreatedAt
-        }).ToList();
-
-        return Ok(new { items, unreadCount });
+        var result = await _notificationService.GetNotificationsForUserAsync(userId.Value);
+        return Ok(new { items = result.Items, unreadCount = result.UnreadCount });
     }
 
     [HttpPatch("{id:int}/read")]
@@ -53,14 +34,9 @@ public class NotificationsController : ControllerBase
         var userId = GetCurrentUserId();
         if (userId == null)
             return Forbid();
-
-        var notification = await _db.Notifications
-            .FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId.Value);
-        if (notification == null)
+        var updated = await _notificationService.MarkAsReadAsync(id, userId.Value);
+        if (!updated)
             return NotFound();
-
-        notification.IsRead = true;
-        await _db.SaveChangesAsync();
         return NoContent();
     }
 
@@ -68,19 +44,5 @@ public class NotificationsController : ControllerBase
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(claim, out var id) ? id : null;
-    }
-
-    private static string ToSnakeCase(string value)
-    {
-        if (string.IsNullOrEmpty(value)) return value;
-        var result = new System.Text.StringBuilder();
-        for (int i = 0; i < value.Length; i++)
-        {
-            var c = value[i];
-            if (char.IsUpper(c) && i > 0)
-                result.Append('_');
-            result.Append(char.ToLowerInvariant(c));
-        }
-        return result.ToString();
     }
 }

@@ -7,6 +7,6 @@ public interface IAlertService
 {
     Task CheckAlertsForNewItemAsync(Item item);
     Task<IReadOnlyList<AlertResponseDto>> GetAlertsForUserAsync(int userId);
-    Task<AlertResponseDto?> CreateAlertAsync(int userId, CreateAlertDto dto);
+    Task<CreateAlertResultDto> CreateAlertAsync(int userId, CreateAlertDto dto);
     Task<bool> DeleteAlertAsync(int alertId, int userId);
 }

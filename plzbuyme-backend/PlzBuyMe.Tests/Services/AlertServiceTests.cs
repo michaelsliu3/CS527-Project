@@ -254,13 +254,26 @@ public class AlertServiceTests
         var (db, sedanId, _, _, _, userId) = CreateSeededContext();
         var service = new AlertService(db);
         var dto = new CreateAlertDto { CategoryId = sedanId, Keyword = "Toyota", Criteria = null };
-        var created = await service.CreateAlertAsync(userId, dto);
-        created.Should().NotBeNull();
-        created!.UserId.Should().Be(userId);
+        var result = await service.CreateAlertAsync(userId, dto);
+        result.ErrorMessage.Should().BeNull();
+        result.Alert.Should().NotBeNull();
+        var created = result.Alert!;
+        created.UserId.Should().Be(userId);
         created.CategoryId.Should().Be(sedanId);
         created.Keyword.Should().Be("Toyota");
         created.IsActive.Should().BeTrue();
         created.Id.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task CreateAlert_WithNoFilter_ReturnsError()
+    {
+        var (db, _, _, _, _, userId) = CreateSeededContext();
+        var service = new AlertService(db);
+        var dto = new CreateAlertDto { CategoryId = null, Keyword = null, Criteria = null };
+        var result = await service.CreateAlertAsync(userId, dto);
+        result.Alert.Should().BeNull();
+        result.ErrorMessage.Should().Contain("At least one filter");
     }
 
     [Fact]

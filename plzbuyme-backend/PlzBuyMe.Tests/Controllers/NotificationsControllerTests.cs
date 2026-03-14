@@ -1,10 +1,10 @@
-using System.Security.Claims;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PlzBuyMe.Api.Controllers;
 using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Models;
+using PlzBuyMe.Api.Services;
 using PlzBuyMe.Tests.Helpers;
 using Xunit;
 
@@ -14,20 +14,12 @@ public class NotificationsControllerTests
 {
     private static NotificationsController CreateController(AppDbContext db)
     {
-        return new NotificationsController(db);
+        return new NotificationsController(new NotificationService(db));
     }
 
     private static void SetUser(ControllerBase controller, int userId)
     {
-        var identity = new ClaimsIdentity("Test");
-        identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, userId.ToString()));
-        var principal = new ClaimsPrincipal(identity);
-        controller.ControllerContext = new ControllerContext
-        {
-            HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext { User = principal },
-            RouteData = new Microsoft.AspNetCore.Routing.RouteData(),
-            ActionDescriptor = new Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor()
-        };
+        ControllerTestHelpers.SetUser(controller, userId);
     }
 
     [Fact]

@@ -57,6 +57,7 @@ public class AlertService : IAlertService
     /// <summary>
     /// Checks if the item's field values satisfy the alert's criteria JSON.
     /// Criteria: object mapping fieldId (string key) to value (string), or { "min": n, "max": n }, or array of strings for multi-select.
+    /// Invalid or empty criteria JSON is treated as "no filter" (returns true) so alerts are not silently broken.
     /// </summary>
     internal static bool MatchesCriteria(Item item, string criteriaJson)
     {
@@ -70,7 +71,7 @@ public class AlertService : IAlertService
         }
         catch
         {
-            return true;
+            return true; // Invalid JSON treated as no filter
         }
 
         if (root.ValueKind != JsonValueKind.Object)
@@ -151,35 +152,48 @@ public class AlertService : IAlertService
         }).ToList();
     }
 
-    public async Task<AlertResponseDto?> CreateAlertAsync(int userId, CreateAlertDto dto)
+    public async Task<CreateAlertResultDto> CreateAlertAsync(int userId, CreateAlertDto dto)
     {
+        var hasFilter = dto.CategoryId.HasValue
+            || !string.IsNullOrWhiteSpace(dto.Keyword)
+            || !string.IsNullOrWhiteSpace(dto.Criteria);
+        if (!hasFilter)
+            return new CreateAlertResultDto { ErrorMessage = "At least one filter (category, keyword, or criteria) is required." };
+
         if (dto.CategoryId.HasValue)
         {
             var exists = await _db.Categories.AnyAsync(c => c.Id == dto.CategoryId.Value);
             if (!exists)
-                return null;
+                return new CreateAlertResultDto { ErrorMessage = "Invalid category." };
         }
+
+        var keyword = string.IsNullOrWhiteSpace(dto.Keyword) ? null : dto.Keyword.Trim();
+        if (keyword != null && keyword.Length > 128)
+            keyword = keyword[..128];
 
         var alert = new Alert
         {
             UserId = userId,
             CategoryId = dto.CategoryId,
-            Keyword = string.IsNullOrWhiteSpace(dto.Keyword) ? null : dto.Keyword.Trim(),
+            Keyword = keyword,
             Criteria = string.IsNullOrWhiteSpace(dto.Criteria) ? null : dto.Criteria.Trim(),
             IsActive = true
         };
         _db.Alerts.Add(alert);
         await _db.SaveChangesAsync();
 
-        return new AlertResponseDto
+        return new CreateAlertResultDto
         {
-            Id = alert.Id,
-            UserId = alert.UserId,
-            CategoryId = alert.CategoryId,
-            Keyword = alert.Keyword,
-            Criteria = alert.Criteria,
-            IsActive = alert.IsActive,
-            CreatedAt = alert.CreatedAt
+            Alert = new AlertResponseDto
+            {
+                Id = alert.Id,
+                UserId = alert.UserId,
+                CategoryId = alert.CategoryId,
+                Keyword = alert.Keyword,
+                Criteria = alert.Criteria,
+                IsActive = alert.IsActive,
+                CreatedAt = alert.CreatedAt
+            }
         };
     }
 

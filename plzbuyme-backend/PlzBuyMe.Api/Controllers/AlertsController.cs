@@ -34,10 +34,10 @@ public class AlertsController : ControllerBase
         var userId = GetCurrentUserId();
         if (userId == null)
             return Forbid();
-        var created = await _alertService.CreateAlertAsync(userId.Value, dto);
-        if (created == null)
-            return BadRequest("Invalid category.");
-        return Ok(created);
+        var result = await _alertService.CreateAlertAsync(userId.Value, dto);
+        if (result.ErrorMessage != null)
+            return BadRequest(result.ErrorMessage);
+        return Ok(result.Alert);
     }
 
     [HttpDelete("{id:int}")]
