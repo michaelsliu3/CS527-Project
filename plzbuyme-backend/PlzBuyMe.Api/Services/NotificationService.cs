@@ -15,13 +15,19 @@ public class NotificationService : INotificationService
         _db = db;
     }
 
+    private const int MaxNotificationsPerUser = 100;
+
     public async Task<NotificationListResponseDto> GetNotificationsForUserAsync(int userId)
     {
+        var unreadCount = await _db.Notifications
+            .CountAsync(n => n.UserId == userId && !n.IsRead);
+
         var notifications = await _db.Notifications
             .Where(n => n.UserId == userId)
             .OrderByDescending(n => n.CreatedAt)
+            .Take(MaxNotificationsPerUser)
             .ToListAsync();
-        var unreadCount = notifications.Count(n => !n.IsRead);
+
         var items = notifications.Select(n => new NotificationDto
         {
             Id = n.Id,
@@ -30,8 +36,9 @@ public class NotificationService : INotificationService
             Message = n.Message,
             Type = StringUtils.ToSnakeCase(n.Type.ToString()),
             IsRead = n.IsRead,
-            CreatedAt = n.CreatedAt
+            CreatedAt = DateTime.SpecifyKind(n.CreatedAt, DateTimeKind.Utc)
         }).ToList();
+
         return new NotificationListResponseDto { Items = items, UnreadCount = unreadCount };
     }
 
@@ -44,5 +51,15 @@ public class NotificationService : INotificationService
         notification.IsRead = true;
         await _db.SaveChangesAsync();
         return true;
+    }
+
+    public async Task MarkAllAsReadAsync(int userId)
+    {
+        var unread = await _db.Notifications
+            .Where(n => n.UserId == userId && !n.IsRead)
+            .ToListAsync();
+        foreach (var n in unread)
+            n.IsRead = true;
+        await _db.SaveChangesAsync();
     }
 }

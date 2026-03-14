@@ -1,16 +1,14 @@
-import {
-  Box,
-  Button,
-  Container,
-  Flex,
-  Heading,
-  Menu,
-  Spinner,
-} from '@chakra-ui/react'
+import { Box, Badge, Button, Container, Flex, Heading, Menu, Spinner } from '@chakra-ui/react'
 import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { listNotifications, markNotificationRead } from '../api/notifications'
+import { showErrorToast, showNotificationToast } from './ui/toaster'
 import { HiOutlineBell, HiOutlineUserCircle } from 'react-icons/hi'
 import { dark } from '../theme/colors'
+
+/** How often to poll for new notifications while the user is logged in (used for badge + real-time toasts). */
+const NOTIFICATION_POLL_INTERVAL_MS = 5_000
 
 const linkColor = dark.muted
 const linkHover = '#ffffff'
@@ -18,6 +16,65 @@ const linkHover = '#ffffff'
 export function Layout() {
   const { user, loading, logout } = useAuth()
   const navigate = useNavigate()
+  const [unreadCount, setUnreadCount] = useState(0)
+  const lastKnownUnreadIdsRef = useRef<Set<number>>(new Set())
+  const hasInitialFetchRef = useRef(false)
+
+  const fetchUnreadCount = () => {
+    if (!user) return
+    listNotifications()
+      .then((res) => {
+        setUnreadCount(res.data.unreadCount)
+        const unreadItems = res.data.items.filter((n) => !n.isRead)
+        const unreadIds = new Set(unreadItems.map((n) => n.id))
+        if (!hasInitialFetchRef.current) {
+          hasInitialFetchRef.current = true
+          lastKnownUnreadIdsRef.current = unreadIds
+        } else {
+          const known = lastKnownUnreadIdsRef.current
+          for (const n of unreadItems) {
+            if (!known.has(n.id)) {
+              const path =
+                n.itemId != null ? `/auctions/${n.itemId}` : '/notifications'
+              const notificationId = n.id
+              showNotificationToast('Notification', n.message, {
+                onClick: () => {
+                  markNotificationRead(notificationId)
+                    .then(() => window.dispatchEvent(new CustomEvent('notifications-updated')))
+                    .catch(() => showErrorToast('Error', 'Failed to mark as read.'))
+                  navigate(path)
+                },
+              })
+            }
+          }
+          lastKnownUnreadIdsRef.current = unreadIds
+        }
+      })
+      .catch(() => setUnreadCount(0))
+  }
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadCount(0)
+      hasInitialFetchRef.current = false
+      lastKnownUnreadIdsRef.current = new Set()
+      return
+    }
+    fetchUnreadCount()
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    const onUpdated = () => fetchUnreadCount()
+    window.addEventListener('notifications-updated', onUpdated)
+    return () => window.removeEventListener('notifications-updated', onUpdated)
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    const interval = setInterval(fetchUnreadCount, NOTIFICATION_POLL_INTERVAL_MS)
+    return () => clearInterval(interval)
+  }, [user])
 
   const handleLogout = () => {
     logout()
@@ -61,8 +118,13 @@ export function Layout() {
                       </RouterLink>
                     </>
                   )}
-                  <RouterLink to="/notifications" aria-label="Notifications" style={{ padding: 8, display: 'inline-flex', color: linkColor }}>
+                  <RouterLink to="/notifications" aria-label="Notifications" style={{ padding: 8, display: 'inline-flex', alignItems: 'center', color: linkColor, position: 'relative' }}>
                     <HiOutlineBell size={20} />
+                    {unreadCount > 0 && (
+                      <Badge colorScheme="red" variant="solid" position="absolute" top={4} right={4} minW={5} h={5} borderRadius="full" fontSize="xs" display="flex" alignItems="center" justifyContent="center">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </Badge>
+                    )}
                   </RouterLink>
                   <Menu.Root>
                     <Menu.Trigger>

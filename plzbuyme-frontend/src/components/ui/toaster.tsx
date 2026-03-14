@@ -59,3 +59,63 @@ export function showSuccessToast(title: string, description?: string) {
     duration: 3000,
   })
 }
+
+export const notificationToaster = createToaster({
+  placement: "top-end",
+  pauseOnPageIdle: true,
+})
+
+export const NotificationToaster = () => {
+  return (
+    <Portal>
+      <ChakraToaster toaster={notificationToaster} insetInline={{ mdDown: "4" }}>
+        {(toast) => {
+          const onClick = (toast as { onClick?: () => void }).onClick
+          const handleClick = () => {
+            onClick?.()
+            if (toast.id != null) notificationToaster.dismiss(toast.id)
+          }
+          return (
+            <Toast.Root
+              width={{ md: "sm" }}
+              cursor={onClick ? "pointer" : undefined}
+              onClick={onClick ? handleClick : undefined}
+            >
+              {toast.type === "loading" ? (
+                <Spinner size="sm" color="blue.solid" />
+              ) : (
+                <Toast.Indicator />
+              )}
+              <Stack gap="1" flex="1" maxWidth="100%">
+                {toast.title && <Toast.Title>{toast.title}</Toast.Title>}
+                {toast.description && (
+                  <Toast.Description>{toast.description}</Toast.Description>
+                )}
+              </Stack>
+              {toast.closable !== false && <Toast.CloseTrigger />}
+            </Toast.Root>
+          )
+        }}
+      </ChakraToaster>
+    </Portal>
+  )
+}
+
+export interface NotificationToastOptions {
+  onClick?: () => void
+}
+
+export function showNotificationToast(
+  title: string,
+  description?: string,
+  options?: NotificationToastOptions
+) {
+  notificationToaster.create({
+    title,
+    description: description ?? undefined,
+    type: "info",
+    duration: 5000,
+    closable: true,
+    ...options,
+  })
+}

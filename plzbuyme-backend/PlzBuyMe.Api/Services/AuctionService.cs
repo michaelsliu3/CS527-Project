@@ -146,6 +146,13 @@ public class AuctionService : IAuctionService
                     IsAuto = true
                 });
                 item.CurrentPrice = needed;
+                _db.Notifications.Add(new Notification
+                {
+                    UserId = ab.BidderId,
+                    ItemId = item.Id,
+                    Type = NotificationType.AutoBidPlaced,
+                    Message = $"Your auto-bid placed a bid of ${needed:N2} on \"{item.Title}\"."
+                });
                 var previousHigh = await _db.Bids
                     .Where(b => b.ItemId == item.Id && b.BidderId != ab.BidderId)
                     .OrderByDescending(b => b.Amount)

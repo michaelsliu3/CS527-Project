@@ -11,6 +11,9 @@ import { AuctionListPage } from './pages/AuctionListPage'
 import { AuctionDetailPage } from './pages/AuctionDetailPage'
 import { CreateAuctionPage } from './pages/CreateAuctionPage'
 import { MyAuctionsPage } from './pages/MyAuctionsPage'
+import { AlertsPage } from './pages/AlertsPage'
+import { NotificationsPage } from './pages/NotificationsPage'
+import { QuestionsPage } from './pages/QuestionsPage'
 
 function Placeholder({ name }: { name: string }) {
   return <div style={{ color: '#d4d4d8', padding: '2rem', textAlign: 'center' }}>{name} (placeholder)</div>
@@ -51,7 +54,7 @@ function App() {
           path="/alerts"
           element={
             <ProtectedRoute roles={['end_user']}>
-              <Placeholder name="AlertsPage" />
+              <AlertsPage />
             </ProtectedRoute>
           }
         />
@@ -59,7 +62,7 @@ function App() {
           path="/notifications"
           element={
             <ProtectedRoute>
-              <Placeholder name="NotificationsPage" />
+              <NotificationsPage />
             </ProtectedRoute>
           }
         />
@@ -67,7 +70,7 @@ function App() {
           path="/questions"
           element={
             <ProtectedRoute>
-              <Placeholder name="QuestionsPage" />
+              <QuestionsPage />
             </ProtectedRoute>
           }
         />
