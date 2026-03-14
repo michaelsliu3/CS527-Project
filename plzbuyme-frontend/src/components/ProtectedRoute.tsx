@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react'
+import { Flex, Spinner } from '@chakra-ui/react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
@@ -12,7 +13,11 @@ export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
   const location = useLocation()
 
   if (loading) {
-    return null
+    return (
+      <Flex minH="40vh" align="center" justify="center">
+        <Spinner size="xl" color="brand.400" />
+      </Flex>
+    )
   }
 
   if (!user) {

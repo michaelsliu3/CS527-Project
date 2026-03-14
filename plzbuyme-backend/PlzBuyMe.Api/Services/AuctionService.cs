@@ -1,8 +1,10 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos.Auctions;
 using PlzBuyMe.Api.Models;
+using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 
 namespace PlzBuyMe.Api.Services;
 
@@ -10,11 +12,13 @@ public class AuctionService : IAuctionService
 {
     private readonly AppDbContext _db;
     private readonly IAlertService _alertService;
+    private readonly ILogger<AuctionService> _logger;
 
-    public AuctionService(AppDbContext db, IAlertService alertService)
+    public AuctionService(AppDbContext db, IAlertService alertService, ILogger<AuctionService> logger)
     {
         _db = db;
         _alertService = alertService;
+        _logger = logger;
     }
 
     public async Task<AuctionDetailDto?> CreateAuctionAsync(CreateAuctionDto dto, int sellerId)
@@ -215,8 +219,8 @@ public class AuctionService : IAuctionService
 
         if (!string.IsNullOrWhiteSpace(query.Q))
         {
-            var termLower = query.Q.Trim().ToLower();
-            q = q.Where(i => (i.Title != null && i.Title.ToLower().Contains(termLower)) || (i.Description != null && i.Description.ToLower().Contains(termLower)));
+            var term = query.Q.Trim();
+            q = q.Where(i => EF.Functions.Match(new[] { i.Title, i.Description ?? string.Empty }, term, MySqlMatchSearchMode.NaturalLanguage) > 0);
         }
         if (query.CategoryId.HasValue)
             q = q.Where(i => i.CategoryId == query.CategoryId.Value);
@@ -422,9 +426,9 @@ public class AuctionService : IAuctionService
                         }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // ignore malformed JSON
+                _logger.LogDebug(ex, "Invalid FieldFilters JSON ignored: {FieldFilters}", query.FieldFilters);
             }
         }
 

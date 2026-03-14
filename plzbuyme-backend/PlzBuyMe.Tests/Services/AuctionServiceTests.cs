@@ -1,4 +1,6 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
+using Moq;
 using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos.Auctions;
 using PlzBuyMe.Api.Models;
@@ -24,7 +26,7 @@ public class AuctionServiceTests
     {
         var (db, categoryId, makeFieldId, sellerId) = CreateSeededContext();
         var alertService = new AlertService();
-        var service = new AuctionService(db, alertService);
+        var service = new AuctionService(db, alertService, new Mock<ILogger<AuctionService>>().Object);
         var dto = new CreateAuctionDto
         {
             Title = "Test Car",
@@ -51,7 +53,7 @@ public class AuctionServiceTests
         var (db, _, _, sellerId) = CreateSeededContext();
         var item = db.Items.First(i => i.Status == ItemStatus.Active);
         var bidder = db.Users.Single(u => u.Username == "bidder1");
-        var service = new AuctionService(db, new AlertService());
+        var service = new AuctionService(db, new AlertService(), new Mock<ILogger<AuctionService>>().Object);
         var act = () => service.PlaceBidAsync(item.Id, bidder.Id, item.CurrentPrice + item.BidIncrement - 0.01m);
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Bid too low*");
     }
@@ -61,7 +63,7 @@ public class AuctionServiceTests
     {
         var (db, _, _, sellerId) = CreateSeededContext();
         var item = db.Items.First(i => i.SellerId == sellerId);
-        var service = new AuctionService(db, new AlertService());
+        var service = new AuctionService(db, new AlertService(), new Mock<ILogger<AuctionService>>().Object);
         var act = () => service.PlaceBidAsync(item.Id, sellerId, item.CurrentPrice + item.BidIncrement);
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*own items*");
     }
@@ -74,7 +76,7 @@ public class AuctionServiceTests
         var bidder = db.Users.Single(u => u.Username == "bidder1");
         item.Status = ItemStatus.Closed;
         db.SaveChanges();
-        var service = new AuctionService(db, new AlertService());
+        var service = new AuctionService(db, new AlertService(), new Mock<ILogger<AuctionService>>().Object);
         var act = () => service.PlaceBidAsync(item.Id, bidder.Id, item.CurrentPrice + item.BidIncrement);
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not active*");
     }
@@ -86,7 +88,7 @@ public class AuctionServiceTests
         var item = db.Items.First(i => i.Status == ItemStatus.Active);
         var bidder = db.Users.Single(u => u.Username == "bidder1");
         var newAmount = item.CurrentPrice + item.BidIncrement;
-        var service = new AuctionService(db, new AlertService());
+        var service = new AuctionService(db, new AlertService(), new Mock<ILogger<AuctionService>>().Object);
         await service.PlaceBidAsync(item.Id, bidder.Id, newAmount);
         db.Entry(item).Reload();
         item.CurrentPrice.Should().Be(newAmount);
@@ -100,7 +102,7 @@ public class AuctionServiceTests
         var item = db.Items.First(i => i.Title.Contains("Camry"));
         var bidder1 = db.Users.Single(u => u.Username == "bidder1");
         var bidder2 = db.Users.Single(u => u.Username == "bidder2");
-        var service = new AuctionService(db, new AlertService());
+        var service = new AuctionService(db, new AlertService(), new Mock<ILogger<AuctionService>>().Object);
         await service.SetAutoBidAsync(item.Id, bidder1.Id, 26000m);
         db.Entry(item).Reload();
         var minBid = item.CurrentPrice + item.BidIncrement;
@@ -117,7 +119,7 @@ public class AuctionServiceTests
         var (db, _, _, _) = CreateSeededContext();
         var item = db.Items.First(i => i.Title.Contains("Civic"));
         var bidder = db.Users.Single(u => u.Username == "bidder1");
-        var service = new AuctionService(db, new AlertService());
+        var service = new AuctionService(db, new AlertService(), new Mock<ILogger<AuctionService>>().Object);
         await service.SetAutoBidAsync(item.Id, bidder.Id, 18800m);
         var other = db.Users.Single(u => u.Username == "bidder2");
         await service.PlaceBidAsync(item.Id, other.Id, 19000m);
@@ -136,7 +138,7 @@ public class AuctionServiceTests
         db.Bids.Add(new Bid { ItemId = item.Id, BidderId = bidder.Id, Amount = item.ReservePrice, IsAuto = false });
         item.CurrentPrice = item.ReservePrice;
         db.SaveChanges();
-        var service = new AuctionService(db, new AlertService());
+        var service = new AuctionService(db, new AlertService(), new Mock<ILogger<AuctionService>>().Object);
         await service.CloseExpiredAsync();
         db.Entry(item).Reload();
         item.Status.Should().Be(ItemStatus.Sold);
@@ -152,7 +154,7 @@ public class AuctionServiceTests
         item.CloseDateTime = DateTime.UtcNow.AddSeconds(-1);
         item.CurrentPrice = item.InitialPrice;
         db.SaveChanges();
-        var service = new AuctionService(db, new AlertService());
+        var service = new AuctionService(db, new AlertService(), new Mock<ILogger<AuctionService>>().Object);
         await service.CloseExpiredAsync();
         db.Entry(item).Reload();
         item.Status.Should().Be(ItemStatus.Closed);
@@ -185,7 +187,7 @@ public class AuctionServiceTests
         foreach (var f in fields)
             db.ItemFieldValues.Add(new ItemFieldValue { ItemId = item2.Id, FieldId = f.Id, Value = "X" });
         db.SaveChanges();
-        var service = new AuctionService(db, new AlertService());
+        var service = new AuctionService(db, new AlertService(), new Mock<ILogger<AuctionService>>().Object);
         var similar = await service.GetSimilarAsync(item1.Id, 5);
         similar.Should().Contain(s => s.Id == item2.Id);
         similar.Should().NotContain(s => s.Id == item1.Id);
