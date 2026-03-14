@@ -157,6 +157,7 @@ public class AuctionServiceTests
         db.Entry(item).Reload();
         item.Status.Should().Be(ItemStatus.Closed);
         item.WinnerId.Should().BeNull();
+        db.Notifications.Should().Contain(n => n.UserId == item.SellerId && n.Type == NotificationType.ReserveNotMet);
     }
 
     [Fact]

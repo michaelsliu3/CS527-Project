@@ -195,7 +195,7 @@ public class AuctionService : IAuctionService
                 {
                     UserId = item.SellerId,
                     ItemId = item.Id,
-                    Type = NotificationType.AlertMatch,
+                    Type = NotificationType.ReserveNotMet,
                     Message = $"Reserve price was not met on \"{item.Title}\"."
                 });
             }
@@ -215,8 +215,8 @@ public class AuctionService : IAuctionService
 
         if (!string.IsNullOrWhiteSpace(query.Q))
         {
-            var term = query.Q.Trim();
-            q = q.Where(i => (i.Title != null && i.Title.Contains(term)) || (i.Description != null && i.Description.Contains(term)));
+            var termLower = query.Q.Trim().ToLower();
+            q = q.Where(i => (i.Title != null && i.Title.ToLower().Contains(termLower)) || (i.Description != null && i.Description.ToLower().Contains(termLower)));
         }
         if (query.CategoryId.HasValue)
             q = q.Where(i => i.CategoryId == query.CategoryId.Value);
@@ -232,8 +232,8 @@ public class AuctionService : IAuctionService
             q = q.Where(i => i.CloseDateTime >= query.ClosingAfter.Value.ToUniversalTime());
         if (!string.IsNullOrWhiteSpace(query.Seller))
         {
-            var seller = query.Seller.Trim();
-            q = q.Where(i => i.Seller != null && i.Seller.Username.Contains(seller));
+            var sellerLower = query.Seller.Trim().ToLower();
+            q = q.Where(i => i.Seller != null && i.Seller.Username.ToLower().Contains(sellerLower));
         }
 
         var fieldFilters = await BuildFieldFiltersAsync(query);
@@ -242,8 +242,8 @@ public class AuctionService : IAuctionService
             var fid = fieldId;
             if (filter.Text != null)
             {
-                var text = filter.Text;
-                q = q.Where(i => i.ItemFieldValues.Any(iv => iv.FieldId == fid && iv.Value.Contains(text)));
+                var textLower = filter.Text.Trim().ToLower();
+                q = q.Where(i => i.ItemFieldValues.Any(iv => iv.FieldId == fid && iv.Value != null && iv.Value.ToLower().Contains(textLower)));
             }
             else if (filter.Min.HasValue || filter.Max.HasValue)
             {
@@ -481,7 +481,7 @@ public class AuctionService : IAuctionService
             return null;
 
         var bidHistory = item.Bids
-            .OrderByDescending(b => b.Amount)
+            .OrderByDescending(b => b.CreatedAt)
             .Select(b => new BidHistoryItemDto
             {
                 BidderUsername = b.Bidder.Username,

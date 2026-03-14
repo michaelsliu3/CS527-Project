@@ -98,7 +98,7 @@ public class AuctionsController : ControllerBase
         }
     }
 
-    [Authorize]
+    [Authorize(Policy = "EndUser")]
     [HttpGet("mine")]
     public async Task<IActionResult> GetMine([FromQuery] string? status)
     {
