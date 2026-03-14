@@ -1,14 +1,8 @@
-import {
-  Box,
-  Button,
-  Container,
-  Flex,
-  Heading,
-  Menu,
-  Spinner,
-} from '@chakra-ui/react'
+import { Box, Badge, Button, Container, Flex, Heading, Menu, Spinner } from '@chakra-ui/react'
 import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { listNotifications } from '../api/notifications'
 import { HiOutlineBell, HiOutlineUserCircle } from 'react-icons/hi'
 import { dark } from '../theme/colors'
 
@@ -18,6 +12,17 @@ const linkHover = '#ffffff'
 export function Layout() {
   const { user, loading, logout } = useAuth()
   const navigate = useNavigate()
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadCount(0)
+      return
+    }
+    listNotifications()
+      .then((res) => setUnreadCount(res.data.unreadCount))
+      .catch(() => setUnreadCount(0))
+  }, [user])
 
   const handleLogout = () => {
     logout()
@@ -61,8 +66,13 @@ export function Layout() {
                       </RouterLink>
                     </>
                   )}
-                  <RouterLink to="/notifications" aria-label="Notifications" style={{ padding: 8, display: 'inline-flex', color: linkColor }}>
+                  <RouterLink to="/notifications" aria-label="Notifications" style={{ padding: 8, display: 'inline-flex', alignItems: 'center', color: linkColor, position: 'relative' }}>
                     <HiOutlineBell size={20} />
+                    {unreadCount > 0 && (
+                      <Badge colorScheme="red" variant="solid" position="absolute" top={4} right={4} minW={5} h={5} borderRadius="full" fontSize="xs" display="flex" alignItems="center" justifyContent="center">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </Badge>
+                    )}
                   </RouterLink>
                   <Menu.Root>
                     <Menu.Trigger>
