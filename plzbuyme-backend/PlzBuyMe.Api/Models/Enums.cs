@@ -27,5 +27,6 @@ public enum NotificationType
     Outbid,
     AutoLimitReached,
     AuctionWon,
-    AlertMatch
+    AlertMatch,
+    ReserveNotMet
 }
