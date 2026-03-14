@@ -50,6 +50,9 @@ export function Layout() {
                 <>
                   {user.role === 'end_user' && (
                     <>
+                      <RouterLink to="/auctions/create" style={{ fontWeight: 500, color: linkColor }}>
+                        Sell
+                      </RouterLink>
                       <RouterLink to="/my-auctions" style={{ fontWeight: 500, color: linkColor }}>
                         My Auctions
                       </RouterLink>
