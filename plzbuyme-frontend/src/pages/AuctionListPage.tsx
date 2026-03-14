@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { browseAuctions, type AuctionListItem, type BrowseParams } from '../api/auctions'
 import { AuctionCard } from '../components/AuctionCard'
 import { SearchBar } from '../components/SearchBar'
+import { showErrorToast } from '../components/ui/toaster'
 import { dark } from '../theme/colors'
 
 function buildBrowseParams(searchParams: URLSearchParams): BrowseParams {
@@ -69,8 +70,12 @@ export function AuctionListPage() {
         setItems(res.data.items)
         setTotalCount(res.data.totalCount)
         setPage(res.data.page)
+        setError(null)
       })
-      .catch(() => setError('Failed to load auctions.'))
+      .catch(() => {
+        setError('Failed to load auctions.')
+        showErrorToast('Failed to load auctions', 'Please try again later.')
+      })
       .finally(() => setLoading(false))
   }, [searchParams])
 

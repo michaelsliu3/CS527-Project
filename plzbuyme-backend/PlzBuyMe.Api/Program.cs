@@ -112,7 +112,7 @@ public class Program
         builder.Services.AddAuthorization(options =>
         {
             options.AddPolicy("AdminOnly", p => p.RequireRole("admin"));
-            options.AddPolicy("RepOrAdmin", p => p.RequireRole("customer_rep", "admin"));
+            options.AddPolicy("RepOnly", p => p.RequireRole("customer_rep", "admin"));
             options.AddPolicy("EndUser", p => p.RequireRole("end_user"));
         });
 

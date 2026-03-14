@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { getAuthRedirect } from './authRedirect'
 
 const baseURL = import.meta.env.VITE_API_URL ?? 'http://localhost:5081/api'
 
@@ -25,7 +26,9 @@ apiClient.interceptors.response.use(
       const isAuthEndpoint = url === 'auth/login' || url === 'auth/register'
       if (!isAuthEndpoint) {
         localStorage.removeItem('token')
-        window.location.href = '/login'
+        const redirect = getAuthRedirect()
+        if (redirect) redirect()
+        else window.location.href = '/login'
       }
     }
     return Promise.reject(error)

@@ -1,4 +1,6 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { setAuthRedirect } from './api/authRedirect'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { HomePage } from './pages/HomePage'
@@ -15,6 +17,12 @@ function Placeholder({ name }: { name: string }) {
 }
 
 function App() {
+  const navigate = useNavigate()
+  useEffect(() => {
+    setAuthRedirect(() => () => navigate('/login'))
+    return () => setAuthRedirect(null)
+  }, [navigate])
+
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />

@@ -24,6 +24,7 @@ import {
 } from '../api/auctions'
 import { BidHistory } from '../components/BidHistory'
 import { AuctionCard } from '../components/AuctionCard'
+import { showErrorToast } from '../components/ui/toaster'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
 
@@ -69,8 +70,12 @@ export function AuctionDetailPage() {
         setAuction(res.data)
         setCountdown(formatCountdown(res.data.closeDateTime))
         setValue('amount', String(res.data.currentPrice + res.data.bidIncrement))
+        setError(null)
       })
-      .catch(() => setError('Auction not found.'))
+      .catch(() => {
+        setError('Auction not found.')
+        showErrorToast('Auction not found', 'The auction may have been removed or does not exist.')
+      })
       .finally(() => setLoading(false))
   }, [id, setValue])
 
@@ -103,12 +108,11 @@ export function AuctionDetailPage() {
       setAuction(res.data)
       setValue('amount', String(res.data.currentPrice + res.data.bidIncrement))
     } catch (err) {
-      if (isAxiosError(err) && err.response?.data) {
-        const msg = typeof err.response.data === 'string' ? err.response.data : (err.response.data as { message?: string }).message
-        setBidError(msg ?? 'Failed to place bid.')
-      } else {
-        setBidError('Failed to place bid.')
-      }
+      const msg = isAxiosError(err) && err.response?.data
+        ? (typeof err.response.data === 'string' ? err.response.data : (err.response.data as { message?: string }).message)
+        : 'Failed to place bid.'
+      setBidError(msg ?? 'Failed to place bid.')
+      showErrorToast('Bid failed', msg ?? 'Failed to place bid.')
     } finally {
       setBidSubmitting(false)
     }
@@ -123,12 +127,11 @@ export function AuctionDetailPage() {
       const res = await getAuction(auction.id)
       setAuction(res.data)
     } catch (err) {
-      if (isAxiosError(err) && err.response?.data) {
-        const msg = typeof err.response.data === 'string' ? err.response.data : (err.response.data as { message?: string }).message
-        setBidError(msg ?? 'Failed to set auto-bid.')
-      } else {
-        setBidError('Failed to set auto-bid.')
-      }
+      const msg = isAxiosError(err) && err.response?.data
+        ? (typeof err.response.data === 'string' ? err.response.data : (err.response.data as { message?: string }).message)
+        : 'Failed to set auto-bid.'
+      setBidError(msg ?? 'Failed to set auto-bid.')
+      showErrorToast('Auto-bid failed', msg ?? 'Failed to set auto-bid.')
     } finally {
       setBidSubmitting(false)
     }
