@@ -33,6 +33,16 @@ public class AuctionsControllerTests
         };
     }
 
+    private static void SetNoUser(ControllerBase controller)
+    {
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext(),
+            RouteData = new Microsoft.AspNetCore.Routing.RouteData(),
+            ActionDescriptor = new Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor()
+        };
+    }
+
     [Fact]
     public async Task Search_ReturnsPaginatedResults()
     {
@@ -229,5 +239,481 @@ public class AuctionsControllerTests
 
         captured.Should().NotBeNull();
         captured!.Sort.Should().Be("mileage_low");
+    }
+
+    [Fact]
+    public async Task GetById_WhenFound_ReturnsOkWithDetail()
+    {
+        var detail = new AuctionDetailDto
+        {
+            Id = 42,
+            Title = "Test Item",
+            CategoryId = 1,
+            CategoryName = "Cars",
+            SellerId = 1,
+            SellerUsername = "seller1",
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            CurrentPrice = 100m,
+            CloseDateTime = DateTime.UtcNow.AddDays(1),
+            Status = "active",
+            CreatedAt = DateTime.UtcNow
+        };
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.GetByIdAsync(42)).ReturnsAsync(detail);
+        var controller = CreateController(mock);
+
+        var result = await controller.GetById(42);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeOfType<AuctionDetailDto>().Subject;
+        body.Id.Should().Be(42);
+        body.Title.Should().Be("Test Item");
+        mock.Verify(s => s.GetByIdAsync(42), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetById_WhenNotFound_ReturnsNotFound()
+    {
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.GetByIdAsync(999)).ReturnsAsync((AuctionDetailDto?)null);
+        var controller = CreateController(mock);
+
+        var result = await controller.GetById(999);
+
+        result.Should().BeOfType<NotFoundResult>();
+        mock.Verify(s => s.GetByIdAsync(999), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_WhenValid_ReturnsCreatedWithDetail()
+    {
+        var created = new AuctionDetailDto
+        {
+            Id = 10,
+            Title = "New Auction",
+            CategoryId = 1,
+            CategoryName = "Cars",
+            SellerId = 5,
+            SellerUsername = "user5",
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            CurrentPrice = 100m,
+            CloseDateTime = DateTime.UtcNow.AddDays(2),
+            Status = "active",
+            CreatedAt = DateTime.UtcNow
+        };
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.CreateAuctionAsync(It.IsAny<CreateAuctionDto>(), 5)).ReturnsAsync(created);
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+        var dto = new CreateAuctionDto
+        {
+            Title = "New Auction",
+            CategoryId = 1,
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 150m,
+            CloseDateTime = DateTime.UtcNow.AddDays(2)
+        };
+
+        var result = await controller.Create(dto);
+
+        var createdResult = result.Should().BeOfType<CreatedAtActionResult>().Subject;
+        createdResult.ActionName.Should().Be(nameof(AuctionsController.GetById));
+        createdResult.Value.Should().BeOfType<AuctionDetailDto>().Subject.Title.Should().Be("New Auction");
+        mock.Verify(s => s.CreateAuctionAsync(It.IsAny<CreateAuctionDto>(), 5), Times.Once);
+    }
+
+    [Fact]
+    public async Task Create_WhenNotAuthenticated_ReturnsForbid()
+    {
+        var mock = new Mock<IAuctionService>();
+        var controller = CreateController(mock);
+        SetNoUser(controller);
+        var dto = new CreateAuctionDto
+        {
+            Title = "New",
+            CategoryId = 1,
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 150m,
+            CloseDateTime = DateTime.UtcNow.AddDays(1)
+        };
+
+        var result = await controller.Create(dto);
+
+        result.Should().BeOfType<ForbidResult>();
+        mock.Verify(s => s.CreateAuctionAsync(It.IsAny<CreateAuctionDto>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_WhenTitleEmpty_ReturnsBadRequest()
+    {
+        var mock = new Mock<IAuctionService>();
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+        var dto = new CreateAuctionDto
+        {
+            Title = "   ",
+            CategoryId = 1,
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 150m,
+            CloseDateTime = DateTime.UtcNow.AddDays(1)
+        };
+
+        var result = await controller.Create(dto);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().Be("Title is required.");
+        mock.Verify(s => s.CreateAuctionAsync(It.IsAny<CreateAuctionDto>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_WhenCategoryInvalid_ReturnsBadRequest()
+    {
+        var mock = new Mock<IAuctionService>();
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+        var dto = new CreateAuctionDto
+        {
+            Title = "Valid",
+            CategoryId = 0,
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 150m,
+            CloseDateTime = DateTime.UtcNow.AddDays(1)
+        };
+
+        var result = await controller.Create(dto);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().Be("Valid category is required.");
+        mock.Verify(s => s.CreateAuctionAsync(It.IsAny<CreateAuctionDto>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_WhenPricesInvalid_ReturnsBadRequest()
+    {
+        var mock = new Mock<IAuctionService>();
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+        var dto = new CreateAuctionDto
+        {
+            Title = "Valid",
+            CategoryId = 1,
+            InitialPrice = -1m,
+            BidIncrement = 10m,
+            ReservePrice = 150m,
+            CloseDateTime = DateTime.UtcNow.AddDays(1)
+        };
+
+        var result = await controller.Create(dto);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().Be("Invalid prices.");
+        mock.Verify(s => s.CreateAuctionAsync(It.IsAny<CreateAuctionDto>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_WhenCloseDateInPast_ReturnsBadRequest()
+    {
+        var mock = new Mock<IAuctionService>();
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+        var dto = new CreateAuctionDto
+        {
+            Title = "Valid",
+            CategoryId = 1,
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 150m,
+            CloseDateTime = DateTime.UtcNow.AddSeconds(-1)
+        };
+
+        var result = await controller.Create(dto);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().Be("Close date must be in the future.");
+        mock.Verify(s => s.CreateAuctionAsync(It.IsAny<CreateAuctionDto>(), It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Create_WhenCategoryNotFound_ReturnsBadRequest()
+    {
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.CreateAuctionAsync(It.IsAny<CreateAuctionDto>(), 5)).ReturnsAsync((AuctionDetailDto?)null);
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+        var dto = new CreateAuctionDto
+        {
+            Title = "Valid",
+            CategoryId = 999,
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 150m,
+            CloseDateTime = DateTime.UtcNow.AddDays(1)
+        };
+
+        var result = await controller.Create(dto);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().Be("Category not found.");
+        mock.Verify(s => s.CreateAuctionAsync(It.IsAny<CreateAuctionDto>(), 5), Times.Once);
+    }
+
+    [Fact]
+    public async Task PlaceBid_WhenValid_ReturnsOk()
+    {
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.PlaceBidAsync(1, 5, 150m)).Returns(Task.CompletedTask);
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+
+        var result = await controller.PlaceBid(1, new PlaceBidDto { Amount = 150m });
+
+        result.Should().BeOfType<OkResult>();
+        mock.Verify(s => s.PlaceBidAsync(1, 5, 150m), Times.Once);
+    }
+
+    [Fact]
+    public async Task PlaceBid_WhenNotAuthenticated_ReturnsForbid()
+    {
+        var mock = new Mock<IAuctionService>();
+        var controller = CreateController(mock);
+        SetNoUser(controller);
+
+        var result = await controller.PlaceBid(1, new PlaceBidDto { Amount = 150m });
+
+        result.Should().BeOfType<ForbidResult>();
+        mock.Verify(s => s.PlaceBidAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<decimal>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PlaceBid_WhenItemNotFound_ReturnsNotFound()
+    {
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.PlaceBidAsync(999, 5, 150m))
+            .ThrowsAsync(new InvalidOperationException("Item not found"));
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+
+        var result = await controller.PlaceBid(999, new PlaceBidDto { Amount = 150m });
+
+        result.Should().BeOfType<NotFoundResult>();
+        mock.Verify(s => s.PlaceBidAsync(999, 5, 150m), Times.Once);
+    }
+
+    [Fact]
+    public async Task PlaceBid_WhenInvalidOperation_ReturnsBadRequest()
+    {
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.PlaceBidAsync(1, 5, 50m))
+            .ThrowsAsync(new InvalidOperationException("Bid too low"));
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+
+        var result = await controller.PlaceBid(1, new PlaceBidDto { Amount = 50m });
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().Be("Bid too low");
+        mock.Verify(s => s.PlaceBidAsync(1, 5, 50m), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetAutoBid_WhenValid_ReturnsOk()
+    {
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.SetAutoBidAsync(1, 5, 5000m)).Returns(Task.CompletedTask);
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+
+        var result = await controller.SetAutoBid(1, new SetAutoBidDto { UpperLimit = 5000m });
+
+        result.Should().BeOfType<OkResult>();
+        mock.Verify(s => s.SetAutoBidAsync(1, 5, 5000m), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetAutoBid_WhenNotAuthenticated_ReturnsForbid()
+    {
+        var mock = new Mock<IAuctionService>();
+        var controller = CreateController(mock);
+        SetNoUser(controller);
+
+        var result = await controller.SetAutoBid(1, new SetAutoBidDto { UpperLimit = 5000m });
+
+        result.Should().BeOfType<ForbidResult>();
+        mock.Verify(s => s.SetAutoBidAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<decimal>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SetAutoBid_WhenItemNotFound_ReturnsNotFound()
+    {
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.SetAutoBidAsync(999, 5, 5000m))
+            .ThrowsAsync(new InvalidOperationException("Item not found"));
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+
+        var result = await controller.SetAutoBid(999, new SetAutoBidDto { UpperLimit = 5000m });
+
+        result.Should().BeOfType<NotFoundResult>();
+        mock.Verify(s => s.SetAutoBidAsync(999, 5, 5000m), Times.Once);
+    }
+
+    [Fact]
+    public async Task SetAutoBid_WhenInvalidOperation_ReturnsBadRequest()
+    {
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.SetAutoBidAsync(1, 5, 100m))
+            .ThrowsAsync(new InvalidOperationException("Upper limit must be above current price"));
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+
+        var result = await controller.SetAutoBid(1, new SetAutoBidDto { UpperLimit = 100m });
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().Be("Upper limit must be above current price");
+        mock.Verify(s => s.SetAutoBidAsync(1, 5, 100m), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetMine_WhenAuthenticated_ReturnsUserAuctions()
+    {
+        var list = new List<AuctionListDto>
+        {
+            new() { Id = 1, Title = "My Auction", CurrentPrice = 100m, CloseDateTime = DateTime.UtcNow, Status = "active", CategoryName = "Cars", SellerUsername = "me", BidCount = 0 }
+        };
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.GetMineAsync(5, null)).ReturnsAsync(list);
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+
+        var result = await controller.GetMine(null);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeAssignableTo<IList<AuctionListDto>>().Subject;
+        body.Should().HaveCount(1);
+        body[0].Title.Should().Be("My Auction");
+        mock.Verify(s => s.GetMineAsync(5, null), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetMine_WhenAuthenticated_PassesStatusFilter()
+    {
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.GetMineAsync(5, "active")).ReturnsAsync(new List<AuctionListDto>());
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+
+        await controller.GetMine("active");
+
+        mock.Verify(s => s.GetMineAsync(5, "active"), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetMine_WhenNotAuthenticated_ReturnsForbid()
+    {
+        var mock = new Mock<IAuctionService>();
+        var controller = CreateController(mock);
+        SetNoUser(controller);
+
+        var result = await controller.GetMine(null);
+
+        result.Should().BeOfType<ForbidResult>();
+        mock.Verify(s => s.GetMineAsync(It.IsAny<int>(), It.IsAny<string?>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetSimilar_ReturnsOkWithList()
+    {
+        var list = new List<AuctionListDto>
+        {
+            new() { Id = 2, Title = "Similar", CurrentPrice = 200m, CloseDateTime = DateTime.UtcNow, Status = "active", CategoryName = "Cars", SellerUsername = "other", BidCount = 1 }
+        };
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.GetSimilarAsync(1, 10)).ReturnsAsync(list);
+        var controller = CreateController(mock);
+
+        var result = await controller.GetSimilar(1, 10);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeAssignableTo<IList<AuctionListDto>>().Subject;
+        body.Should().HaveCount(1);
+        body[0].Title.Should().Be("Similar");
+        mock.Verify(s => s.GetSimilarAsync(1, 10), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetSimilar_ClampsLimitBetween1And50()
+    {
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.GetSimilarAsync(1, 50)).ReturnsAsync(new List<AuctionListDto>());
+        var controller = CreateController(mock);
+
+        await controller.GetSimilar(1, 100);
+
+        mock.Verify(s => s.GetSimilarAsync(1, 50), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetHistory_WhenSameUser_ReturnsOk()
+    {
+        var list = new List<AuctionListDto>
+        {
+            new() { Id = 3, Title = "Past", CurrentPrice = 300m, CloseDateTime = DateTime.UtcNow, Status = "sold", CategoryName = "Cars", SellerUsername = "x", BidCount = 2 }
+        };
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.GetHistoryAsync(5)).ReturnsAsync(list);
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+
+        var result = await controller.GetHistory(5);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeAssignableTo<IList<AuctionListDto>>().Subject;
+        body.Should().HaveCount(1);
+        mock.Verify(s => s.GetHistoryAsync(5), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetHistory_WhenDifferentUser_ReturnsForbid()
+    {
+        var mock = new Mock<IAuctionService>();
+        var controller = CreateController(mock);
+        SetUser(controller, 5);
+
+        var result = await controller.GetHistory(7);
+
+        result.Should().BeOfType<ForbidResult>();
+        mock.Verify(s => s.GetHistoryAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetHistory_WhenNotAuthenticated_ReturnsForbid()
+    {
+        var mock = new Mock<IAuctionService>();
+        var controller = CreateController(mock);
+        SetNoUser(controller);
+
+        var result = await controller.GetHistory(5);
+
+        result.Should().BeOfType<ForbidResult>();
+        mock.Verify(s => s.GetHistoryAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetFieldValues_WhenFieldNameEmpty_ReturnsBadRequest()
+    {
+        var mock = new Mock<IAuctionService>();
+        var controller = CreateController(mock);
+
+        var result = await controller.GetFieldValues("  ", null, null, 50);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().Be("fieldName is required.");
+        mock.Verify(s => s.GetFieldValuesAsync(It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<int>()), Times.Never);
     }
 }
