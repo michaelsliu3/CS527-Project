@@ -18,10 +18,9 @@ public class NotificationService : INotificationService
     public async Task<NotificationListResponseDto> GetNotificationsForUserAsync(int userId)
     {
         var notifications = await _db.Notifications
-            .Where(n => n.UserId == userId)
+            .Where(n => n.UserId == userId && !n.IsRead)
             .OrderByDescending(n => n.CreatedAt)
             .ToListAsync();
-        var unreadCount = notifications.Count(n => !n.IsRead);
         var items = notifications.Select(n => new NotificationDto
         {
             Id = n.Id,
@@ -32,7 +31,7 @@ public class NotificationService : INotificationService
             IsRead = n.IsRead,
             CreatedAt = n.CreatedAt
         }).ToList();
-        return new NotificationListResponseDto { Items = items, UnreadCount = unreadCount };
+        return new NotificationListResponseDto { Items = items, UnreadCount = items.Count };
     }
 
     public async Task<bool> MarkAsReadAsync(int notificationId, int userId)
@@ -44,5 +43,15 @@ public class NotificationService : INotificationService
         notification.IsRead = true;
         await _db.SaveChangesAsync();
         return true;
+    }
+
+    public async Task MarkAllAsReadAsync(int userId)
+    {
+        var unread = await _db.Notifications
+            .Where(n => n.UserId == userId && !n.IsRead)
+            .ToListAsync();
+        foreach (var n in unread)
+            n.IsRead = true;
+        await _db.SaveChangesAsync();
     }
 }

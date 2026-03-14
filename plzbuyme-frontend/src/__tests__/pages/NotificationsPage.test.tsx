@@ -11,6 +11,7 @@ import * as notificationsApi from '../../api/notifications'
 vi.mock('../../api/notifications', () => ({
   listNotifications: vi.fn(),
   markNotificationRead: vi.fn(),
+  markAllNotificationsRead: vi.fn(),
 }))
 
 function renderNotificationsPage() {
@@ -32,7 +33,7 @@ describe('NotificationsPage', () => {
     vi.clearAllMocks()
   })
 
-  it('renders with unread styling', async () => {
+  it('renders only unread notifications', async () => {
     vi.mocked(notificationsApi.listNotifications).mockResolvedValue({
       data: {
         items: [
@@ -43,15 +44,6 @@ describe('NotificationsPage', () => {
             message: 'You were outbid on "Test Item"',
             type: 'outbid',
             isRead: false,
-            createdAt: new Date().toISOString(),
-          },
-          {
-            id: 2,
-            userId: 1,
-            itemId: null,
-            message: 'Your alert matched a new listing.',
-            type: 'alert_match',
-            isRead: true,
             createdAt: new Date().toISOString(),
           },
         ],
@@ -65,15 +57,12 @@ describe('NotificationsPage', () => {
     renderNotificationsPage()
     await waitFor(() => {
       expect(screen.getByText(/You were outbid/)).toBeInTheDocument()
-      expect(screen.getByText(/Your alert matched/)).toBeInTheDocument()
     })
-    const unreadRow = screen.getByTestId('notification-unread')
-    expect(unreadRow).toBeInTheDocument()
-    expect(screen.getByText(/You were outbid/)).toBeInTheDocument()
-    expect(screen.getByTestId('notification-read')).toBeInTheDocument()
+    expect(screen.getByTestId('notification-unread')).toBeInTheDocument()
+    expect(screen.queryByTestId('notification-read')).not.toBeInTheDocument()
   })
 
-  it('mark-read updates state', async () => {
+  it('mark-read removes notification from list', async () => {
     const user = userEvent.setup()
     vi.mocked(notificationsApi.listNotifications).mockResolvedValue({
       data: {
@@ -111,6 +100,47 @@ describe('NotificationsPage', () => {
     await user.click(notificationButton!)
     await waitFor(() => {
       expect(notificationsApi.markNotificationRead).toHaveBeenCalledWith(1)
+      expect(screen.queryByText('Unread notification')).not.toBeInTheDocument()
+    })
+  })
+
+  it('mark all as read button clears list', async () => {
+    const user = userEvent.setup()
+    vi.mocked(notificationsApi.listNotifications).mockResolvedValue({
+      data: {
+        items: [
+          {
+            id: 1,
+            userId: 1,
+            itemId: null,
+            message: 'First',
+            type: 'outbid',
+            isRead: false,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        unreadCount: 1,
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as never)
+    vi.mocked(notificationsApi.markAllNotificationsRead).mockResolvedValue({
+      data: undefined,
+      status: 204,
+      statusText: 'No Content',
+      headers: {},
+      config: {},
+    } as never)
+    renderNotificationsPage()
+    await waitFor(() => {
+      expect(screen.getByText('First')).toBeInTheDocument()
+    })
+    await user.click(screen.getByTestId('mark-all-read'))
+    await waitFor(() => {
+      expect(notificationsApi.markAllNotificationsRead).toHaveBeenCalled()
+      expect(screen.queryByText('First')).not.toBeInTheDocument()
     })
   })
 })

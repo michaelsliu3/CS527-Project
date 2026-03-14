@@ -59,7 +59,7 @@ public class NotificationsControllerTests
         var unreadCount = (int)type.GetProperty("unreadCount")!.GetValue(ok.Value)!;
         var items = (System.Collections.IEnumerable)type.GetProperty("items")!.GetValue(ok.Value)!;
         unreadCount.Should().Be(1);
-        items.Cast<object>().Should().HaveCount(2);
+        items.Cast<object>().Should().HaveCount(1, "only unread notifications are returned");
     }
 
     [Fact]
@@ -115,5 +115,39 @@ public class NotificationsControllerTests
         result.Should().BeOfType<NotFoundResult>();
         await db.Entry(notification).ReloadAsync();
         notification.IsRead.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task MarkAllRead_MarksAllUserNotificationsAsRead()
+    {
+        var db = TestDbContextFactory.Create();
+        SeedData.Initialize(db);
+        var user = db.Users.Single(u => u.Username == "bidder1");
+        db.Notifications.Add(new Notification
+        {
+            UserId = user.Id,
+            ItemId = null,
+            Message = "Unread 1",
+            Type = NotificationType.AlertMatch,
+            IsRead = false
+        });
+        db.Notifications.Add(new Notification
+        {
+            UserId = user.Id,
+            ItemId = null,
+            Message = "Unread 2",
+            Type = NotificationType.Outbid,
+            IsRead = false
+        });
+        await db.SaveChangesAsync();
+
+        var controller = CreateController(db);
+        SetUser(controller, user.Id);
+
+        var result = await controller.MarkAllRead();
+
+        result.Should().BeOfType<NoContentResult>();
+        var unread = await db.Notifications.Where(n => n.UserId == user.Id && !n.IsRead).ToListAsync();
+        unread.Should().BeEmpty();
     }
 }

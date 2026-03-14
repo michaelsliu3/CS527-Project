@@ -28,6 +28,16 @@ public class NotificationsController : ControllerBase
         return Ok(new { items = result.Items, unreadCount = result.UnreadCount });
     }
 
+    [HttpPatch("read-all")]
+    public async Task<IActionResult> MarkAllRead()
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null)
+            return Forbid();
+        await _notificationService.MarkAllAsReadAsync(userId.Value);
+        return NoContent();
+    }
+
     [HttpPatch("{id:int}/read")]
     public async Task<IActionResult> MarkRead(int id)
     {

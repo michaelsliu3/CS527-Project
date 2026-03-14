@@ -22,3 +22,7 @@ export function listNotifications() {
 export function markNotificationRead(id: number) {
   return apiClient.patch(`notifications/${id}/read`)
 }
+
+export function markAllNotificationsRead() {
+  return apiClient.patch('notifications/read-all')
+}

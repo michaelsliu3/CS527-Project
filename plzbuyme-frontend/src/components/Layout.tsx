@@ -1,10 +1,13 @@
 import { Box, Badge, Button, Container, Flex, Heading, Menu, Spinner } from '@chakra-ui/react'
 import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { listNotifications } from '../api/notifications'
+import { listNotifications, markNotificationRead } from '../api/notifications'
+import { showNotificationToast } from './ui/toaster'
 import { HiOutlineBell, HiOutlineUserCircle } from 'react-icons/hi'
 import { dark } from '../theme/colors'
+
+const NOTIFICATION_POLL_INTERVAL_MS = 30_000
 
 const linkColor = dark.muted
 const linkHover = '#ffffff'
@@ -13,15 +16,62 @@ export function Layout() {
   const { user, loading, logout } = useAuth()
   const navigate = useNavigate()
   const [unreadCount, setUnreadCount] = useState(0)
+  const lastKnownUnreadIdsRef = useRef<Set<number>>(new Set())
+  const hasInitialFetchRef = useRef(false)
+
+  const fetchUnreadCount = () => {
+    if (!user) return
+    listNotifications()
+      .then((res) => {
+        setUnreadCount(res.data.unreadCount)
+        const ids = new Set(res.data.items.map((n) => n.id))
+        if (!hasInitialFetchRef.current) {
+          hasInitialFetchRef.current = true
+          lastKnownUnreadIdsRef.current = ids
+        } else {
+          const known = lastKnownUnreadIdsRef.current
+          for (const n of res.data.items) {
+            if (!known.has(n.id)) {
+              const path =
+                n.itemId != null ? `/auctions/${n.itemId}` : '/notifications'
+              const notificationId = n.id
+              showNotificationToast('Notification', n.message, {
+                onClick: () => {
+                  markNotificationRead(notificationId)
+                    .then(() => window.dispatchEvent(new CustomEvent('notifications-updated')))
+                    .catch(() => {})
+                  navigate(path)
+                },
+              })
+            }
+          }
+          lastKnownUnreadIdsRef.current = ids
+        }
+      })
+      .catch(() => setUnreadCount(0))
+  }
 
   useEffect(() => {
     if (!user) {
       setUnreadCount(0)
+      hasInitialFetchRef.current = false
+      lastKnownUnreadIdsRef.current = new Set()
       return
     }
-    listNotifications()
-      .then((res) => setUnreadCount(res.data.unreadCount))
-      .catch(() => setUnreadCount(0))
+    fetchUnreadCount()
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    const onUpdated = () => fetchUnreadCount()
+    window.addEventListener('notifications-updated', onUpdated)
+    return () => window.removeEventListener('notifications-updated', onUpdated)
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    const interval = setInterval(fetchUnreadCount, NOTIFICATION_POLL_INTERVAL_MS)
+    return () => clearInterval(interval)
   }, [user])
 
   const handleLogout = () => {

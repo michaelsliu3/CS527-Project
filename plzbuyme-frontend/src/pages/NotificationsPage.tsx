@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Box, Container, Flex, Icon, Spinner, Text } from '@chakra-ui/react'
+import { Box, Button, Container, Flex, Icon, Spinner, Text } from '@chakra-ui/react'
 import { showErrorToast } from '../components/ui/toaster'
-import { Link as RouterLink } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import {
   HiOutlineBell,
   HiOutlineExclamation,
@@ -9,7 +9,7 @@ import {
   HiOutlineLightningBolt,
 } from 'react-icons/hi'
 import { HiOutlineTrophy } from 'react-icons/hi2'
-import { listNotifications, markNotificationRead, type NotificationItem } from '../api/notifications'
+import { listNotifications, markNotificationRead, markAllNotificationsRead, type NotificationItem } from '../api/notifications'
 import { dark } from '../theme/colors'
 
 const NOTIFICATION_ICONS: Record<string, React.ElementType> = {
@@ -40,8 +40,10 @@ function formatTime(createdAt: string) {
 }
 
 export function NotificationsPage() {
+  const navigate = useNavigate()
   const [items, setItems] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [markAllLoading, setMarkAllLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const fetchNotifications = () => {
@@ -61,22 +63,47 @@ export function NotificationsPage() {
   }, [])
 
   const handleMarkRead = async (n: NotificationItem) => {
-    if (n.isRead) return
     try {
       await markNotificationRead(n.id)
-      setItems((prev) =>
-        prev.map((item) => (item.id === n.id ? { ...item, isRead: true } : item))
-      )
+      setItems((prev) => prev.filter((item) => item.id !== n.id))
+      window.dispatchEvent(new CustomEvent('notifications-updated'))
     } catch {
       showErrorToast('Error', 'Failed to mark as read.')
     }
   }
 
+  const handleMarkAllRead = async () => {
+    if (items.length === 0) return
+    setMarkAllLoading(true)
+    try {
+      await markAllNotificationsRead()
+      setItems([])
+      window.dispatchEvent(new CustomEvent('notifications-updated'))
+    } catch {
+      showErrorToast('Error', 'Failed to mark all as read.')
+    } finally {
+      setMarkAllLoading(false)
+    }
+  }
+
   return (
     <Container maxW="container.md">
-      <Text fontSize="2xl" fontWeight="bold" color="white" mb={6}>
-        Notifications
-      </Text>
+      <Flex justify="space-between" align="center" mb={6}>
+        <Text fontSize="2xl" fontWeight="bold" color="white">
+          Notifications
+        </Text>
+        {items.length > 0 && (
+          <Button
+            size="sm"
+            colorScheme="brand"
+            onClick={handleMarkAllRead}
+            loading={markAllLoading}
+            data-testid="mark-all-read"
+          >
+            Mark all as read
+          </Button>
+        )}
+      </Flex>
 
       {error && (
         <Text color="red.400" mb={4}>
@@ -106,8 +133,8 @@ export function NotificationsPage() {
               borderColor={dark.borderSubtle}
               _hover={{ bg: dark.inputBg }}
               onClick={() => handleMarkRead(n)}
-              fontWeight={n.isRead ? 'normal' : 'semibold'}
-              data-testid={n.isRead ? 'notification-read' : 'notification-unread'}
+              fontWeight="semibold"
+              data-testid="notification-unread"
             >
               <Flex gap={3} align="flex-start">
                 <Box mt={0.5}>
@@ -122,9 +149,19 @@ export function NotificationsPage() {
                       {formatTime(n.createdAt)}
                     </Text>
                     {n.itemId != null && (
-                      <RouterLink to={`/auctions/${n.itemId}`} style={{ fontSize: '0.875rem', color: '#38b2ac' }} onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                      <Box
+                        as="button"
+                        fontSize="sm"
+                        color="brand.400"
+                        _hover={{ textDecoration: 'underline' }}
+                        onClick={(e: React.MouseEvent) => {
+                          e.stopPropagation()
+                          handleMarkRead(n)
+                          navigate(`/auctions/${n.itemId}`)
+                        }}
+                      >
                         View auction →
-                      </RouterLink>
+                      </Box>
                     )}
                   </Flex>
                 </Box>
