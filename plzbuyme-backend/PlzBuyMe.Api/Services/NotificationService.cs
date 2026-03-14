@@ -55,8 +55,11 @@ public class NotificationService : INotificationService
 
     public async Task MarkAllAsReadAsync(int userId)
     {
-        await _db.Notifications
+        var unread = await _db.Notifications
             .Where(n => n.UserId == userId && !n.IsRead)
-            .ExecuteUpdateAsync(s => s.SetProperty(n => n.IsRead, true));
+            .ToListAsync();
+        foreach (var n in unread)
+            n.IsRead = true;
+        await _db.SaveChangesAsync();
     }
 }
