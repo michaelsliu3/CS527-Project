@@ -1,4 +1,13 @@
 import { useEffect, useState } from 'react'
+
+function useDebounce<T>(value: T, delayMs: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value)
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedValue(value), delayMs)
+    return () => clearTimeout(id)
+  }, [value, delayMs])
+  return debouncedValue
+}
 import {
   Box,
   Button,
@@ -27,6 +36,8 @@ interface AskQuestionFormValues {
   body: string
 }
 
+const KEYWORD_DEBOUNCE_MS = 350
+
 export function QuestionsPage() {
   const { user } = useAuth()
   const [questions, setQuestions] = useState<QuestionResponse[]>([])
@@ -36,6 +47,8 @@ export function QuestionsPage() {
   const [replyingId, setReplyingId] = useState<number | null>(null)
   const askDialog = useDisclosure()
 
+  const debouncedKeyword = useDebounce(keyword, KEYWORD_DEBOUNCE_MS)
+
   const askForm = useForm<AskQuestionFormValues>({
     defaultValues: { subject: '', body: '' },
   })
@@ -43,7 +56,7 @@ export function QuestionsPage() {
   const fetchQuestions = () => {
     setLoading(true)
     setError(null)
-    listQuestions(keyword || undefined)
+    listQuestions(debouncedKeyword || undefined)
       .then((res) => setQuestions(res.data))
       .catch(() => {
         setError('Failed to load questions.')
@@ -54,7 +67,7 @@ export function QuestionsPage() {
 
   useEffect(() => {
     fetchQuestions()
-  }, [keyword])
+  }, [debouncedKeyword])
 
   const onSubmitAsk = async (data: AskQuestionFormValues) => {
     try {

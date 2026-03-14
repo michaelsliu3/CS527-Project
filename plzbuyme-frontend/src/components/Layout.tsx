@@ -3,7 +3,7 @@ import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { listNotifications, markNotificationRead } from '../api/notifications'
-import { showNotificationToast } from './ui/toaster'
+import { showErrorToast, showNotificationToast } from './ui/toaster'
 import { HiOutlineBell, HiOutlineUserCircle } from 'react-icons/hi'
 import { dark } from '../theme/colors'
 
@@ -41,7 +41,7 @@ export function Layout() {
                 onClick: () => {
                   markNotificationRead(notificationId)
                     .then(() => window.dispatchEvent(new CustomEvent('notifications-updated')))
-                    .catch(() => {})
+                    .catch(() => showErrorToast('Error', 'Failed to mark as read.'))
                   navigate(path)
                 },
               })

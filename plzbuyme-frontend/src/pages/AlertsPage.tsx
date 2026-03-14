@@ -7,13 +7,15 @@ import {
   Flex,
   IconButton,
   Input,
+  NativeSelect,
   SimpleGrid,
+  Spinner,
   Text,
   Textarea,
   useDisclosure,
 } from '@chakra-ui/react'
 import { showErrorToast, showSuccessToast } from '../components/ui/toaster'
-import { useForm } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { HiOutlinePlus, HiOutlineTrash } from 'react-icons/hi'
 import { listAlerts, createAlert, deleteAlert, type AlertResponse, type CreateAlertDto } from '../api/alerts'
 import { CAR_CATEGORIES } from '../constants/categories'
@@ -34,7 +36,7 @@ export function AlertsPage() {
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const { register, handleSubmit, reset } = useForm<CreateAlertFormValues>({
+  const { register, handleSubmit, reset, control } = useForm<CreateAlertFormValues>({
     defaultValues: { categoryId: '', keyword: '', criteria: '' },
   })
 
@@ -55,11 +57,20 @@ export function AlertsPage() {
   }, [])
 
   const onSubmitCreate = async (data: CreateAlertFormValues) => {
+    const criteriaTrimmed = data.criteria.trim()
+    if (criteriaTrimmed) {
+      try {
+        JSON.parse(criteriaTrimmed)
+      } catch {
+        showErrorToast('Invalid criteria', 'Criteria must be valid JSON (e.g. {"fieldId": "value"}).')
+        return
+      }
+    }
     setSubmitting(true)
     const dto: CreateAlertDto = {
       categoryId: data.categoryId ? Number(data.categoryId) : null,
       keyword: data.keyword.trim() || null,
-      criteria: data.criteria.trim() || null,
+      criteria: criteriaTrimmed || null,
     }
     try {
       await createAlert(dto)
@@ -117,7 +128,7 @@ export function AlertsPage() {
 
       {loading ? (
         <Flex justify="center" py={12}>
-          <Text color={dark.muted}>Loading...</Text>
+          <Spinner size="xl" color="brand.400" />
         </Flex>
       ) : alerts.length === 0 ? (
         <Text color={dark.muted} py={8} textAlign="center">
@@ -181,24 +192,32 @@ export function AlertsPage() {
                     <Text mb={2} color={dark.label} fontSize="sm">
                       Category (optional)
                     </Text>
-                    <select
-                      {...register('categoryId')}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        background: dark.inputBg,
-                        border: `1px solid ${dark.borderSubtle}`,
-                        borderRadius: '6px',
-                        color: 'white',
-                      }}
-                    >
-                      <option value="">Any category</option>
-                      {CAR_CATEGORIES.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
+                    <Controller
+                      name="categoryId"
+                      control={control}
+                      defaultValue=""
+                      render={({ field }) => (
+                        <NativeSelect.Root
+                          value={field.value}
+                          onValueChange={(e) => field.onChange(e.value)}
+                          size="md"
+                        >
+                          <NativeSelect.Field
+                            bg={dark.inputBg}
+                            borderColor={dark.borderSubtle}
+                            color="white"
+                          >
+                            <option value="">Any category</option>
+                            {CAR_CATEGORIES.map((c) => (
+                              <option key={c.id} value={String(c.id)}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </NativeSelect.Field>
+                          <NativeSelect.Indicator />
+                        </NativeSelect.Root>
+                      )}
+                    />
                   </Box>
                   <Box>
                     <Text mb={2} color={dark.label} fontSize="sm">
