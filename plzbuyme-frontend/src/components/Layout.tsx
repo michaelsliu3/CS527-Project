@@ -7,7 +7,8 @@ import { showNotificationToast } from './ui/toaster'
 import { HiOutlineBell, HiOutlineUserCircle } from 'react-icons/hi'
 import { dark } from '../theme/colors'
 
-const NOTIFICATION_POLL_INTERVAL_MS = 30_000
+/** How often to poll for new notifications while the user is logged in (used for badge + real-time toasts). */
+const NOTIFICATION_POLL_INTERVAL_MS = 5_000
 
 const linkColor = dark.muted
 const linkHover = '#ffffff'
