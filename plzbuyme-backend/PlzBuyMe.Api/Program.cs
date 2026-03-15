@@ -47,7 +47,7 @@ public class Program
                     if (db.Database.CanConnect())
                     {
                         SeedData.Initialize(db);
-                        SeedData.SeedSoldItemsForReports(db);
+                        // SeedData.SeedSoldItemsForReports(db);
                     }
                 }
                 catch (Exception ex)
