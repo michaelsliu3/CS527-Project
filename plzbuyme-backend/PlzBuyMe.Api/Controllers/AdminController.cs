@@ -38,6 +38,7 @@ public class AdminController : ControllerBase
         return Ok(new EarningsReportDto { Total = total });
     }
 
+    /// <summary>Per-item earnings (each sold item's title + price). Complements total earnings and earnings-by-type.</summary>
     [HttpGet("reports/earnings-by-item")]
     public async Task<IActionResult> GetEarningsByItem()
     {

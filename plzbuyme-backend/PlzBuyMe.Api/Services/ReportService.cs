@@ -16,9 +16,10 @@ public class ReportService : IReportService
 
     public async Task<decimal> GetTotalEarningsAsync()
     {
-        return await _db.Items
+        var sum = await _db.Items
             .Where(i => i.Status == ItemStatus.Sold)
-            .SumAsync(i => i.CurrentPrice);
+            .SumAsync(i => (decimal?)i.CurrentPrice);
+        return sum ?? 0m;
     }
 
     public async Task<IReadOnlyList<EarningsByItemDto>> GetEarningsByItemAsync()
@@ -73,19 +74,15 @@ public class ReportService : IReportService
             .Distinct()
             .ToList();
 
-        var usernames = await _db.Users
-            .AsNoTracking()
-            .Where(u => userIds.Contains(u.Id))
-            .ToDictionaryAsync(u => u.Id, u => u.Username);
-
         return userIds.Select(uid =>
         {
             var sellerRow = asSeller.FirstOrDefault(s => s.SellerId == uid);
             var winnerRow = asWinner.FirstOrDefault(w => w.UserId == uid);
+            var username = sellerRow?.Username ?? winnerRow?.Username ?? "?";
             return new EarningsByUserDto
             {
                 UserId = uid,
-                Username = usernames.GetValueOrDefault(uid, "?"),
+                Username = username,
                 TotalAsSeller = sellerRow?.Total ?? 0,
                 TotalAsWinner = winnerRow?.Total ?? 0
             };
