@@ -29,11 +29,11 @@ public class QuestionsController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {
-            var term = keyword.Trim();
+            var term = keyword.Trim().ToLowerInvariant();
             query = query.Where(q =>
-                q.Subject.Contains(term) ||
-                q.Body.Contains(term) ||
-                (q.Reply != null && q.Reply.Contains(term)));
+                q.Subject.ToLower().Contains(term) ||
+                q.Body.ToLower().Contains(term) ||
+                (q.Reply != null && q.Reply.ToLower().Contains(term)));
         }
 
         var items = await query

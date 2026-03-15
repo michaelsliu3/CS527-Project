@@ -38,10 +38,10 @@ public class RepController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim();
+            var term = search.Trim().ToLowerInvariant();
             query = query.Where(u =>
-                u.Username.Contains(term) ||
-                u.Email.Contains(term));
+                u.Username.ToLower().Contains(term) ||
+                u.Email.ToLower().Contains(term));
         }
 
         var totalCount = await query.CountAsync();
@@ -162,12 +162,6 @@ public class RepController : ControllerBase
         item.Status = ItemStatus.Removed;
         await _db.SaveChangesAsync();
         return NoContent();
-    }
-
-    private int? GetCurrentUserId()
-    {
-        var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return int.TryParse(claim, out var id) ? id : null;
     }
 }
 
