@@ -24,6 +24,7 @@ export interface CategoryFieldValueDto {
 }
 
 export interface BidHistoryItem {
+  id?: number
   bidderUsername: string
   amount: number
   isAuto: boolean
