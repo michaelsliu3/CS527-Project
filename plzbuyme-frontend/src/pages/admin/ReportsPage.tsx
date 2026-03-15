@@ -4,7 +4,6 @@ import {
   Button,
   Container,
   Flex,
-  Table,
   Tabs,
   Text,
   Spinner,
@@ -25,6 +24,7 @@ import {
 } from '../../api/admin'
 import { showErrorToast } from '../../components/ui/toaster'
 import { dark } from '../../theme/colors'
+import { tableStyles, thBase, tdStyle } from '../../theme/tableStyles'
 
 export function ReportsPage() {
   return (
@@ -148,24 +148,30 @@ function EarningsByTypeTab() {
       <Button size="sm" colorScheme="brand" mb={4} onClick={() => fetchData(true)} loading={refreshing}>
         Refresh
       </Button>
-      <Table.Root size="sm">
-        <Table.Header>
-          <Table.Row borderColor={dark.borderSubtle}>
-            <Table.ColumnHeader color={dark.muted}>Category</Table.ColumnHeader>
-            <Table.ColumnHeader color={dark.muted}>Earnings</Table.ColumnHeader>
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {items.map((row) => (
-            <Table.Row key={row.categoryId} borderColor={dark.borderSubtle}>
-              <Table.Cell color="white">{row.categoryName}</Table.Cell>
-              <Table.Cell color={dark.label}>
-                ${row.earnings.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </Table.Cell>
-            </Table.Row>
-          ))}
-        </Table.Body>
-      </Table.Root>
+      <Box overflowX="auto">
+        <table style={tableStyles}>
+          <thead>
+            <tr>
+              <th style={{ ...thBase, textAlign: 'left' }}>Category</th>
+              <th style={{ ...thBase, textAlign: 'right' }}>Earnings</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((row, i) => {
+              const isLast = i === items.length - 1
+              const cellStyle = tdStyle(isLast)
+              return (
+                <tr key={row.categoryId}>
+                  <td style={{ ...cellStyle, textAlign: 'left' }}>{row.categoryName}</td>
+                  <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 500 }}>
+                    ${row.earnings.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </Box>
       {items.length === 0 && (
         <Text color={dark.muted} py={4}>No data.</Text>
       )}
@@ -207,28 +213,34 @@ function EarningsByUserTab() {
       <Button size="sm" colorScheme="brand" mb={4} onClick={() => fetchData(true)} loading={refreshing}>
         Refresh
       </Button>
-      <Table.Root size="sm">
-        <Table.Header>
-          <Table.Row borderColor={dark.borderSubtle}>
-            <Table.ColumnHeader color={dark.muted}>User</Table.ColumnHeader>
-            <Table.ColumnHeader color={dark.muted}>As Seller</Table.ColumnHeader>
-            <Table.ColumnHeader color={dark.muted}>As Winner</Table.ColumnHeader>
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {items.map((row) => (
-            <Table.Row key={row.userId} borderColor={dark.borderSubtle}>
-              <Table.Cell color="white">{row.username}</Table.Cell>
-              <Table.Cell color={dark.label}>
-                ${row.totalAsSeller.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </Table.Cell>
-              <Table.Cell color={dark.label}>
-                ${row.totalAsWinner.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </Table.Cell>
-            </Table.Row>
-          ))}
-        </Table.Body>
-      </Table.Root>
+      <Box overflowX="auto">
+        <table style={tableStyles}>
+          <thead>
+            <tr>
+              <th style={{ ...thBase, textAlign: 'left' }}>User</th>
+              <th style={{ ...thBase, textAlign: 'right' }}>As Seller</th>
+              <th style={{ ...thBase, textAlign: 'right' }}>As Winner</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((row, i) => {
+              const isLast = i === items.length - 1
+              const cellStyle = tdStyle(isLast)
+              return (
+                <tr key={row.userId}>
+                  <td style={{ ...cellStyle, textAlign: 'left' }}>{row.username}</td>
+                  <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 500 }}>
+                    ${row.totalAsSeller.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 500 }}>
+                    ${row.totalAsWinner.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </Box>
       {items.length === 0 && (
         <Text color={dark.muted} py={4}>No data.</Text>
       )}
@@ -270,24 +282,30 @@ function EarningsByItemTab() {
       <Button size="sm" colorScheme="brand" mb={4} onClick={() => fetchData(true)} loading={refreshing}>
         Refresh
       </Button>
-      <Table.Root size="sm">
-        <Table.Header>
-          <Table.Row borderColor={dark.borderSubtle}>
-            <Table.ColumnHeader color={dark.muted}>Title</Table.ColumnHeader>
-            <Table.ColumnHeader color={dark.muted}>Price</Table.ColumnHeader>
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {items.map((row) => (
-            <Table.Row key={row.itemId} borderColor={dark.borderSubtle}>
-              <Table.Cell color="white">{row.title}</Table.Cell>
-              <Table.Cell color={dark.label}>
-                ${row.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </Table.Cell>
-            </Table.Row>
-          ))}
-        </Table.Body>
-      </Table.Root>
+      <Box overflowX="auto">
+        <table style={tableStyles}>
+          <thead>
+            <tr>
+              <th style={{ ...thBase, textAlign: 'left' }}>Title</th>
+              <th style={{ ...thBase, textAlign: 'right' }}>Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((row, i) => {
+              const isLast = i === items.length - 1
+              const cellStyle = tdStyle(isLast)
+              return (
+                <tr key={row.itemId}>
+                  <td style={{ ...cellStyle, textAlign: 'left' }}>{row.title}</td>
+                  <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 500 }}>
+                    ${row.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </Box>
       {items.length === 0 && (
         <Text color={dark.muted} py={4}>No data.</Text>
       )}
@@ -329,26 +347,32 @@ function BestSellingTab() {
       <Button size="sm" colorScheme="brand" mb={4} onClick={() => fetchData(true)} loading={refreshing}>
         Refresh
       </Button>
-      <Table.Root size="sm">
-        <Table.Header>
-          <Table.Row borderColor={dark.borderSubtle}>
-            <Table.ColumnHeader color={dark.muted}>Title</Table.ColumnHeader>
-            <Table.ColumnHeader color={dark.muted}>Price</Table.ColumnHeader>
-            <Table.ColumnHeader color={dark.muted}>Bid Count</Table.ColumnHeader>
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {items.map((row) => (
-            <Table.Row key={row.itemId} borderColor={dark.borderSubtle}>
-              <Table.Cell color="white">{row.title}</Table.Cell>
-              <Table.Cell color={dark.label}>
-                ${row.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </Table.Cell>
-              <Table.Cell color={dark.muted}>{row.bidCount}</Table.Cell>
-            </Table.Row>
-          ))}
-        </Table.Body>
-      </Table.Root>
+      <Box overflowX="auto">
+        <table style={tableStyles}>
+          <thead>
+            <tr>
+              <th style={{ ...thBase, textAlign: 'left' }}>Title</th>
+              <th style={{ ...thBase, textAlign: 'right' }}>Price</th>
+              <th style={{ ...thBase, textAlign: 'right' }}>Bid Count</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((row, i) => {
+              const isLast = i === items.length - 1
+              const cellStyle = tdStyle(isLast)
+              return (
+                <tr key={row.itemId}>
+                  <td style={{ ...cellStyle, textAlign: 'left' }}>{row.title}</td>
+                  <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 500 }}>
+                    ${row.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td style={{ ...cellStyle, textAlign: 'right', color: dark.muted }}>{row.bidCount}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </Box>
       {items.length === 0 && (
         <Text color={dark.muted} py={4}>No data.</Text>
       )}
@@ -390,26 +414,32 @@ function BestBuyersTab() {
       <Button size="sm" colorScheme="brand" mb={4} onClick={() => fetchData(true)} loading={refreshing}>
         Refresh
       </Button>
-      <Table.Root size="sm">
-        <Table.Header>
-          <Table.Row borderColor={dark.borderSubtle}>
-            <Table.ColumnHeader color={dark.muted}>Username</Table.ColumnHeader>
-            <Table.ColumnHeader color={dark.muted}>Total Spent</Table.ColumnHeader>
-            <Table.ColumnHeader color={dark.muted}>Wins</Table.ColumnHeader>
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {items.map((row) => (
-            <Table.Row key={row.userId} borderColor={dark.borderSubtle}>
-              <Table.Cell color="white">{row.username}</Table.Cell>
-              <Table.Cell color={dark.label}>
-                ${row.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </Table.Cell>
-              <Table.Cell color={dark.muted}>{row.winCount}</Table.Cell>
-            </Table.Row>
-          ))}
-        </Table.Body>
-      </Table.Root>
+      <Box overflowX="auto">
+        <table style={tableStyles}>
+          <thead>
+            <tr>
+              <th style={{ ...thBase, textAlign: 'left' }}>Username</th>
+              <th style={{ ...thBase, textAlign: 'right' }}>Total Spent</th>
+              <th style={{ ...thBase, textAlign: 'right' }}>Wins</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((row, i) => {
+              const isLast = i === items.length - 1
+              const cellStyle = tdStyle(isLast)
+              return (
+                <tr key={row.userId}>
+                  <td style={{ ...cellStyle, textAlign: 'left' }}>{row.username}</td>
+                  <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 500 }}>
+                    ${row.totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td style={{ ...cellStyle, textAlign: 'right', color: dark.muted }}>{row.winCount}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </Box>
       {items.length === 0 && (
         <Text color={dark.muted} py={4}>No data.</Text>
       )}

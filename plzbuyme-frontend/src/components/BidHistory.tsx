@@ -1,35 +1,7 @@
 import { Badge, Box, Text } from '@chakra-ui/react'
-import type { CSSProperties } from 'react'
 import type { BidHistoryItem } from '../api/auctions'
 import { dark } from '../theme/colors'
-
-const tableBg = '#1a1a1a'
-const rowBorder = 'rgba(255, 255, 255, 0.08)'
-const textColor = '#e0e0e0'
-
-const tableStyles: CSSProperties = {
-  width: '100%',
-  borderCollapse: 'collapse',
-  background: tableBg,
-  color: textColor,
-}
-
-const thBase: CSSProperties = {
-  padding: '12px 16px',
-  fontWeight: 600,
-  fontSize: '0.875rem',
-  color: textColor,
-  background: tableBg,
-  borderBottom: `1px solid ${rowBorder}`,
-}
-
-const tdStyles: CSSProperties = {
-  padding: '12px 16px',
-  borderBottom: `1px solid ${rowBorder}`,
-  color: textColor,
-  background: tableBg,
-  fontSize: '0.875rem',
-}
+import { tableStyles, thBase, tdBase } from '../theme/tableStyles'
 
 export interface BidHistoryProps {
   bids: BidHistoryItem[]
@@ -57,7 +29,7 @@ export function BidHistory({ bids }: BidHistoryProps) {
         <tbody>
           {bids.map((bid, i) => {
             const isLast = i === bids.length - 1
-            const cellStyle = isLast ? { ...tdStyles, borderBottom: 'none' } : tdStyles
+            const cellStyle = isLast ? { ...tdBase, borderBottom: 'none' } : tdBase
             return (
               <tr key={i}>
                 <td style={{ ...cellStyle, textAlign: 'left' }}>

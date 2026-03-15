@@ -5,13 +5,11 @@ import {
   Container,
   Flex,
   Input,
-  Table,
   Tabs,
   Text,
   Badge,
   Dialog,
   Spinner,
-  useDisclosure,
 } from '@chakra-ui/react'
 import { useForm } from 'react-hook-form'
 import { isAxiosError } from 'axios'
@@ -29,6 +27,7 @@ import { listQuestions, replyToQuestion, type QuestionResponse } from '../../api
 import { browseAuctions, getAuction, type AuctionListItem, type AuctionDetail, type BidHistoryItem } from '../../api/auctions'
 import { showErrorToast, showSuccessToast } from '../../components/ui/toaster'
 import { dark } from '../../theme/colors'
+import { tableStyles, thBase, tdStyle } from '../../theme/tableStyles'
 
 const PAGE_SIZE = 10
 
@@ -118,46 +117,73 @@ function RepUsersTab() {
         </Flex>
       ) : (
         <>
-          <Table.Root size="sm">
-            <Table.Header>
-              <Table.Row borderColor={dark.borderSubtle}>
-                <Table.ColumnHeader color={dark.muted}>Username</Table.ColumnHeader>
-                <Table.ColumnHeader color={dark.muted}>Email</Table.ColumnHeader>
-                <Table.ColumnHeader color={dark.muted}>Active</Table.ColumnHeader>
-                <Table.ColumnHeader color={dark.muted}>Created</Table.ColumnHeader>
-                <Table.ColumnHeader color={dark.muted}>Actions</Table.ColumnHeader>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {users.map((u) => (
-                <Table.Row key={u.id} borderColor={dark.borderSubtle}>
-                  <Table.Cell color="white">{u.username}</Table.Cell>
-                  <Table.Cell color={dark.label}>{u.email}</Table.Cell>
-                  <Table.Cell>
-                    <Badge colorPalette={u.isActive ? 'green' : 'red'} size="sm">
-                      {u.isActive ? 'Yes' : 'No'}
-                    </Badge>
-                  </Table.Cell>
-                  <Table.Cell color={dark.muted} fontSize="sm">
-                    {new Date(u.createdAt).toLocaleDateString()}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Flex gap={2}>
-                      <Button size="xs" variant="outline" colorScheme="brand" onClick={() => setEditUser(u)}>
-                        Edit
-                      </Button>
-                      <Button size="xs" variant="outline" colorScheme="brand" onClick={() => setResetUser(u)}>
-                        Reset PW
-                      </Button>
-                      <Button size="xs" variant="outline" colorPalette="red" onClick={() => setDeleteUser(u)}>
-                        Delete
-                      </Button>
-                    </Flex>
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table.Root>
+          <Box overflowX="auto">
+            <table style={tableStyles}>
+              <thead>
+                <tr>
+                  <th style={{ ...thBase, textAlign: 'left' }}>Username</th>
+                  <th style={{ ...thBase, textAlign: 'left' }}>Email</th>
+                  <th style={{ ...thBase, textAlign: 'left' }}>Active</th>
+                  <th style={{ ...thBase, textAlign: 'left' }}>Created</th>
+                  <th style={{ ...thBase, textAlign: 'left' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((u, i) => {
+                  const isLast = i === users.length - 1
+                  const cellStyle = tdStyle(isLast)
+                  return (
+                    <tr key={u.id}>
+                      <td style={{ ...cellStyle, textAlign: 'left' }}>{u.username}</td>
+                      <td style={{ ...cellStyle, textAlign: 'left' }}>{u.email}</td>
+                      <td style={{ ...cellStyle, textAlign: 'left' }}>
+                        <Badge colorPalette={u.isActive ? 'green' : 'red'} size="sm">
+                          {u.isActive ? 'Yes' : 'No'}
+                        </Badge>
+                      </td>
+                      <td style={{ ...cellStyle, textAlign: 'left', color: dark.muted }}>
+                        {new Date(u.createdAt).toLocaleDateString()}
+                      </td>
+                      <td style={{ ...cellStyle, textAlign: 'left' }}>
+                        <Flex gap={2}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            borderColor={dark.borderSubtle}
+                            color="white"
+                            _hover={{ bg: 'whiteAlpha.100' }}
+                            onClick={() => setEditUser(u)}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            borderColor={dark.borderSubtle}
+                            color="white"
+                            _hover={{ bg: 'whiteAlpha.100' }}
+                            onClick={() => setResetUser(u)}
+                          >
+                            Reset PW
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            borderColor={dark.borderSubtle}
+                            color="white"
+                            _hover={{ bg: 'whiteAlpha.100' }}
+                            onClick={() => setDeleteUser(u)}
+                          >
+                            Delete
+                          </Button>
+                        </Flex>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </Box>
           {totalCount > PAGE_SIZE && (
             <Flex justify="space-between" align="center" mt={4}>
               <Text color={dark.muted} fontSize="sm">
@@ -653,86 +679,109 @@ function RepAuctionsTab() {
         </Flex>
       ) : (
         <>
-          <Table.Root size="sm">
-            <Table.Header>
-              <Table.Row borderColor={dark.borderSubtle}>
-                <Table.ColumnHeader color={dark.muted}>Title</Table.ColumnHeader>
-                <Table.ColumnHeader color={dark.muted}>Price</Table.ColumnHeader>
-                <Table.ColumnHeader color={dark.muted}>Status</Table.ColumnHeader>
-                <Table.ColumnHeader color={dark.muted}>Seller</Table.ColumnHeader>
-                <Table.ColumnHeader color={dark.muted}>Actions</Table.ColumnHeader>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {auctions.map((a) => (
-                <Table.Row key={a.id} borderColor={dark.borderSubtle}>
-                  <Table.Cell color="white">{a.title}</Table.Cell>
-                  <Table.Cell color={dark.label}>${a.currentPrice.toLocaleString()}</Table.Cell>
-                  <Table.Cell>
-                    <Badge size="sm">{a.status}</Badge>
-                  </Table.Cell>
-                  <Table.Cell color={dark.muted}>{a.sellerUsername}</Table.Cell>
-                  <Table.Cell>
-                    <Flex gap={2}>
-                      <Button
-                        size="xs"
-                        variant="outline"
-                        colorScheme="brand"
-                        onClick={() => setExpandedId(expandedId === a.id ? null : a.id)}
-                      >
-                        {expandedId === a.id ? 'Hide bids' : 'Bids'}
-                      </Button>
-                      <Button size="xs" variant="outline" colorPalette="red" onClick={() => handleRemoveAuction(a.id)}>
-                        Remove auction
-                      </Button>
-                    </Flex>
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table.Root>
+          <Box overflowX="auto">
+            <table style={tableStyles}>
+              <thead>
+                <tr>
+                  <th style={{ ...thBase, textAlign: 'left' }}>Title</th>
+                  <th style={{ ...thBase, textAlign: 'right' }}>Price</th>
+                  <th style={{ ...thBase, textAlign: 'left' }}>Status</th>
+                  <th style={{ ...thBase, textAlign: 'left' }}>Seller</th>
+                  <th style={{ ...thBase, textAlign: 'left' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auctions.map((a, i) => {
+                  const isLast = i === auctions.length - 1
+                  const cellStyle = tdStyle(isLast)
+                  return (
+                    <tr key={a.id}>
+                      <td style={{ ...cellStyle, textAlign: 'left' }}>{a.title}</td>
+                      <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 500 }}>${a.currentPrice.toLocaleString()}</td>
+                      <td style={{ ...cellStyle, textAlign: 'left' }}>
+                        <Badge size="sm">{a.status}</Badge>
+                      </td>
+                      <td style={{ ...cellStyle, textAlign: 'left', color: dark.muted }}>{a.sellerUsername}</td>
+                      <td style={{ ...cellStyle, textAlign: 'left' }}>
+                        <Flex gap={2}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            borderColor={dark.borderSubtle}
+                            color="white"
+                            _hover={{ bg: 'whiteAlpha.100' }}
+                            onClick={() => setExpandedId(expandedId === a.id ? null : a.id)}
+                          >
+                            {expandedId === a.id ? 'Hide bids' : 'Bids'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            borderColor={dark.borderSubtle}
+                            color="white"
+                            _hover={{ bg: 'whiteAlpha.100' }}
+                            onClick={() => handleRemoveAuction(a.id)}
+                          >
+                            Remove auction
+                          </Button>
+                        </Flex>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </Box>
           {expandedId != null && (
             <Box mt={4} p={4} bg={dark.cardBg} borderRadius="md" borderWidth="1px" borderColor={dark.borderSubtle}>
               <Text fontWeight="semibold" color="white" mb={3}>Bid history</Text>
               {loadingDetail ? (
                 <Spinner size="sm" color="brand.400" />
               ) : detail?.bidHistory?.length ? (
-                <Table.Root size="sm">
-                  <Table.Header>
-                    <Table.Row borderColor={dark.borderSubtle}>
-                      <Table.ColumnHeader color={dark.muted}>Bidder</Table.ColumnHeader>
-                      <Table.ColumnHeader color={dark.muted}>Amount</Table.ColumnHeader>
-                      <Table.ColumnHeader color={dark.muted}>Time</Table.ColumnHeader>
-                      <Table.ColumnHeader color={dark.muted}>Actions</Table.ColumnHeader>
-                    </Table.Row>
-                  </Table.Header>
-                  <Table.Body>
-                    {(detail.bidHistory as (BidHistoryItem & { id?: number })[]).map((b) => (
-                      <Table.Row key={b.createdAt + b.bidderUsername} borderColor={dark.borderSubtle}>
-                        <Table.Cell color="white">{b.bidderUsername}</Table.Cell>
-                        <Table.Cell color={dark.label}>
-                          ${b.amount.toLocaleString()}
-                          {b.isAuto && <Badge ml={2} size="sm">Auto</Badge>}
-                        </Table.Cell>
-                        <Table.Cell color={dark.muted} fontSize="sm">
-                          {new Date(b.createdAt).toLocaleString()}
-                        </Table.Cell>
-                        <Table.Cell>
-                          {b.id != null ? (
-                            <Button
-                              size="xs"
-                              variant="outline"
-                              colorPalette="red"
-                              onClick={() => handleRemoveBid(b.id!, detail.id)}
-                            >
-                              Remove bid
-                            </Button>
-                          ) : null}
-                        </Table.Cell>
-                      </Table.Row>
-                    ))}
-                  </Table.Body>
-                </Table.Root>
+                <Box overflowX="auto">
+                  <table style={tableStyles}>
+                    <thead>
+                      <tr>
+                        <th style={{ ...thBase, textAlign: 'left' }}>Bidder</th>
+                        <th style={{ ...thBase, textAlign: 'right' }}>Amount</th>
+                        <th style={{ ...thBase, textAlign: 'left' }}>Time</th>
+                        <th style={{ ...thBase, textAlign: 'left' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(detail.bidHistory as (BidHistoryItem & { id?: number })[]).map((b, idx) => {
+                        const isLast = idx === detail!.bidHistory.length - 1
+                        const cellStyle = tdStyle(isLast)
+                        return (
+                          <tr key={b.createdAt + b.bidderUsername}>
+                            <td style={{ ...cellStyle, textAlign: 'left' }}>{b.bidderUsername}</td>
+                            <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 500 }}>
+                              ${b.amount.toLocaleString()}
+                              {b.isAuto && <Badge ml={2} size="sm">Auto</Badge>}
+                            </td>
+                            <td style={{ ...cellStyle, textAlign: 'left', color: dark.muted }}>
+                              {new Date(b.createdAt).toLocaleString()}
+                            </td>
+                            <td style={{ ...cellStyle, textAlign: 'left' }}>
+                              {b.id != null ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  borderColor={dark.borderSubtle}
+                                  color="white"
+                                  _hover={{ bg: 'whiteAlpha.100' }}
+                                  onClick={() => handleRemoveBid(b.id!, detail.id)}
+                                >
+                                  Remove bid
+                                </Button>
+                              ) : null}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </Box>
               ) : (
                 <Text color={dark.muted}>No bids yet.</Text>
               )}
