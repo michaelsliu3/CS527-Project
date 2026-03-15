@@ -37,13 +37,15 @@ public class Program
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 try
                 {
-                    if (!string.IsNullOrEmpty(connectionString))
-                        DatabaseEnsure.EnsureDatabaseExists(connectionString);
-                    if (db.Database.CanConnect())
+                    if (db.Database.IsRelational())
                     {
-                        db.Database.Migrate();
-                        SeedData.Initialize(db);
+                        if (!string.IsNullOrEmpty(connectionString))
+                            DatabaseEnsure.EnsureDatabaseExists(connectionString);
+                        if (db.Database.CanConnect())
+                            db.Database.Migrate();
                     }
+                    if (db.Database.CanConnect())
+                        SeedData.Initialize(db);
                 }
                 catch (Exception ex)
                 {
@@ -67,14 +69,20 @@ public class Program
 
     private static void ConfigureServices(WebApplicationBuilder builder)
     {
-        // ── MySQL via Pomelo ────────────────────────────────────────
-        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("Missing DefaultConnection");
-
-        // Use fixed server version so design-time (e.g. dotnet ef migrations add) does not require a live MySQL connection.
-        var serverVersion = new MySqlServerVersion(new Version(8, 0));
-        builder.Services.AddDbContext<AppDbContext>(options =>
-            options.UseMySql(connectionString, serverVersion));
+        // ── Database: InMemory for Testing, MySQL otherwise ─────────
+        if (builder.Environment.IsEnvironment("Testing"))
+        {
+            builder.Services.AddDbContext<AppDbContext>(options =>
+                options.UseInMemoryDatabase("PlzBuyMeE2E"));
+        }
+        else
+        {
+            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException("Missing DefaultConnection");
+            var serverVersion = new MySqlServerVersion(new Version(8, 0));
+            builder.Services.AddDbContext<AppDbContext>(options =>
+                options.UseMySql(connectionString, serverVersion));
+        }
 
         // ── JWT Authentication ──────────────────────────────────────
         var jwtSection = builder.Configuration.GetSection("Jwt");
@@ -121,6 +129,8 @@ public class Program
         builder.Services.AddScoped<IAlertService, AlertService>();
         builder.Services.AddScoped<INotificationService, NotificationService>();
         builder.Services.AddScoped<IAuctionService, AuctionService>();
+        builder.Services.AddScoped<IQuestionsService, QuestionsService>();
+        builder.Services.AddScoped<IRepService, RepService>();
         builder.Services.AddHostedService<AuctionCloseService>();
 
         // ── CORS ────────────────────────────────────────────────────

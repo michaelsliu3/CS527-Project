@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PlzBuyMe.Api.Data;
+using PlzBuyMe.Api.Dtos;
 using PlzBuyMe.Api.Dtos.Auctions;
 using PlzBuyMe.Api.Models;
 using Pomelo.EntityFrameworkCore.MySql.Infrastructure;

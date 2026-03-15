@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using PlzBuyMe.Api.Controllers;
+using PlzBuyMe.Api.Dtos;
 using PlzBuyMe.Api.Dtos.Auctions;
 using PlzBuyMe.Api.Services;
 using Xunit;

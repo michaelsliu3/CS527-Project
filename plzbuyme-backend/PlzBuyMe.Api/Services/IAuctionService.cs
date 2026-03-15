@@ -1,3 +1,4 @@
+using PlzBuyMe.Api.Dtos;
 using PlzBuyMe.Api.Dtos.Auctions;
 
 namespace PlzBuyMe.Api.Services;

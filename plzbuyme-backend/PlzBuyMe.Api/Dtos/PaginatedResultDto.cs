@@ -1,4 +1,4 @@
-namespace PlzBuyMe.Api.Dtos.Auctions;
+namespace PlzBuyMe.Api.Dtos;
 
 public record PaginatedResultDto<T>
 {
