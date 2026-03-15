@@ -38,10 +38,10 @@ export function RepDashboard() {
         Rep Dashboard
       </Text>
       <Tabs.Root defaultValue="users" variant="line" colorPalette="brand">
-        <Tabs.List borderColor={dark.borderSubtle} gap={2}>
-          <Tabs.Trigger value="users">Users</Tabs.Trigger>
-          <Tabs.Trigger value="questions">Questions</Tabs.Trigger>
-          <Tabs.Trigger value="auctions">Auctions</Tabs.Trigger>
+        <Tabs.List borderColor={dark.borderSubtle} gap={2} color="white">
+          <Tabs.Trigger value="users" color="white">Users</Tabs.Trigger>
+          <Tabs.Trigger value="questions" color="white">Questions</Tabs.Trigger>
+          <Tabs.Trigger value="auctions" color="white">Auctions</Tabs.Trigger>
         </Tabs.List>
         <Box pt={4}>
           <Tabs.Content value="users">

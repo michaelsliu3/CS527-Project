@@ -38,13 +38,13 @@ export function ReportsPage() {
         </Button>
       </Flex>
       <Tabs.Root defaultValue="total" variant="line" colorPalette="brand">
-        <Tabs.List borderColor={dark.borderSubtle} gap={2}>
-          <Tabs.Trigger value="total">Total Earnings</Tabs.Trigger>
-          <Tabs.Trigger value="by-type">By Type</Tabs.Trigger>
-          <Tabs.Trigger value="by-user">By User</Tabs.Trigger>
-          <Tabs.Trigger value="by-item">By Item</Tabs.Trigger>
-          <Tabs.Trigger value="best-selling">Best Selling</Tabs.Trigger>
-          <Tabs.Trigger value="best-buyers">Best Buyers</Tabs.Trigger>
+        <Tabs.List borderColor={dark.borderSubtle} gap={2} color="white">
+          <Tabs.Trigger value="total" color="white">Total Earnings</Tabs.Trigger>
+          <Tabs.Trigger value="by-type" color="white">By Type</Tabs.Trigger>
+          <Tabs.Trigger value="by-user" color="white">By User</Tabs.Trigger>
+          <Tabs.Trigger value="by-item" color="white">By Item</Tabs.Trigger>
+          <Tabs.Trigger value="best-selling" color="white">Best Selling</Tabs.Trigger>
+          <Tabs.Trigger value="best-buyers" color="white">Best Buyers</Tabs.Trigger>
         </Tabs.List>
         <Box pt={4}>
           <Tabs.Content value="total">
