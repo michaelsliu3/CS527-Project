@@ -220,7 +220,9 @@ public class QuestionsAndRepE2ETests : IClassFixture<PlzBuyMeWebApplicationFacto
         var detailRes = await _client.SendAsync(detailReq);
         detailRes.StatusCode.Should().Be(HttpStatusCode.OK);
         var detailRoot = JsonSerializer.Deserialize<JsonElement>(await detailRes.Content.ReadAsStringAsync());
-        var currentPriceBefore = detailRoot.GetProperty("currentPrice").GetDecimal();
+        var currentPriceBefore = detailRoot.TryGetProperty("currentPrice", out var cpBefore)
+            ? cpBefore.GetDecimal()
+            : detailRoot.GetProperty("CurrentPrice").GetDecimal();
         detailRoot.TryGetProperty("bidHistory", out var bidHistory).Should().BeTrue();
         var bids = bidHistory.EnumerateArray().ToList();
         if (bids.Count < 2)
@@ -240,7 +242,10 @@ public class QuestionsAndRepE2ETests : IClassFixture<PlzBuyMeWebApplicationFacto
         var detailRes2 = await _client.SendAsync(detailReq2);
         detailRes2.StatusCode.Should().Be(HttpStatusCode.OK);
         var detailRoot2 = JsonSerializer.Deserialize<JsonElement>(await detailRes2.Content.ReadAsStringAsync());
-        var currentPriceAfter = detailRoot2.GetProperty("currentPrice").GetDecimal();
+        // API uses camelCase; support both for resilience
+        var currentPriceAfter = detailRoot2.TryGetProperty("currentPrice", out var cp)
+            ? cp.GetDecimal()
+            : detailRoot2.GetProperty("CurrentPrice").GetDecimal();
         currentPriceAfter.Should().BeLessThan(currentPriceBefore);
     }
 
