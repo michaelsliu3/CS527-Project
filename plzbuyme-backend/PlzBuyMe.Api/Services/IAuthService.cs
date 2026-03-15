@@ -1,3 +1,4 @@
+using PlzBuyMe.Api.Dtos.Admin;
 using PlzBuyMe.Api.Dtos.Auth;
 using PlzBuyMe.Api.Models;
 
@@ -12,4 +13,5 @@ public interface IAuthService
     Task<LoginResult> LoginAsync(LoginDto dto);
     Task<ProfileDto?> GetProfileAsync(int userId);
     Task<bool> DeleteProfileAsync(int userId);
+    Task<CreateRepResult> CreateRepAsync(CreateRepDto dto);
 }

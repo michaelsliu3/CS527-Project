@@ -131,6 +131,7 @@ public class Program
         builder.Services.AddScoped<IAuctionService, AuctionService>();
         builder.Services.AddScoped<IQuestionsService, QuestionsService>();
         builder.Services.AddScoped<IRepService, RepService>();
+        builder.Services.AddScoped<IReportService, ReportService>();
         builder.Services.AddHostedService<AuctionCloseService>();
 
         // ── CORS ────────────────────────────────────────────────────
