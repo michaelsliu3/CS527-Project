@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PlzBuyMe.Api.Controllers;
 using PlzBuyMe.Api.Data;
+using PlzBuyMe.Api.Dtos;
 using PlzBuyMe.Api.Dtos.Rep;
 using PlzBuyMe.Api.Models;
 using PlzBuyMe.Api.Services;
@@ -34,6 +35,94 @@ public class RepControllerTests
             .AddInMemoryCollection(inMemorySettings)
             .Build();
         return new AuthService(db, configuration);
+    }
+
+    [Fact]
+    public async Task Rep_GetUsers_Returns_Paginated_EndUsers()
+    {
+        await using var db = CreateDbContext();
+        var authService = CreateAuthService(db);
+        var repService = new RepService(db, authService);
+        var rep = new User
+        {
+            Username = "rep1",
+            Email = "rep1@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.CustomerRep
+        };
+        var user1 = new User
+        {
+            Username = "alice",
+            Email = "alice@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        var user2 = new User
+        {
+            Username = "bob",
+            Email = "bob@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        db.Users.AddRange(rep, user1, user2);
+        await db.SaveChangesAsync();
+
+        var controller = new RepController(repService);
+        ControllerTestHelpers.SetUser(controller, rep.Id, "customer_rep");
+
+        var result = await controller.GetUsers(search: null, page: 1, pageSize: 20);
+
+        result.Should().BeOfType<OkObjectResult>();
+        var ok = (OkObjectResult)result;
+        var body = ok.Value.Should().BeOfType<PaginatedResultDto<UserSummaryDto>>().Subject;
+        body.TotalCount.Should().Be(2);
+        body.Items.Should().HaveCount(2);
+        body.Page.Should().Be(1);
+        body.PageSize.Should().Be(20);
+        body.Items.Should().Contain(u => u.Username == "alice" && u.Email == "alice@example.com");
+        body.Items.Should().Contain(u => u.Username == "bob" && u.Email == "bob@example.com");
+    }
+
+    [Fact]
+    public async Task Rep_GetUsers_Search_Filters_By_Username_Or_Email()
+    {
+        await using var db = CreateDbContext();
+        var authService = CreateAuthService(db);
+        var repService = new RepService(db, authService);
+        var rep = new User
+        {
+            Username = "rep1",
+            Email = "rep1@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.CustomerRep
+        };
+        var user1 = new User
+        {
+            Username = "alice",
+            Email = "alice@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        var user2 = new User
+        {
+            Username = "bob",
+            Email = "bob@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        db.Users.AddRange(rep, user1, user2);
+        await db.SaveChangesAsync();
+
+        var controller = new RepController(repService);
+        ControllerTestHelpers.SetUser(controller, rep.Id, "customer_rep");
+
+        var result = await controller.GetUsers(search: "alice", page: 1, pageSize: 20);
+
+        result.Should().BeOfType<OkObjectResult>();
+        var ok = (OkObjectResult)result;
+        var body = ok.Value.Should().BeOfType<PaginatedResultDto<UserSummaryDto>>().Subject;
+        body.TotalCount.Should().Be(1);
+        body.Items.Should().ContainSingle(u => u.Username == "alice");
     }
 
     [Fact]

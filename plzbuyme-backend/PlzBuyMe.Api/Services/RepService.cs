@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using PlzBuyMe.Api.Data;
-using PlzBuyMe.Api.Dtos.Auctions;
+using PlzBuyMe.Api.Dtos;
 using PlzBuyMe.Api.Dtos.Rep;
 using PlzBuyMe.Api.Models;
 using PlzBuyMe.Api.Services;
@@ -69,6 +69,11 @@ public class RepService : IRepService
 
         var username = dto.Username.Trim();
         var email = dto.Email.Trim();
+
+        if (string.IsNullOrWhiteSpace(username))
+            return (false, "Username is required.");
+        if (string.IsNullOrWhiteSpace(email))
+            return (false, "Email is required.");
 
         var usernameTaken = await _db.Users.AnyAsync(u => u.Id != id && u.Username == username);
         if (usernameTaken)

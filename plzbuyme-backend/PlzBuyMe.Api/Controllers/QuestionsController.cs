@@ -27,14 +27,14 @@ public class QuestionsController : ControllerBase
 
     [Authorize(Policy = "EndUser")]
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateQuestionDto dto)
+    public async Task<IActionResult> Create([FromBody] CreateQuestionDto? dto)
     {
+        if (dto == null)
+            return BadRequest("Request body is required.");
+
         var userId = GetCurrentUserId();
         if (userId == null)
             return Forbid();
-
-        if (string.IsNullOrWhiteSpace(dto.Subject) || string.IsNullOrWhiteSpace(dto.Body))
-            return BadRequest("Subject and body are required.");
 
         var response = await _questionsService.CreateQuestionAsync(userId.Value, dto);
         return Ok(response);
@@ -42,14 +42,14 @@ public class QuestionsController : ControllerBase
 
     [Authorize(Policy = "RepOnly")]
     [HttpPost("{id:int}/reply")]
-    public async Task<IActionResult> Reply(int id, [FromBody] ReplyDto dto)
+    public async Task<IActionResult> Reply(int id, [FromBody] ReplyDto? dto)
     {
+        if (dto == null)
+            return BadRequest("Request body is required.");
+
         var userId = GetCurrentUserId();
         if (userId == null)
             return Forbid();
-
-        if (string.IsNullOrWhiteSpace(dto.Reply))
-            return BadRequest("Reply is required.");
 
         var response = await _questionsService.ReplyAsync(id, userId.Value, dto);
         if (response == null)

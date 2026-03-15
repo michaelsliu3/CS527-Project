@@ -1,4 +1,4 @@
-using PlzBuyMe.Api.Dtos.Auctions;
+using PlzBuyMe.Api.Dtos;
 using PlzBuyMe.Api.Dtos.Rep;
 
 namespace PlzBuyMe.Api.Services;

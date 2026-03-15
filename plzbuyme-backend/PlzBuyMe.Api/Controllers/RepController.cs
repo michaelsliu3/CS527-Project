@@ -28,8 +28,11 @@ public class RepController : ControllerBase
     }
 
     [HttpPut("users/{id:int}")]
-    public async Task<IActionResult> EditUser(int id, [FromBody] EditUserDto dto)
+    public async Task<IActionResult> EditUser(int id, [FromBody] EditUserDto? dto)
     {
+        if (dto == null)
+            return BadRequest("Request body is required.");
+
         var (notFound, error) = await _repService.EditUserAsync(id, dto);
         if (notFound)
             return NotFound();
@@ -50,8 +53,11 @@ public class RepController : ControllerBase
     }
 
     [HttpPost("users/{id:int}/reset-password")]
-    public async Task<IActionResult> ResetPassword(int id, [FromBody] ResetPasswordDto dto)
+    public async Task<IActionResult> ResetPassword(int id, [FromBody] ResetPasswordDto? dto)
     {
+        if (dto == null)
+            return BadRequest("Request body is required.");
+
         var (notFound, error) = await _repService.ResetPasswordAsync(id, dto);
         if (notFound)
             return NotFound();
