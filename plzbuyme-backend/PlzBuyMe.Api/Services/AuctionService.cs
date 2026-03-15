@@ -496,6 +496,7 @@ public class AuctionService : IAuctionService
             .OrderByDescending(b => b.CreatedAt)
             .Select(b => new BidHistoryItemDto
             {
+                Id = b.Id,
                 BidderUsername = b.Bidder.Username,
                 Amount = b.Amount,
                 IsAuto = b.IsAuto,

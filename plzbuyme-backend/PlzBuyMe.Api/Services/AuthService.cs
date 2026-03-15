@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using PlzBuyMe.Api.Data;
+using PlzBuyMe.Api.Dtos.Admin;
 using PlzBuyMe.Api.Dtos.Auth;
 using PlzBuyMe.Api.Models;
 
@@ -139,6 +140,37 @@ public class AuthService : IAuthService
         user.IsActive = false;
         await _db.SaveChangesAsync();
         return true;
+    }
+
+    public async Task<CreateRepResult> CreateRepAsync(CreateRepDto dto)
+    {
+        var username = dto.Username.Trim();
+        var email = dto.Email.Trim();
+        if (await _db.Users.AnyAsync(u => u.Username == username))
+            return new CreateRepResult { ErrorMessage = "Username is already taken." };
+        if (await _db.Users.AnyAsync(u => u.Email == email))
+            return new CreateRepResult { ErrorMessage = "Email is already taken." };
+
+        var user = new User
+        {
+            Username = username,
+            Email = email,
+            PasswordHash = HashPassword(dto.Password),
+            Role = UserRole.CustomerRep,
+            IsActive = true
+        };
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
+
+        return new CreateRepResult
+        {
+            Data = new CreateRepResponseDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                Email = user.Email
+            }
+        };
     }
 
     private static string RoleToClaimValue(UserRole role)
