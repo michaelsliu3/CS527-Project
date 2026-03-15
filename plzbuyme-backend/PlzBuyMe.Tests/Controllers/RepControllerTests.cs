@@ -40,6 +40,8 @@ public class RepControllerTests
     public async Task Rep_Can_Edit_User()
     {
         await using var db = CreateDbContext();
+        var authService = CreateAuthService(db);
+        var repService = new RepService(db, authService);
         var rep = new User
         {
             Username = "rep1",
@@ -57,8 +59,7 @@ public class RepControllerTests
         db.Users.AddRange(rep, user);
         await db.SaveChangesAsync();
 
-        var authService = CreateAuthService(db);
-        var controller = new RepController(db, authService);
+        var controller = new RepController(repService);
         ControllerTestHelpers.SetUser(controller, rep.Id, "customer_rep");
 
         var dto = new EditUserDto
@@ -79,6 +80,8 @@ public class RepControllerTests
     public async Task Rep_Can_Soft_Delete_User()
     {
         await using var db = CreateDbContext();
+        var authService = CreateAuthService(db);
+        var repService = new RepService(db, authService);
         var rep = new User
         {
             Username = "rep1",
@@ -96,8 +99,7 @@ public class RepControllerTests
         db.Users.AddRange(rep, user);
         await db.SaveChangesAsync();
 
-        var authService = CreateAuthService(db);
-        var controller = new RepController(db, authService);
+        var controller = new RepController(repService);
         ControllerTestHelpers.SetUser(controller, rep.Id, "customer_rep");
 
         var result = await controller.DeleteUser(user.Id);
@@ -111,6 +113,8 @@ public class RepControllerTests
     public async Task Rep_Can_Reset_Password()
     {
         await using var db = CreateDbContext();
+        var authService = CreateAuthService(db);
+        var repService = new RepService(db, authService);
         var rep = new User
         {
             Username = "rep1",
@@ -128,8 +132,7 @@ public class RepControllerTests
         db.Users.AddRange(rep, user);
         await db.SaveChangesAsync();
 
-        var authService = CreateAuthService(db);
-        var controller = new RepController(db, authService);
+        var controller = new RepController(repService);
         ControllerTestHelpers.SetUser(controller, rep.Id, "customer_rep");
 
         var dto = new ResetPasswordDto { NewPassword = "newpassword123" };
@@ -145,6 +148,8 @@ public class RepControllerTests
     public async Task Rep_Removing_Bid_Recalculates_CurrentPrice()
     {
         await using var db = CreateDbContext();
+        var authService = CreateAuthService(db);
+        var repService = new RepService(db, authService);
         var rep = new User
         {
             Username = "rep1",
@@ -208,8 +213,7 @@ public class RepControllerTests
         db.Bids.AddRange(lowerBid, higherBid);
         await db.SaveChangesAsync();
 
-        var authService = CreateAuthService(db);
-        var controller = new RepController(db, authService);
+        var controller = new RepController(repService);
         ControllerTestHelpers.SetUser(controller, rep.Id, "customer_rep");
 
         var result = await controller.DeleteBid(higherBid.Id);
@@ -223,6 +227,8 @@ public class RepControllerTests
     public async Task Rep_Removing_Last_Bid_Reverts_To_InitialPrice()
     {
         await using var db = CreateDbContext();
+        var authService = CreateAuthService(db);
+        var repService = new RepService(db, authService);
         var rep = new User
         {
             Username = "rep1",
@@ -272,8 +278,7 @@ public class RepControllerTests
         db.Bids.Add(bid);
         await db.SaveChangesAsync();
 
-        var authService = CreateAuthService(db);
-        var controller = new RepController(db, authService);
+        var controller = new RepController(repService);
         ControllerTestHelpers.SetUser(controller, rep.Id, "customer_rep");
 
         var result = await controller.DeleteBid(bid.Id);
@@ -287,6 +292,8 @@ public class RepControllerTests
     public async Task Rep_Removing_Auction_Sets_Status_Removed()
     {
         await using var db = CreateDbContext();
+        var authService = CreateAuthService(db);
+        var repService = new RepService(db, authService);
         var rep = new User
         {
             Username = "rep1",
@@ -319,8 +326,7 @@ public class RepControllerTests
         db.Items.Add(item);
         await db.SaveChangesAsync();
 
-        var authService = CreateAuthService(db);
-        var controller = new RepController(db, authService);
+        var controller = new RepController(repService);
         ControllerTestHelpers.SetUser(controller, rep.Id, "customer_rep");
 
         var result = await controller.DeleteAuction(item.Id);

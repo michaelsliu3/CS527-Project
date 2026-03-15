@@ -121,6 +121,8 @@ public class Program
         builder.Services.AddScoped<IAlertService, AlertService>();
         builder.Services.AddScoped<INotificationService, NotificationService>();
         builder.Services.AddScoped<IAuctionService, AuctionService>();
+        builder.Services.AddScoped<IQuestionsService, QuestionsService>();
+        builder.Services.AddScoped<IRepService, RepService>();
         builder.Services.AddHostedService<AuctionCloseService>();
 
         // ── CORS ────────────────────────────────────────────────────

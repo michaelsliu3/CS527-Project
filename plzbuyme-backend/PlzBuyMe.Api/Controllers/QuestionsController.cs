@@ -1,9 +1,8 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos.Questions;
+using PlzBuyMe.Api.Services;
 
 namespace PlzBuyMe.Api.Controllers;
 
@@ -11,48 +10,18 @@ namespace PlzBuyMe.Api.Controllers;
 [Route("api/questions")]
 public class QuestionsController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly IQuestionsService _questionsService;
 
-    public QuestionsController(AppDbContext db)
+    public QuestionsController(IQuestionsService questionsService)
     {
-        _db = db;
+        _questionsService = questionsService;
     }
 
     [Authorize]
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] string? keyword)
     {
-        var query = _db.Questions
-            .Include(q => q.User)
-            .Include(q => q.RepliedByUser)
-            .AsNoTracking();
-
-        if (!string.IsNullOrWhiteSpace(keyword))
-        {
-            var term = keyword.Trim().ToLowerInvariant();
-            query = query.Where(q =>
-                q.Subject.ToLower().Contains(term) ||
-                q.Body.ToLower().Contains(term) ||
-                (q.Reply != null && q.Reply.ToLower().Contains(term)));
-        }
-
-        var items = await query
-            .OrderByDescending(q => q.CreatedAt)
-            .Select(q => new QuestionResponseDto
-            {
-                Id = q.Id,
-                UserId = q.UserId,
-                Username = q.User.Username,
-                Subject = q.Subject,
-                Body = q.Body,
-                Reply = q.Reply,
-                RepliedBy = q.RepliedBy,
-                RepliedByUsername = q.RepliedByUser != null ? q.RepliedByUser.Username : null,
-                CreatedAt = q.CreatedAt,
-                RepliedAt = q.RepliedAt
-            })
-            .ToListAsync();
-
+        var items = await _questionsService.GetQuestionsAsync(keyword);
         return Ok(items);
     }
 
@@ -67,36 +36,7 @@ public class QuestionsController : ControllerBase
         if (string.IsNullOrWhiteSpace(dto.Subject) || string.IsNullOrWhiteSpace(dto.Body))
             return BadRequest("Subject and body are required.");
 
-        var question = new Models.Question
-        {
-            UserId = userId.Value,
-            Subject = dto.Subject.Trim(),
-            Body = dto.Body.Trim()
-        };
-
-        _db.Questions.Add(question);
-        await _db.SaveChangesAsync();
-
-        var created = await _db.Questions
-            .Include(q => q.User)
-            .Include(q => q.RepliedByUser)
-            .AsNoTracking()
-            .FirstAsync(q => q.Id == question.Id);
-
-        var response = new QuestionResponseDto
-        {
-            Id = created.Id,
-            UserId = created.UserId,
-            Username = created.User.Username,
-            Subject = created.Subject,
-            Body = created.Body,
-            Reply = created.Reply,
-            RepliedBy = created.RepliedBy,
-            RepliedByUsername = created.RepliedByUser != null ? created.RepliedByUser.Username : null,
-            CreatedAt = created.CreatedAt,
-            RepliedAt = created.RepliedAt
-        };
-
+        var response = await _questionsService.CreateQuestionAsync(userId.Value, dto);
         return Ok(response);
     }
 
@@ -111,34 +51,9 @@ public class QuestionsController : ControllerBase
         if (string.IsNullOrWhiteSpace(dto.Reply))
             return BadRequest("Reply is required.");
 
-        var question = await _db.Questions
-            .Include(q => q.User)
-            .Include(q => q.RepliedByUser)
-            .FirstOrDefaultAsync(q => q.Id == id);
-
-        if (question == null)
+        var response = await _questionsService.ReplyAsync(id, userId.Value, dto);
+        if (response == null)
             return NotFound();
-
-        question.Reply = dto.Reply.Trim();
-        question.RepliedBy = userId.Value;
-        question.RepliedAt = DateTime.UtcNow;
-
-        await _db.SaveChangesAsync();
-
-        var response = new QuestionResponseDto
-        {
-            Id = question.Id,
-            UserId = question.UserId,
-            Username = question.User.Username,
-            Subject = question.Subject,
-            Body = question.Body,
-            Reply = question.Reply,
-            RepliedBy = question.RepliedBy,
-            RepliedByUsername = question.RepliedByUser?.Username,
-            CreatedAt = question.CreatedAt,
-            RepliedAt = question.RepliedAt
-        };
-
         return Ok(response);
     }
 

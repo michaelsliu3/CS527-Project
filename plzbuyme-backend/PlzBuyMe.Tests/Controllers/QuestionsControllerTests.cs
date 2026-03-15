@@ -2,9 +2,9 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using PlzBuyMe.Api.Controllers;
-using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos.Questions;
 using PlzBuyMe.Api.Models;
+using PlzBuyMe.Api.Services;
 using PlzBuyMe.Tests.Helpers;
 using Xunit;
 
@@ -24,6 +24,7 @@ public class QuestionsControllerTests
     public async Task User_Can_Post_Question()
     {
         await using var db = CreateDbContext();
+        var service = new QuestionsService(db);
         var user = new User
         {
             Username = "user1",
@@ -34,7 +35,7 @@ public class QuestionsControllerTests
         db.Users.Add(user);
         await db.SaveChangesAsync();
 
-        var controller = new QuestionsController(db);
+        var controller = new QuestionsController(service);
         ControllerTestHelpers.SetUser(controller, user.Id, "end_user");
 
         var dto = new CreateQuestionDto
@@ -58,6 +59,7 @@ public class QuestionsControllerTests
     public async Task Rep_Can_Reply_To_Question()
     {
         await using var db = CreateDbContext();
+        var service = new QuestionsService(db);
         var endUser = new User
         {
             Username = "user1",
@@ -84,7 +86,7 @@ public class QuestionsControllerTests
         db.Questions.Add(question);
         await db.SaveChangesAsync();
 
-        var controller = new QuestionsController(db);
+        var controller = new QuestionsController(service);
         ControllerTestHelpers.SetUser(controller, rep.Id, "customer_rep");
 
         var dto = new ReplyDto { Reply = "Here is an answer" };
@@ -102,6 +104,7 @@ public class QuestionsControllerTests
     public async Task Keyword_Search_Filters_Questions()
     {
         await using var db = CreateDbContext();
+        var service = new QuestionsService(db);
         var user = new User
         {
             Username = "user1",
@@ -118,7 +121,7 @@ public class QuestionsControllerTests
         );
         await db.SaveChangesAsync();
 
-        var controller = new QuestionsController(db);
+        var controller = new QuestionsController(service);
         ControllerTestHelpers.SetUser(controller, user.Id, "end_user");
 
         var result = await controller.List("Shipping");
