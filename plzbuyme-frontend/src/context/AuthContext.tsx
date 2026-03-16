@@ -25,6 +25,7 @@ interface JwtPayload {
   email?: string
   role?: string
   exp: number
+  [key: string]: unknown
 }
 
 interface AuthResponse {
@@ -45,15 +46,31 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+const DOTNET_CLAIM_NAME = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'
+const DOTNET_CLAIM_EMAIL = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'
+const DOTNET_CLAIM_ROLE = 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role'
+const DOTNET_CLAIM_NAME_ID = 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'
+
+function firstString(payload: JwtPayload, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = payload[key]
+    if (typeof value === 'string' && value.length > 0) return value
+  }
+  return null
+}
+
 function decodeToken(token: string): AuthUser | null {
   try {
     const payload = jwtDecode<JwtPayload>(token)
     const exp = payload.exp
     if (exp * 1000 < Date.now()) return null
-    const id = payload.sub ? parseInt(payload.sub, 10) : 0
-    const username = payload.unique_name ?? payload.name ?? ''
-    const email = payload.email ?? ''
-    const role = payload.role ?? ''
+    const idString = firstString(payload, ['sub', DOTNET_CLAIM_NAME_ID])
+    const id = idString ? parseInt(idString, 10) : 0
+
+    const username =
+      firstString(payload, ['unique_name', 'name', DOTNET_CLAIM_NAME]) ?? ''
+    const email = firstString(payload, ['email', DOTNET_CLAIM_EMAIL]) ?? ''
+    const role = firstString(payload, ['role', DOTNET_CLAIM_ROLE]) ?? ''
     if (!id || !username) return null
     return { id, username, email, role }
   } catch {

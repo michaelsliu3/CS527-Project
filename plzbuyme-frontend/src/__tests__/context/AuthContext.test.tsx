@@ -87,6 +87,26 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('user')).toHaveTextContent('none')
   })
 
+  it('hydrates user from stored valid token on mount', async () => {
+    const payload = btoa(
+      JSON.stringify({
+        sub: '42',
+        'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name': 'persisted',
+        'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress': 'persisted@example.com',
+        'http://schemas.microsoft.com/ws/2008/06/identity/claims/role': 'end_user',
+        exp: Math.floor(Date.now() / 1000) + 60,
+      })
+    )
+    const token = `header.${payload}.sig`
+    localStorage.setItem('token', token)
+
+    renderWithAuth()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('user')).toHaveTextContent('persisted')
+    })
+  })
+
   it('expired token clears state on mount', async () => {
     const expiredPayload = btoa(JSON.stringify({ sub: '1', exp: 0 }))
     const token = `header.${expiredPayload}.sig`
