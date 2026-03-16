@@ -49,7 +49,10 @@ export function SearchBar() {
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [categoriesError, setCategoriesError] = useState<string | null>(null)
   const [selectedRootId, setSelectedRootId] = useState<number | ''>('')
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | ''>('')
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | ''>(() => {
+    const fromQuery = searchParams.get('categoryId')
+    return fromQuery ? Number(fromQuery) : ''
+  })
   const [makeSuggestions, setMakeSuggestions] = useState<string[]>([])
   const [modelSuggestions, setModelSuggestions] = useState<string[]>([])
   const [makeInput, setMakeInput] = useState(searchParams.get('make') ?? '')
