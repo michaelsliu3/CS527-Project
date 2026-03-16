@@ -118,6 +118,9 @@ export function Layout() {
                       </RouterLink>
                     </>
                   )}
+                  <RouterLink to="/questions" style={{ fontWeight: 500, color: linkColor }}>
+                    Forums
+                  </RouterLink>
                   <RouterLink to="/notifications" aria-label="Notifications" style={{ padding: 8, display: 'inline-flex', alignItems: 'center', color: linkColor, position: 'relative' }}>
                     <HiOutlineBell size={20} />
                     {unreadCount > 0 && (
