@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import {
   Box,
   Button,
+  Checkbox,
   Flex,
   Input,
   SimpleGrid,
@@ -536,15 +537,28 @@ export function SearchBar() {
             <Text fontSize="xs" color={dark.muted} w="100%">Condition</Text>
             {CONDITION_OPTIONS.map((c) => (
               <WrapItem key={c}>
-                <Flex as="label" align="center" gap={2} cursor="pointer">
-                  <input
-                    type="checkbox"
-                    name="condition"
-                    value={c}
-                    defaultChecked={searchParams.getAll('condition').includes(c)}
+                <Checkbox.Root
+                  name="condition"
+                  value={c}
+                  defaultChecked={searchParams.getAll('condition').includes(c)}
+                  variant="outline"
+                >
+                  <Checkbox.HiddenInput />
+                  <Checkbox.Control
+                    borderColor={dark.borderSubtle}
+                    bg={dark.inputBg}
+                    color="white"
+                    _hover={{ borderColor: 'brand.400', bg: 'whiteAlpha.100' }}
+                    _checked={{
+                      bg: 'brand.500',
+                      borderColor: 'brand.500',
+                      _hover: { bg: 'brand.400', borderColor: 'brand.400' },
+                    }}
                   />
-                  <Text fontSize="sm" color="white">{c}</Text>
-                </Flex>
+                  <Checkbox.Label ml={-0.5} pr={2.5}>
+                    {c}
+                  </Checkbox.Label>
+                </Checkbox.Root>
               </WrapItem>
             ))}
           </Wrap>
@@ -552,15 +566,28 @@ export function SearchBar() {
             <Text fontSize="xs" color={dark.muted} w="100%">Transmission</Text>
             {TRANSMISSION_OPTIONS.map((t) => (
               <WrapItem key={t}>
-                <Flex as="label" align="center" gap={2} cursor="pointer">
-                  <input
-                    type="checkbox"
-                    name="transmission"
-                    value={t}
-                    defaultChecked={searchParams.getAll('transmission').includes(t)}
+                <Checkbox.Root
+                  name="transmission"
+                  value={t}
+                  defaultChecked={searchParams.getAll('transmission').includes(t)}
+                  variant="outline"
+                >
+                  <Checkbox.HiddenInput />
+                  <Checkbox.Control
+                    borderColor={dark.borderSubtle}
+                    bg={dark.inputBg}
+                    color="white"
+                    _hover={{ borderColor: 'brand.400', bg: 'whiteAlpha.100' }}
+                    _checked={{
+                      bg: 'brand.500',
+                      borderColor: 'brand.500',
+                      _hover: { bg: 'brand.400', borderColor: 'brand.400' },
+                    }}
                   />
-                  <Text fontSize="sm" color="white">{t}</Text>
-                </Flex>
+                  <Checkbox.Label ml={0} pr={2}>
+                    {t}
+                  </Checkbox.Label>
+                </Checkbox.Root>
               </WrapItem>
             ))}
           </Wrap>
@@ -568,15 +595,28 @@ export function SearchBar() {
             <Text fontSize="xs" color={dark.muted} w="100%">Fuel type</Text>
             {FUEL_OPTIONS.map((f) => (
               <WrapItem key={f}>
-                <Flex as="label" align="center" gap={2} cursor="pointer">
-                  <input
-                    type="checkbox"
-                    name="fuelType"
-                    value={f}
-                    defaultChecked={searchParams.getAll('fuelType').includes(f)}
+                <Checkbox.Root
+                  name="fuelType"
+                  value={f}
+                  defaultChecked={searchParams.getAll('fuelType').includes(f)}
+                  variant="outline"
+                >
+                  <Checkbox.HiddenInput />
+                  <Checkbox.Control
+                    borderColor={dark.borderSubtle}
+                    bg={dark.inputBg}
+                    color="white"
+                    _hover={{ borderColor: 'brand.400', bg: 'whiteAlpha.100' }}
+                    _checked={{
+                      bg: 'brand.500',
+                      borderColor: 'brand.500',
+                      _hover: { bg: 'brand.400', borderColor: 'brand.400' },
+                    }}
                   />
-                  <Text fontSize="sm" color="white">{f}</Text>
-                </Flex>
+                  <Checkbox.Label ml={0} pr={2}>
+                    {f}
+                  </Checkbox.Label>
+                </Checkbox.Root>
               </WrapItem>
             ))}
           </Wrap>
