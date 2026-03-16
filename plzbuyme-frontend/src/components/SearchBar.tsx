@@ -12,6 +12,7 @@ import {
 import { useSearchParams } from 'react-router-dom'
 import { getFieldValues } from '../api/auctions'
 import { dark } from '../theme/colors'
+import { fetchCategories, type CategoryDto } from '../api/categories'
 
 const SORT_OPTIONS = [
   { value: '', label: 'Default' },
@@ -36,21 +37,87 @@ const STATUS_OPTIONS = [
   { value: 'sold', label: 'Sold' },
 ]
 
-const CAR_SUBCATEGORY_IDS = [2, 3, 4, 5, 6]
+const CAR_SUBCATEGORY_IDS = [1, 2, 3, 4, 5, 6]
 const CONDITION_OPTIONS = ['New', 'Like New', 'Excellent', 'Good', 'Fair', 'Poor']
 const TRANSMISSION_OPTIONS = ['Automatic', 'Manual', 'CVT']
 const FUEL_OPTIONS = ['Gasoline', 'Diesel', 'Electric', 'Hybrid', 'Plug-in Hybrid']
 
 export function SearchBar() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const [categories, setCategories] = useState<CategoryDto[]>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(true)
+  const [categoriesError, setCategoriesError] = useState<string | null>(null)
+  const [selectedRootId, setSelectedRootId] = useState<number | ''>('')
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | ''>('')
   const [makeSuggestions, setMakeSuggestions] = useState<string[]>([])
   const [modelSuggestions, setModelSuggestions] = useState<string[]>([])
   const [makeInput, setMakeInput] = useState(searchParams.get('make') ?? '')
   const [modelInput, setModelInput] = useState(searchParams.get('model') ?? '')
 
-  const categoryId = searchParams.get('categoryId')
   const isCarCategory =
-    categoryId && CAR_SUBCATEGORY_IDS.includes(Number(categoryId))
+    selectedCategoryId !== '' &&
+    CAR_SUBCATEGORY_IDS.includes(Number(selectedCategoryId))
+
+  useEffect(() => {
+    let isMounted = true
+    const loadCategories = async () => {
+      try {
+        setCategoriesLoading(true)
+        setCategoriesError(null)
+        const res = await fetchCategories()
+        if (!isMounted) return
+        const data = res.data
+        setCategories(data)
+
+        const existing = searchParams.get('categoryId')
+        if (existing) {
+          const idNum = Number(existing)
+          const rootCategories = data.filter((c) => c.parentId === null)
+          const root = rootCategories.find((c) => c.id === idNum)
+          if (root) {
+            setSelectedRootId(root.id)
+            setSelectedCategoryId(root.id)
+          } else {
+            const child = data.find((c) => c.id === idNum)
+            if (child) {
+              setSelectedCategoryId(child.id)
+              const parent = data.find((c) => c.id === child.parentId)
+              if (parent) setSelectedRootId(parent.id)
+            }
+          }
+        }
+      } catch {
+        if (!isMounted) return
+        setCategoriesError('Failed to load categories.')
+      } finally {
+        if (isMounted) {
+          setCategoriesLoading(false)
+        }
+      }
+    }
+    void loadCategories()
+    return () => {
+      isMounted = false
+    }
+  }, [searchParams])
+
+  const rootCategories = categories.filter((c) => c.parentId === null)
+
+  const selectedRoot: CategoryDto | undefined =
+    typeof selectedRootId === 'number'
+      ? rootCategories.find((c) => c.id === selectedRootId)
+      : undefined
+
+  const handleRootChange = (value: string) => {
+    const id = value ? Number(value) : ''
+    setSelectedRootId(id)
+    setSelectedCategoryId(id || '')
+  }
+
+  const handleSubcategoryChange = (value: string) => {
+    const id = value ? Number(value) : ''
+    setSelectedCategoryId(id)
+  }
 
   const fetchMakeSuggestions = useCallback(async (prefix: string) => {
     if (!prefix.trim()) {
@@ -140,7 +207,7 @@ export function SearchBar() {
 
     applyFilters({
       q: (form.elements.namedItem('q') as HTMLInputElement)?.value?.trim() || undefined,
-      categoryId: (form.elements.namedItem('categoryId') as HTMLSelectElement)?.value || undefined,
+      categoryId: selectedCategoryId ? String(selectedCategoryId) : undefined,
       minPrice: (form.elements.namedItem('minPrice') as HTMLInputElement)?.value || undefined,
       maxPrice: (form.elements.namedItem('maxPrice') as HTMLInputElement)?.value || undefined,
       status: (form.elements.namedItem('status') as HTMLSelectElement)?.value || undefined,
@@ -191,8 +258,6 @@ export function SearchBar() {
         <Box>
           <Text fontSize="sm" color={dark.muted} mb={1}>Category</Text>
           <select
-            name="categoryId"
-            defaultValue={searchParams.get('categoryId') ?? ''}
             style={{
               width: '100%',
               padding: '8px 12px',
@@ -201,16 +266,44 @@ export function SearchBar() {
               borderRadius: '6px',
               color: 'white',
             }}
+            value={selectedRootId === '' ? '' : String(selectedRootId)}
+            onChange={(e) => handleRootChange(e.target.value)}
+            disabled={categoriesLoading}
           >
             <option value="">All</option>
-            <option value="1">Cars</option>
-            <option value="2">Sedans</option>
-            <option value="3">SUVs</option>
-            <option value="4">Trucks</option>
-            <option value="5">Sports Cars</option>
-            <option value="6">Electric</option>
-            <option value="7">Compact Sedans</option>
-            <option value="8">Full-Size Sedans</option>
+            {rootCategories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Box>
+        <Box>
+          <Text fontSize="sm" color={dark.muted} mb={1}>Subcategory</Text>
+          <select
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              background: dark.inputBg,
+              border: `1px solid ${dark.borderSubtle}`,
+              borderRadius: '6px',
+              color: 'white',
+            }}
+            value={selectedCategoryId === '' ? '' : String(selectedCategoryId)}
+            onChange={(e) => handleSubcategoryChange(e.target.value)}
+            disabled={
+              categoriesLoading ||
+              !selectedRoot ||
+              !selectedRoot.children ||
+              selectedRoot.children.length === 0
+            }
+          >
+            <option value="">All</option>
+            {selectedRoot?.children?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
           </select>
         </Box>
         <Box>
