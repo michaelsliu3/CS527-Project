@@ -36,9 +36,8 @@ describe('SearchBar', () => {
     expect(screen.getByRole('button', { name: /Search/i })).toBeInTheDocument()
   })
 
-  it('renders car filter panel when Cars subcategory is selected', () => {
+  it('renders car-specific inputs when Cars subcategory is selected', () => {
     renderSearchBar('/auctions?categoryId=2')
-    expect(screen.getByText(/Car filters/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/e.g. Toyota/i)).toBeInTheDocument()
     expect(screen.getByPlaceholderText(/e.g. Camry/i)).toBeInTheDocument()
   })

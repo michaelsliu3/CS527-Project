@@ -14,7 +14,12 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../context/AuthContext'
 import { createAuction, type CreateAuctionDto } from '../api/auctions'
-import { CAR_CATEGORIES, getFieldsForCategory } from '../constants/categories'
+import {
+  fetchCategories,
+  fetchCategoryFields,
+  type CategoryDto,
+  type CategoryFieldDto,
+} from '../api/categories'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
 
@@ -32,13 +37,19 @@ interface CreateFormValues {
 export function CreateAuctionPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const [categories, setCategories] = useState<CategoryDto[]>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(true)
+  const [categoriesError, setCategoriesError] = useState<string | null>(null)
+  const [selectedRootId, setSelectedRootId] = useState<number | ''>('')
   const [categoryId, setCategoryId] = useState<number | ''>('')
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  const fieldDefs = categoryId ? getFieldsForCategory(Number(categoryId)) : []
+  const [fieldDefs, setFieldDefs] = useState<CategoryFieldDto[]>([])
+  const [fieldsLoading, setFieldsLoading] = useState(false)
+  const [fieldsError, setFieldsError] = useState<string | null>(null)
 
-  const { register, handleSubmit, watch } = useForm<CreateFormValues>({
+  const { register, handleSubmit, setValue } = useForm<CreateFormValues>({
     defaultValues: {
       title: '',
       description: '',
@@ -50,10 +61,81 @@ export function CreateAuctionPage() {
     },
   })
 
-  const watchedCategoryId = watch('categoryId')
   useEffect(() => {
-    setCategoryId(watchedCategoryId ? Number(watchedCategoryId) : '')
-  }, [watchedCategoryId])
+    let isMounted = true
+    const loadCategories = async () => {
+      try {
+        setCategoriesLoading(true)
+        setCategoriesError(null)
+        const res = await fetchCategories()
+        if (!isMounted) return
+        setCategories(res.data)
+      } catch {
+        if (!isMounted) return
+        setCategoriesError('Failed to load categories.')
+      } finally {
+        if (isMounted) {
+          setCategoriesLoading(false)
+        }
+      }
+    }
+    void loadCategories()
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!categoryId) {
+      setFieldDefs([])
+      setFieldsError(null)
+      return
+    }
+    let isMounted = true
+    const loadFields = async () => {
+      try {
+        setFieldsLoading(true)
+        setFieldsError(null)
+        const res = await fetchCategoryFields(Number(categoryId))
+        if (!isMounted) return
+        setFieldDefs(res.data)
+      } catch {
+        if (!isMounted) return
+        setFieldDefs([])
+        setFieldsError('Failed to load category fields.')
+      } finally {
+        if (isMounted) {
+          setFieldsLoading(false)
+        }
+      }
+    }
+    void loadFields()
+    return () => {
+      isMounted = false
+    }
+  }, [categoryId])
+
+  const rootCategories = categories.filter((c) => c.parentId === null)
+
+  const selectedRoot: CategoryDto | undefined =
+    typeof selectedRootId === 'number'
+      ? rootCategories.find((c) => c.id === selectedRootId)
+      : undefined
+
+  const handleRootChange = (value: string) => {
+    const id = value ? Number(value) : ''
+    setSelectedRootId(id)
+    setCategoryId('')
+    setFieldDefs([])
+    setFieldsError(null)
+    setValue('categoryId', '')
+  }
+
+  const handleSubcategoryChange = (value: string) => {
+    const id = value ? Number(value) : ''
+    setCategoryId(id)
+    setValue('categoryId', value)
+  }
 
   if (!user) {
     return (
@@ -64,15 +146,19 @@ export function CreateAuctionPage() {
   }
 
   const onSubmit = async (data: CreateFormValues) => {
-    const catId = Number(data.categoryId)
-    if (!catId) {
+    if (!selectedRootId) {
       setSubmitError('Please select a category.')
       return
     }
+    if (!categoryId) {
+      setSubmitError('Please select a subcategory.')
+      return
+    }
+
     setSubmitError(null)
     setSubmitting(true)
-    const fields = getFieldsForCategory(catId)
-    const fieldValues = fields
+
+    const fieldValues = fieldDefs
       .map((f) => ({
         fieldId: f.id,
         value: data[`field_${f.id}` as keyof CreateFormValues] as string,
@@ -82,7 +168,7 @@ export function CreateAuctionPage() {
     const dto: CreateAuctionDto = {
       title: data.title.trim(),
       description: data.description.trim() || undefined,
-      categoryId: catId,
+      categoryId: Number(categoryId),
       initialPrice: Number(data.initialPrice),
       bidIncrement: Number(data.bidIncrement),
       reservePrice: Number(data.reservePrice),
@@ -131,6 +217,11 @@ export function CreateAuctionPage() {
             {submitError}
           </Text>
         )}
+        {categoriesError && (
+          <Text color="red.400" mb={4}>
+            {categoriesError}
+          </Text>
+        )}
 
         <Box mb={4}>
           <Text fontSize="sm" color={dark.muted} mb={1}>
@@ -172,16 +263,55 @@ export function CreateAuctionPage() {
               borderRadius: '6px',
               color: 'white',
             }}
-            {...register('categoryId', { required: true })}
+            value={selectedRootId === '' ? '' : String(selectedRootId)}
+            onChange={(e) => handleRootChange(e.target.value)}
+            disabled={categoriesLoading}
           >
             <option value="">Select category</option>
-            {CAR_CATEGORIES.filter((c) => c.parentId !== null).map((c) => (
+            {rootCategories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
           </select>
         </Box>
+
+        <Box mb={4}>
+          <Text fontSize="sm" color={dark.muted} mb={1}>
+            Subcategory *
+          </Text>
+          <select
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              background: dark.inputBg,
+              border: `1px solid ${dark.borderSubtle}`,
+              borderRadius: '6px',
+              color: 'white',
+            }}
+            value={categoryId === '' ? '' : String(categoryId)}
+            onChange={(e) => handleSubcategoryChange(e.target.value)}
+            disabled={
+              categoriesLoading ||
+              !selectedRoot ||
+              !selectedRoot.children ||
+              selectedRoot.children.length === 0
+            }
+          >
+            <option value="">Select subcategory</option>
+            {selectedRoot?.children?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Box>
+
+        {fieldsError && (
+          <Text color="red.400" mb={4}>
+            {fieldsError}
+          </Text>
+        )}
 
         {fieldDefs.length > 0 && (
           <Box mb={4}>
@@ -304,7 +434,7 @@ export function CreateAuctionPage() {
             bg="brand.500"
             color="white"
             _hover={{ bg: 'brand.400' }}
-            loading={submitting}
+            isLoading={submitting}
           >
             Create auction
           </Button>
