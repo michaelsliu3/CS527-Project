@@ -282,7 +282,14 @@ function ReplyForm({
 
   if (!isActive) {
     return (
-      <Button size="sm" variant="outline" colorScheme="brand" onClick={() => setReplyingId(questionId)}>
+      <Button
+        size="sm"
+        variant="outline"
+        borderColor={dark.borderSubtle}
+        color="white"
+        _hover={{ bg: 'whiteAlpha.100' }}
+        onClick={() => setReplyingId(questionId)}
+      >
         Reply
       </Button>
     )

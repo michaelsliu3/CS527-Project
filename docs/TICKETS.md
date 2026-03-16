@@ -287,3 +287,31 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Expected:** JWT (or equivalent auth token) should be restored from storage on app load so the user remains logged in after refresh.
 - **Likely cause:** Auth context is not hydrating from `localStorage` on mount, or the token key/lifecycle is incorrect. Verify `AuthContext` reads the stored token on init and restores user state; ensure the API client attaches the token to requests after hydration.
 - **Do not implement yet** — ticket for tracking only.
+
+---
+
+## General Cleanup
+
+### PBM-STYLE-1 — Global UI styling consistency pass
+
+**Layer:** Frontend  
+**Branch:** `PBM-STYLE-1/frontend-styling-pass`  
+**PR Title:** `[PBM-STYLE-1] perform global styling consistency cleanup`
+
+- **Scope:** Resolve broad visual inconsistencies across pages/components (spacing, typography, alignment, color usage, button/input/table states, card layouts, responsive behavior).
+- **Goals:** Standardize Chakra usage and theme tokens so shared patterns look and behave consistently; reduce one-off style props and duplicated styling logic.
+- **Deliverables:** Updated reusable components and page-level cleanup with before/after screenshots for key pages (Auctions list/detail, Auth pages, Dashboard pages).
+- **Validation:** Verify dark/light mode readability and mobile/desktop layouts for all touched pages.
+- **Do not implement yet** — ticket for tracking only.
+
+### PBM-BUG-2 — General bug triage and stabilization sweep
+
+**Layer:** Full Stack  
+**Branch:** `PBM-BUG-2/general-bug-sweep`  
+**PR Title:** `[PBM-BUG-2] fix prioritized cross-app bugs and regressions`
+
+- **Scope:** Triage and fix confirmed bugs across frontend and backend (auth/session edge cases, auction flows, alerts/notifications behavior, rep/admin actions, API validation/error handling).
+- **Goals:** Prioritize user-facing and data-integrity issues first; group fixes by severity and include clear reproduction steps.
+- **Deliverables:** Bugfix patches with a tracked checklist of issues addressed, plus regression tests for high-impact fixes.
+- **Validation:** Run unit/integration tests for touched areas and perform smoke testing on critical flows (login, browse/search, bid, create auction, notifications).
+- **Do not implement yet** — ticket for tracking only.
