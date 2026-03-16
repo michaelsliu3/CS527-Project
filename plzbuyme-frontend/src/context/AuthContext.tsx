@@ -25,7 +25,7 @@ interface JwtPayload {
   email?: string
   role?: string
   exp: number
-  [key: string]: unknown
+  [key: string]: string | number | undefined
 }
 
 interface AuthResponse {
