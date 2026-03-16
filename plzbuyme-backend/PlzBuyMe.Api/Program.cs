@@ -45,7 +45,10 @@ public class Program
                             db.Database.Migrate();
                     }
                     if (db.Database.CanConnect())
+                    {
                         SeedData.Initialize(db);
+                        // SeedData.SeedSoldItemsForReports(db);
+                    }
                 }
                 catch (Exception ex)
                 {

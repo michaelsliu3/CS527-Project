@@ -166,4 +166,134 @@ public static class SeedData
         db.Bids.Add(new Bid { ItemId = item2.Id, BidderId = bidder.Id, Amount = 18500.00m, IsAuto = false });
         db.SaveChanges();
     }
+
+    /// <summary>
+    /// Adds sold (and some closed) items so admin reports have data. Safe to call every startup; skips if enough sold items exist.
+    /// </summary>
+    public static void SeedSoldItemsForReports(AppDbContext db)
+    {
+        if (db.Items.Count(i => i.Status == ItemStatus.Sold) >= 20)
+            return;
+
+        var endUsers = db.Users.Where(u => u.Role == UserRole.EndUser).OrderBy(u => u.Id).ToList();
+        if (endUsers.Count < 2)
+            return;
+
+        var sedans = db.Categories.FirstOrDefault(c => c.Name == "Sedans");
+        if (sedans == null)
+            return;
+
+        var sedanFields = db.CategoryFields.Where(f => f.CategoryId == sedans.Id).OrderBy(f => f.Id).ToList();
+        if (sedanFields.Count < 8)
+            return;
+
+        var makeF = sedanFields.First(f => f.FieldName == "Make");
+        var modelF = sedanFields.First(f => f.FieldName == "Model");
+        var yearF = sedanFields.First(f => f.FieldName == "Year");
+        var mileageF = sedanFields.First(f => f.FieldName == "Mileage");
+        var conditionF = sedanFields.First(f => f.FieldName == "Condition");
+        var transmissionF = sedanFields.First(f => f.FieldName == "Transmission");
+        var fuelF = sedanFields.First(f => f.FieldName == "Fuel Type");
+        var colorF = sedanFields.First(f => f.FieldName == "Exterior Color");
+
+        var makes = new[] { "Toyota", "Honda", "Ford", "Chevrolet", "BMW", "Nissan", "Hyundai", "Mazda" };
+        var models = new[] { "Camry", "Civic", "F-150", "Silverado", "3 Series", "Altima", "Elantra", "Mazda3" };
+        var conditions = new[] { "Excellent", "Good", "Like New" };
+        var transmissions = new[] { "Automatic", "Manual", "CVT" };
+        var fuels = new[] { "Gasoline", "Electric", "Hybrid" };
+        var colors = new[] { "Black", "White", "Silver", "Blue" };
+
+        for (var i = 0; i < 25; i++)
+        {
+            var seller = endUsers[i % endUsers.Count];
+            var winner = endUsers[(i + 1) % endUsers.Count];
+            if (winner.Id == seller.Id)
+                winner = endUsers[(i + 2) % endUsers.Count];
+
+            var year = 2018 + (i % 7);
+            var price = 15000m + (i * 1200m);
+            var bidCount = 2 + (i % 3);
+            var closeDate = DateTime.UtcNow.AddDays(-(30 + i * 2));
+
+            var item = new Item
+            {
+                SellerId = seller.Id,
+                CategoryId = sedans.Id,
+                Title = $"{year} {makes[i % makes.Length]} {models[i % models.Length]}",
+                Description = "Sold listing (seed data for reports).",
+                InitialPrice = price - 2000m,
+                BidIncrement = 500m,
+                ReservePrice = price - 500m,
+                CurrentPrice = price,
+                CloseDateTime = closeDate,
+                Status = ItemStatus.Sold,
+                WinnerId = winner.Id,
+                CreatedAt = closeDate.AddDays(-7),
+            };
+            db.Items.Add(item);
+            db.SaveChanges();
+
+            db.ItemFieldValues.AddRange(
+                new ItemFieldValue { ItemId = item.Id, FieldId = makeF.Id, Value = makes[i % makes.Length] },
+                new ItemFieldValue { ItemId = item.Id, FieldId = modelF.Id, Value = models[i % models.Length] },
+                new ItemFieldValue { ItemId = item.Id, FieldId = yearF.Id, Value = year.ToString() },
+                new ItemFieldValue { ItemId = item.Id, FieldId = mileageF.Id, Value = (30000 + i * 2000).ToString() },
+                new ItemFieldValue { ItemId = item.Id, FieldId = conditionF.Id, Value = conditions[i % conditions.Length] },
+                new ItemFieldValue { ItemId = item.Id, FieldId = transmissionF.Id, Value = transmissions[i % transmissions.Length] },
+                new ItemFieldValue { ItemId = item.Id, FieldId = fuelF.Id, Value = fuels[i % fuels.Length] },
+                new ItemFieldValue { ItemId = item.Id, FieldId = colorF.Id, Value = colors[i % colors.Length] }
+            );
+
+            var bidAmount = item.InitialPrice;
+            for (var b = 0; b < bidCount; b++)
+            {
+                bidAmount += item.BidIncrement;
+                var bidder = b == bidCount - 1 ? winner : endUsers[(i + b + 2) % endUsers.Count];
+                if (bidder.Id == item.SellerId)
+                    bidder = endUsers[(i + b + 3) % endUsers.Count];
+                db.Bids.Add(new Bid { ItemId = item.Id, BidderId = bidder.Id, Amount = bidAmount, IsAuto = false, CreatedAt = closeDate.AddMinutes(-b * 10) });
+            }
+            db.SaveChanges();
+        }
+
+        // A few closed (reserve not met) for variety
+        for (var i = 0; i < 5; i++)
+        {
+            var seller = endUsers[i % endUsers.Count];
+            var year = 2019 + i;
+            var price = 18000m + (i * 1000m);
+            var closeDate = DateTime.UtcNow.AddDays(-(10 + i));
+
+            var item = new Item
+            {
+                SellerId = seller.Id,
+                CategoryId = sedans.Id,
+                Title = $"{year} Sedan (closed, reserve not met)",
+                Description = "Closed listing seed data.",
+                InitialPrice = price,
+                BidIncrement = 250m,
+                ReservePrice = price + 3000m,
+                CurrentPrice = price + 500m,
+                CloseDateTime = closeDate,
+                Status = ItemStatus.Closed,
+                WinnerId = null,
+                CreatedAt = closeDate.AddDays(-5),
+            };
+            db.Items.Add(item);
+            db.SaveChanges();
+
+            db.ItemFieldValues.AddRange(
+                new ItemFieldValue { ItemId = item.Id, FieldId = makeF.Id, Value = "Honda" },
+                new ItemFieldValue { ItemId = item.Id, FieldId = modelF.Id, Value = "Civic" },
+                new ItemFieldValue { ItemId = item.Id, FieldId = yearF.Id, Value = year.ToString() },
+                new ItemFieldValue { ItemId = item.Id, FieldId = mileageF.Id, Value = "50000" },
+                new ItemFieldValue { ItemId = item.Id, FieldId = conditionF.Id, Value = "Good" },
+                new ItemFieldValue { ItemId = item.Id, FieldId = transmissionF.Id, Value = "Automatic" },
+                new ItemFieldValue { ItemId = item.Id, FieldId = fuelF.Id, Value = "Gasoline" },
+                new ItemFieldValue { ItemId = item.Id, FieldId = colorF.Id, Value = "Gray" }
+            );
+            db.Bids.Add(new Bid { ItemId = item.Id, BidderId = endUsers[(i + 1) % endUsers.Count].Id, Amount = item.CurrentPrice, IsAuto = false, CreatedAt = closeDate.AddMinutes(-5) });
+            db.SaveChanges();
+        }
+    }
 }

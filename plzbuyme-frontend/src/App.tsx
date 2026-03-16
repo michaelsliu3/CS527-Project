@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, Outlet } from 'react-router-dom'
 import { setAuthRedirect } from './api/authRedirect'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -14,10 +14,9 @@ import { MyAuctionsPage } from './pages/MyAuctionsPage'
 import { AlertsPage } from './pages/AlertsPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { QuestionsPage } from './pages/QuestionsPage'
-
-function Placeholder({ name }: { name: string }) {
-  return <div style={{ color: '#d4d4d8', padding: '2rem', textAlign: 'center' }}>{name} (placeholder)</div>
-}
+import { RepDashboard } from './pages/rep/RepDashboard'
+import { AdminDashboard } from './pages/admin/AdminDashboard'
+import { ReportsPage } from './pages/admin/ReportsPage'
 
 function App() {
   const navigate = useNavigate()
@@ -86,18 +85,21 @@ function App() {
           path="/rep/*"
           element={
             <ProtectedRoute roles={['customer_rep', 'admin']}>
-              <Placeholder name="RepDashboard" />
+              <RepDashboard />
             </ProtectedRoute>
           }
         />
         <Route
-          path="/admin/*"
+          path="/admin"
           element={
             <ProtectedRoute roles={['admin']}>
-              <Placeholder name="AdminDashboard" />
+              <Outlet />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<AdminDashboard />} />
+          <Route path="reports" element={<ReportsPage />} />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
