@@ -10,6 +10,7 @@ import {
   Badge,
   Dialog,
   Spinner,
+  Textarea,
 } from '@chakra-ui/react'
 import { useForm } from 'react-hook-form'
 import { isAxiosError } from 'axios'
@@ -203,6 +204,7 @@ function RepUsersTab() {
       )}
       {editUser && (
         <EditUserModal
+          key={editUser.id}
           user={editUser}
           onClose={() => setEditUser(null)}
           onSuccess={handleEditSuccess}
@@ -313,18 +315,17 @@ function ResetPasswordModal({
   onSuccess: () => void
   onError: (msg: string) => void
 }) {
-  const [password, setPassword] = useState('')
-  const [submitting, setSubmitting] = useState(false)
+  const { register, handleSubmit, formState, reset } = useForm<{ newPassword: string }>({
+    defaultValues: { newPassword: '' },
+  })
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (password.length < 6) {
+  const onSubmit = async (data: { newPassword: string }) => {
+    if (data.newPassword.length < 6) {
       onError('Password must be at least 6 characters.')
       return
     }
-    setSubmitting(true)
     try {
-      await resetRepUserPassword(user.id, { newPassword: password })
+      await resetRepUserPassword(user.id, { newPassword: data.newPassword })
       showSuccessToast('Password reset')
       onSuccess()
       onClose()
@@ -335,7 +336,7 @@ function ResetPasswordModal({
         onError('Failed to reset password.')
       }
     } finally {
-      setSubmitting(false)
+      reset()
     }
   }
 
@@ -345,24 +346,28 @@ function ResetPasswordModal({
       <Dialog.Positioner>
         <Dialog.Content bg={dark.cardBg} borderColor={dark.borderSubtle} borderWidth="1px">
           <Dialog.Header color="white">Reset Password — {user.username}</Dialog.Header>
-          <form onSubmit={onSubmit}>
+          <form onSubmit={handleSubmit(onSubmit)}>
             <Dialog.Body>
               <Box>
                 <Text mb={1} color={dark.label} fontSize="sm">New password</Text>
                 <Input
                   type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  minLength={6}
+                  {...register('newPassword', {
+                    required: 'Password is required.',
+                    minLength: { value: 6, message: 'Password must be at least 6 characters.' },
+                  })}
                   bg={dark.inputBg}
                   borderColor={dark.borderSubtle}
                   color="white"
                 />
+                {formState.errors.newPassword && (
+                  <Text fontSize="sm" color="red.400">{formState.errors.newPassword.message}</Text>
+                )}
               </Box>
             </Dialog.Body>
             <Dialog.Footer borderColor={dark.borderSubtle}>
               <Button variant="ghost" color={dark.muted} onClick={onClose}>Cancel</Button>
-              <Button type="submit" colorScheme="brand" loading={submitting} disabled={password.length < 6}>
+              <Button type="submit" colorScheme="brand" loading={formState.isSubmitting}>
                 Reset
               </Button>
             </Dialog.Footer>
@@ -570,19 +575,15 @@ function RepReplyForm({
   return (
     <Box as="form" onSubmit={handleSubmit} mt={2}>
       <Box mb={2}>
-        <textarea
+        <Textarea
           value={replyText}
           onChange={(e) => setReplyText(e.target.value)}
           placeholder="Your reply..."
           rows={3}
-          style={{
-            width: '100%',
-            padding: '8px',
-            background: dark.inputBg,
-            border: `1px solid ${dark.borderSubtle}`,
-            borderRadius: '6px',
-            color: 'white',
-          }}
+          bg={dark.inputBg}
+          borderColor={dark.borderSubtle}
+          color="white"
+          _placeholder={{ color: dark.placeholder }}
         />
       </Box>
       <Flex gap={2}>
@@ -749,11 +750,12 @@ function RepAuctionsTab() {
                       </tr>
                     </thead>
                     <tbody>
-                      {(detail.bidHistory as (BidHistoryItem & { id?: number })[]).map((b, idx) => {
+                      {detail.bidHistory.map((b, idx) => {
                         const isLast = idx === detail!.bidHistory.length - 1
                         const cellStyle = tdStyle(isLast)
+                        const rowKey = b.id != null ? b.id : `${b.bidderUsername}-${b.createdAt}-${idx}`
                         return (
-                          <tr key={b.createdAt + b.bidderUsername}>
+                          <tr key={rowKey}>
                             <td style={{ ...cellStyle, textAlign: 'left' }}>{b.bidderUsername}</td>
                             <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 500 }}>
                               ${b.amount.toLocaleString()}

@@ -30,8 +30,9 @@ export function BidHistory({ bids }: BidHistoryProps) {
           {bids.map((bid, i) => {
             const isLast = i === bids.length - 1
             const cellStyle = isLast ? { ...tdBase, borderBottom: 'none' } : tdBase
+            const rowKey = bid.id != null ? bid.id : i
             return (
-              <tr key={i}>
+              <tr key={rowKey}>
                 <td style={{ ...cellStyle, textAlign: 'left' }}>
                   <Box as="span">{bid.bidderUsername}</Box>
                   {bid.isAuto && (
