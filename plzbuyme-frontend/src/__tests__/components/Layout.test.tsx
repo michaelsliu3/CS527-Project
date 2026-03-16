@@ -7,17 +7,22 @@ import { Layout } from '../../components/Layout'
 import { AuthProvider } from '../../context/AuthContext'
 import { system } from '../../theme'
 
+function setTestToken(payload: Record<string, unknown>) {
+  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+  const body = btoa(JSON.stringify(payload))
+  const token = [header, body, 'signature'].join('.')
+  window.localStorage.setItem('token', token)
+}
+
 function renderWithProviders() {
-  window.localStorage.setItem(
-    'token',
-    // minimal valid-looking JWT with unexpired exp; AuthContext will decode and set user
-    // payload: { "sub": "1", "unique_name": "alice", "email": "alice@example.com", "role": "end_user", "exp": 4102444800 }
-    [
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
-      'eyJzdWIiOiIxIiwidW5pcXVlX25hbWUiOiJhbGljZSIsImVtYWlsIjoiYWxpY2VAZXhhbXBsZS5jb20iLCJyb2xlIjoiZW5kX3VzZXIiLCJleHAiOjQxMDI0NDQ4MDB9',
-      'signature',
-    ].join('.'),
-  )
+  // Minimal valid-looking JWT with unexpired exp; AuthContext will decode and set user.
+  setTestToken({
+    sub: '1',
+    unique_name: 'alice',
+    email: 'alice@example.com',
+    role: 'end_user',
+    exp: 4102444800, // far-future expiry
+  })
 
   return render(
     <ChakraProvider value={system}>
