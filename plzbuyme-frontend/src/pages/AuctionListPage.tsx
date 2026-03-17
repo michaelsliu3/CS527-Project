@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Container, Flex, SimpleGrid, Spinner, Text, Button } from '@chakra-ui/react'
+import { Box, Container, Flex, SimpleGrid, Spinner, Text, Button } from '@chakra-ui/react'
 import { useSearchParams } from 'react-router-dom'
 import { browseAuctions, type AuctionListItem, type BrowseParams } from '../api/auctions'
 import { AuctionCard } from '../components/AuctionCard'
@@ -97,58 +97,67 @@ export function AuctionListPage() {
 
   return (
     <Container maxW="container.xl">
-      <SearchBar />
-      {error && (
-        <Text color="red.400" mb={4}>
-          {error}
-        </Text>
-      )}
-      {loading ? (
-        <Flex justify="center" py={12}>
-          <Spinner size="xl" color="brand.400" />
-        </Flex>
-      ) : items.length === 0 ? (
-        <Text color={dark.muted} py={8} textAlign="center">
-          No auctions found.
-        </Text>
-      ) : (
-        <>
-          <SimpleGrid columns={{ base: 1, md: 2, lg: 3, xl: 4 }} gap={4}>
-            {items.map((auction) => (
-              <AuctionCard key={auction.id} auction={auction} />
-            ))}
-          </SimpleGrid>
-          <Flex mt={6} justify="space-between" align="center">
-            <Text fontSize="sm" color={dark.muted}>
-              Page {page} of {totalPages} ({totalCount} total)
+      <SearchBar variant="top" />
+
+      <Flex direction={{ base: 'column', lg: 'row' }} gap={4} align="flex-start">
+        <Box w={{ base: '100%', lg: '320px' }} flexShrink={0}>
+          <SearchBar variant="filters" />
+        </Box>
+
+        <Box flex="1" w="100%">
+          {error && (
+            <Text color="red.400" mb={4}>
+              {error}
             </Text>
-            <Flex gap={2}>
-              <Button
-                size="sm"
-                variant="outline"
-                borderColor={dark.borderSubtle}
-                color="white"
-                _hover={{ bg: 'whiteAlpha.100' }}
-                disabled={!hasPrev}
-                onClick={prevPage}
-              >
-                Previous
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                borderColor={dark.borderSubtle}
-                color="white"
-                _hover={{ bg: 'whiteAlpha.100' }}
-                disabled={!hasNext}
-                onClick={nextPage}
-              >
-                Next
-              </Button>
+          )}
+          {loading ? (
+            <Flex justify="center" py={12}>
+              <Spinner size="xl" color="brand.400" />
             </Flex>
-          </Flex>
-        </>
-      )}
+          ) : items.length === 0 ? (
+            <Text color={dark.muted} py={8} textAlign="center">
+              No auctions found.
+            </Text>
+          ) : (
+            <>
+              <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} gap={4}>
+                {items.map((auction) => (
+                  <AuctionCard key={auction.id} auction={auction} />
+                ))}
+              </SimpleGrid>
+              <Flex mt={6} justify="space-between" align="center">
+                <Text fontSize="sm" color={dark.muted}>
+                  Page {page} of {totalPages} ({totalCount} total)
+                </Text>
+                <Flex gap={2}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    borderColor={dark.borderSubtle}
+                    color="white"
+                    _hover={{ bg: 'whiteAlpha.100' }}
+                    disabled={!hasPrev}
+                    onClick={prevPage}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    borderColor={dark.borderSubtle}
+                    color="white"
+                    _hover={{ bg: 'whiteAlpha.100' }}
+                    disabled={!hasNext}
+                    onClick={nextPage}
+                  >
+                    Next
+                  </Button>
+                </Flex>
+              </Flex>
+            </>
+          )}
+        </Box>
+      </Flex>
     </Container>
   )
 }
