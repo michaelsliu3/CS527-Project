@@ -185,12 +185,14 @@ describe('RepDashboard', () => {
     })
     const deleteButtons = screen.getAllByRole('button', { name: /Delete/i })
     await user.click(deleteButtons[0])
+    let dialog!: HTMLElement
     await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument()
-      expect(screen.getByText(/Delete user?/)).toBeInTheDocument()
-      expect(screen.getByText(/Soft-delete user "jane"/)).toBeInTheDocument()
+      dialog = screen.getByRole('dialog')
+      expect(dialog).toBeInTheDocument()
+      expect(within(dialog).getByText(/Delete user?/)).toBeInTheDocument()
+      expect(within(dialog).getByText(/Soft-delete user "jane"/)).toBeInTheDocument()
     })
-    const confirmDelete = screen.getByRole('button', { name: 'Delete' })
+    const confirmDelete = within(dialog).getByRole('button', { name: 'Delete' })
     await user.click(confirmDelete)
     await waitFor(() => {
       expect(repApi.deleteRepUser).toHaveBeenCalledWith(1)
