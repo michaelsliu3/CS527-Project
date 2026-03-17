@@ -87,7 +87,7 @@ export function QuestionsPage() {
   }
 
   const isRepOrAdmin = user?.role === 'customer_rep' || user?.role === 'admin'
-  const isEndUser = user?.role === 'end_user'
+  const canAskQuestion = user?.role === 'end_user' || user?.role === 'admin'
 
   return (
     <Container maxW="container.lg">
@@ -107,8 +107,15 @@ export function QuestionsPage() {
             size="sm"
             w={{ base: '100%', sm: '200px' }}
           />
-          {isEndUser && (
-            <Button colorScheme="brand" size="sm" onClick={askDialog.onOpen}>
+          {canAskQuestion && (
+            <Button
+              size="sm"
+              variant="outline"
+              borderColor={dark.borderSubtle}
+              color="white"
+              _hover={{ bg: 'whiteAlpha.100' }}
+              onClick={askDialog.onOpen}
+            >
               Ask a Question
             </Button>
           )}
@@ -229,10 +236,22 @@ export function QuestionsPage() {
               </form>
             </Dialog.Body>
             <Dialog.Footer borderColor={dark.borderSubtle}>
-              <Button variant="ghost" color={dark.muted} onClick={askDialog.onClose}>
+              <Button
+                variant="outline"
+                borderColor={dark.borderSubtle}
+                color="white"
+                _hover={{ bg: 'whiteAlpha.100' }}
+                onClick={askDialog.onClose}
+              >
                 Cancel
               </Button>
-              <Button type="submit" form="ask-question-form" colorScheme="brand">
+              <Button
+                type="submit"
+                form="ask-question-form"
+                bg="brand.500"
+                color="white"
+                _hover={{ bg: 'brand.400' }}
+              >
                 Submit
               </Button>
             </Dialog.Footer>
@@ -282,7 +301,14 @@ function ReplyForm({
 
   if (!isActive) {
     return (
-      <Button size="sm" variant="outline" colorScheme="brand" onClick={() => setReplyingId(questionId)}>
+      <Button
+        size="sm"
+        variant="outline"
+        borderColor={dark.borderSubtle}
+        color="white"
+        _hover={{ bg: 'whiteAlpha.100' }}
+        onClick={() => setReplyingId(questionId)}
+      >
         Reply
       </Button>
     )
@@ -302,11 +328,26 @@ function ReplyForm({
         mb={2}
       />
       <Flex gap={2}>
-        <Button size="sm" colorScheme="brand" type="submit" loading={submitting} disabled={!replyText.trim()}>
-          Submit reply
-        </Button>
-        <Button size="sm" variant="ghost" color={dark.muted} onClick={() => setReplyingId(null)}>
+        <Button
+          size="sm"
+          variant="outline"
+          borderColor={dark.borderSubtle}
+          color="white"
+          _hover={{ bg: 'whiteAlpha.100' }}
+          onClick={() => setReplyingId(null)}
+        >
           Cancel
+        </Button>
+        <Button
+          size="sm"
+          type="submit"
+          bg="brand.500"
+          color="white"
+          _hover={{ bg: 'brand.400' }}
+          loading={submitting}
+          disabled={!replyText.trim()}
+        >
+          Submit reply
         </Button>
       </Flex>
     </Box>

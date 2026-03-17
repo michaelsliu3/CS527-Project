@@ -262,7 +262,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-14 — Frontend Forums nav link
+## PBM-14 — Frontend Forums nav link ✅
 
 **Layer:** Frontend
 **Branch:** `PBM-14/frontend-forums-nav`
@@ -272,6 +272,36 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Show the link for logged-in users (e.g. next to Alerts or after Auctions).
 - No backend changes.
 - **Tests:** Nav link "Forums" is visible when logged in and navigates to `/questions`.
+
+---
+
+## PBM-15 — Enhanced Q&A replies (threaded metadata)
+
+**Layer:** Backend + Frontend
+**Branch:** `PBM-15/qa-replies-enhancement`
+**PR Title:** `[PBM-15] support richer Q&A replies with metadata and multiple responses`
+
+- Extend Q&A reply model so a question can have **multiple replies** instead of a single reply field.
+- Add reply-level metadata: **reply title**, **reply body**, **replier display name** (and role if available), and timestamp.
+- Backend: update Q&A DTOs/endpoints and persistence model to create/list replies as a collection.
+- Frontend: render replies as a list/thread per question, including reply title and replier name.
+- Keep existing authorization semantics (rep/admin can reply) unless explicitly changed in scope.
+- **Do not implement yet** — ticket placeholder for tracking.
+
+---
+
+## PBM-16 — Auction search UI redesign
+
+**Layer:** Frontend
+**Branch:** `PBM-16/auction-search-ui-redesign`
+**PR Title:** `[PBM-16] redesign auction search UI layout, format, and styling`
+
+- Redesign the entire auction search experience (`AuctionListPage` + `SearchBar`) with a new layout and stronger visual hierarchy.
+- Replace current filter/form presentation with a cleaner, more scalable structure (grouped filters, clearer labels, improved spacing, consistent control states).
+- Refresh result card/list formatting and page composition for readability, scanability, and responsive behavior across desktop/tablet/mobile.
+- Standardize component styling and interaction states (default, hover, active, focus, disabled) with shared Chakra theme tokens.
+- Include loading, empty, and error states in the redesign to ensure a complete and consistent user experience.
+- **Do not implement yet** — ticket placeholder for tracking.
 
 ---
 
@@ -286,4 +316,34 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Bug:** Refreshing the page at any route clears login state; user is logged out and must sign in again.
 - **Expected:** JWT (or equivalent auth token) should be restored from storage on app load so the user remains logged in after refresh.
 - **Likely cause:** Auth context is not hydrating from `localStorage` on mount, or the token key/lifecycle is incorrect. Verify `AuthContext` reads the stored token on init and restores user state; ensure the API client attaches the token to requests after hydration.
+- **Do not implement yet** — ticket for tracking only.
+
+---
+
+## General Cleanup
+
+### PBM-STYLE-1 — Global UI styling consistency pass ✅
+
+**Layer:** Frontend  
+**Branch:** `PBM-STYLE-1/frontend-styling-pass`  
+**PR Title:** `[PBM-STYLE-1] perform global styling consistency cleanup`
+
+- **Scope delivered:** Focused styling and role-access consistency cleanup across shared navigation and action-heavy pages (`Layout`, `App` route guards, Alerts, Q&A, Admin dashboard/reports).
+- **Implemented fixes:**
+  - Align role-based frontend access with backend policy intent so admins can use end-user flows (`Sell`, `My Auctions`, `Alerts`, and `Ask a Question` in Q&A).
+  - Standardize primary/secondary action button patterns to match the established `Create auction` style (solid brand primary + outline secondary) in Alerts and Q&A dialogs/forms.
+  - Improve admin-facing CTA consistency in dashboard/reports screens.
+  - Add/adjust regression tests for role-based nav visibility and Q&A ask access behavior.
+- **Validation completed:** Targeted frontend unit tests for touched role-gated flows and manual visual checks for updated button/CTA consistency in touched pages.
+
+### PBM-BUG-2 — General bug triage and stabilization sweep
+
+**Layer:** Full Stack  
+**Branch:** `PBM-BUG-2/general-bug-sweep`  
+**PR Title:** `[PBM-BUG-2] fix prioritized cross-app bugs and regressions`
+
+- **Scope:** Triage and fix confirmed bugs across frontend and backend (auth/session edge cases, auction flows, alerts/notifications behavior, rep/admin actions, API validation/error handling).
+- **Goals:** Prioritize user-facing and data-integrity issues first; group fixes by severity and include clear reproduction steps.
+- **Deliverables:** Bugfix patches with a tracked checklist of issues addressed, plus regression tests for high-impact fixes.
+- **Validation:** Run unit/integration tests for touched areas and perform smoke testing on critical flows (login, browse/search, bid, create auction, notifications).
 - **Do not implement yet** — ticket for tracking only.

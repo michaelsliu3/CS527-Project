@@ -36,7 +36,14 @@ export function AdminDashboard() {
         Admin Dashboard
       </Text>
       <Flex gap={4} mb={8}>
-        <Button asChild size="sm" variant="outline" colorScheme="brand">
+        <Button
+          asChild
+          size="sm"
+          variant="outline"
+          borderColor={dark.borderSubtle}
+          color="white"
+          _hover={{ bg: 'whiteAlpha.100' }}
+        >
           <Link to="/admin/reports">View Reports</Link>
         </Button>
       </Flex>
@@ -108,7 +115,13 @@ export function AdminDashboard() {
                 </Text>
               )}
             </Box>
-            <Button type="submit" colorScheme="brand" loading={form.formState.isSubmitting}>
+            <Button
+              type="submit"
+              bg="brand.500"
+              color="white"
+              _hover={{ bg: 'brand.400' }}
+              loading={form.formState.isSubmitting}
+            >
               Create Rep
             </Button>
           </Flex>

@@ -124,7 +124,7 @@ public class Program
         {
             options.AddPolicy("AdminOnly", p => p.RequireRole("admin"));
             options.AddPolicy("RepOnly", p => p.RequireRole("customer_rep", "admin"));
-            options.AddPolicy("EndUser", p => p.RequireRole("end_user"));
+            options.AddPolicy("EndUser", p => p.RequireRole("end_user", "admin"));
         });
 
         // ── Services ─────────────────────────────────────────────────

@@ -12,6 +12,7 @@ const NOTIFICATION_POLL_INTERVAL_MS = 5_000
 
 const linkColor = dark.muted
 const linkHover = '#ffffff'
+const canUseEndUserFeatures = (role: string) => role === 'end_user' || role === 'admin'
 
 export function Layout() {
   const { user, loading, logout } = useAuth()
@@ -105,7 +106,7 @@ export function Layout() {
               </RouterLink>
               {user ? (
                 <>
-                  {user.role === 'end_user' && (
+                  {canUseEndUserFeatures(user.role) && (
                     <>
                       <RouterLink to="/auctions/create" style={{ fontWeight: 500, color: linkColor }}>
                         Sell

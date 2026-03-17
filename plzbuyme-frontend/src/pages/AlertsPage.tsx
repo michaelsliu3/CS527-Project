@@ -114,7 +114,14 @@ export function AlertsPage() {
         <Text fontSize="2xl" fontWeight="bold" color="white">
           My alerts
         </Text>
-        <Button colorScheme="brand" size="sm" onClick={createDialog.onOpen}>
+        <Button
+          size="sm"
+          variant="outline"
+          borderColor={dark.borderSubtle}
+          color="white"
+          _hover={{ bg: 'whiteAlpha.100' }}
+          onClick={createDialog.onOpen}
+        >
           <HiOutlinePlus style={{ marginRight: 6 }} />
           Create alert
         </Button>
@@ -250,13 +257,21 @@ export function AlertsPage() {
               </form>
             </Dialog.Body>
             <Dialog.Footer borderColor={dark.borderSubtle}>
-              <Button variant="ghost" color={dark.muted} onClick={createDialog.onClose}>
+              <Button
+                variant="outline"
+                borderColor={dark.borderSubtle}
+                color="white"
+                _hover={{ bg: 'whiteAlpha.100' }}
+                onClick={createDialog.onClose}
+              >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 form="create-alert-form"
-                colorScheme="brand"
+                bg="brand.500"
+                color="white"
+                _hover={{ bg: 'brand.400' }}
                 loading={submitting}
               >
                 Create

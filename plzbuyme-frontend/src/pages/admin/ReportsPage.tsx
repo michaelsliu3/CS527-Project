@@ -33,7 +33,14 @@ export function ReportsPage() {
         <Text fontSize="2xl" fontWeight="bold" color="white">
           Reports
         </Text>
-        <Button asChild size="sm" variant="outline" colorScheme="brand">
+        <Button
+          asChild
+          size="sm"
+          variant="outline"
+          borderColor={dark.borderSubtle}
+          color="white"
+          _hover={{ bg: 'whiteAlpha.100' }}
+        >
           <Link to="/admin">Back to Admin</Link>
         </Button>
       </Flex>
