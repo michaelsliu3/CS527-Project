@@ -14,13 +14,13 @@ function setTestToken(payload: Record<string, unknown>) {
   window.localStorage.setItem('token', token)
 }
 
-function renderWithProviders() {
+function renderWithProviders(role: string = 'end_user') {
   // Minimal valid-looking JWT with unexpired exp; AuthContext will decode and set user.
   setTestToken({
     sub: '1',
     unique_name: 'alice',
     email: 'alice@example.com',
-    role: 'end_user',
+    role,
     exp: 4102444800, // far-future expiry
   })
 
@@ -50,6 +50,16 @@ describe('Layout navbar Forums link', () => {
 
     await user.click(forumsLink)
     expect(screen.getByText(/Questions Page/i)).toBeInTheDocument()
+  })
+})
+
+describe('Layout navbar role links', () => {
+  it('shows sell and alerts links for admin users', async () => {
+    renderWithProviders('admin')
+
+    expect(await screen.findByRole('link', { name: /Sell/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /My Auctions/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Alerts/i })).toBeInTheDocument()
   })
 })
 
