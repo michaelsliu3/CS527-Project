@@ -5,7 +5,6 @@ public class QuestionReply
     public int Id { get; set; }
     public int QuestionId { get; set; }
     public int? RepliedByUserId { get; set; }
-    public string Title { get; set; } = string.Empty;
     public string Body { get; set; } = string.Empty;
     public string ReplierDisplayName { get; set; } = string.Empty;
     public string? ReplierRole { get; set; }

@@ -29,7 +29,6 @@ public class QuestionsService : IQuestionsService
                 q.Subject.ToLower().Contains(term) ||
                 q.Body.ToLower().Contains(term) ||
                 q.Replies.Any(r =>
-                    (r.Title ?? string.Empty).ToLower().Contains(term) ||
                     r.Body.ToLower().Contains(term) ||
                     r.ReplierDisplayName.ToLower().Contains(term)));
         }
@@ -82,7 +81,6 @@ public class QuestionsService : IQuestionsService
         {
             QuestionId = question.Id,
             RepliedByUserId = repliedByUserId,
-            Title = string.IsNullOrWhiteSpace(dto.Title) ? string.Empty : dto.Title.Trim(),
             Body = dto.Body.Trim(),
             ReplierDisplayName = replier?.Username ?? "Support Team",
             ReplierRole = replier != null ? ToRoleLabel(replier.Role) : null,
@@ -117,7 +115,6 @@ public class QuestionsService : IQuestionsService
                 .Select(r => new QuestionReplyDto
                 {
                     Id = r.Id,
-                    Title = r.Title,
                     Body = r.Body,
                     ReplierDisplayName = r.ReplierDisplayName,
                     ReplierRole = r.ReplierRole ?? (r.RepliedByUser != null ? ToRoleLabel(r.RepliedByUser.Role) : null),

@@ -100,7 +100,6 @@ public class QuestionsControllerTests
         ok.Value.Should().BeOfType<QuestionResponseDto>();
         var response = (QuestionResponseDto)ok.Value!;
         response.Replies.Should().HaveCount(1);
-        response.Replies[0].Title.Should().BeEmpty();
         response.Replies[0].Body.Should().Be("Here is an answer");
         response.Replies[0].ReplierDisplayName.Should().Be("rep1");
         response.Replies[0].ReplierRole.Should().Be("customer_rep");

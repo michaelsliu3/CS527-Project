@@ -12,7 +12,6 @@ export interface QuestionResponse {
 
 export interface QuestionReply {
   id: number
-  title: string | null
   body: string
   replierDisplayName: string
   replierRole: string | null
@@ -25,7 +24,6 @@ export interface CreateQuestionDto {
 }
 
 export interface ReplyDto {
-  title?: string
   body: string
 }
 

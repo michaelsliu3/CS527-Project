@@ -187,7 +187,6 @@ public class AppDbContext : DbContext
         // ── QuestionReply ──
         modelBuilder.Entity<QuestionReply>(e =>
         {
-            e.Property(qr => qr.Title).HasMaxLength(256);
             e.Property(qr => qr.ReplierDisplayName).HasMaxLength(128);
             e.Property(qr => qr.ReplierRole).HasMaxLength(32);
             e.HasOne(qr => qr.Question)

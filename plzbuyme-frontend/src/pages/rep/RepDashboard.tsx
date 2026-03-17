@@ -537,9 +537,6 @@ function RepQuestionsTab() {
                 <Flex direction="column" gap={2} mb={3}>
                   {q.replies.map((reply) => (
                     <Box key={reply.id} pl={3} borderLeftWidth="3px" borderColor="brand.500">
-                      {reply.title ? (
-                        <Text fontSize="sm" color="white" fontWeight="semibold">{reply.title}</Text>
-                      ) : null}
                       <Flex align="center" gap={2} mb={1} wrap="wrap">
                         <Text fontSize="xs" color={dark.placeholder}>
                           {reply.replierDisplayName}

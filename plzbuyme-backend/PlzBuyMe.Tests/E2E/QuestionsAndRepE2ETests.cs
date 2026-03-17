@@ -111,7 +111,6 @@ public class QuestionsAndRepE2ETests : IClassFixture<PlzBuyMeWebApplicationFacto
         var replied = await replyRes.Content.ReadFromJsonAsync<QuestionResponseDto>(JsonOptions);
         replied.Should().NotBeNull();
         replied!.Replies.Should().ContainSingle();
-        replied.Replies[0].Title.Should().BeEmpty();
         replied.Replies[0].Body.Should().Be("Please check your card limit or try another payment method.");
         replied.Replies[0].ReplierDisplayName.Should().NotBeNullOrWhiteSpace();
         replied.Replies[0].CreatedAt.Should().NotBe(default);
