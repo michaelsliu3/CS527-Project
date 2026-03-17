@@ -87,7 +87,7 @@ export function QuestionsPage() {
   }
 
   const isRepOrAdmin = user?.role === 'customer_rep' || user?.role === 'admin'
-  const isEndUser = user?.role === 'end_user'
+  const canAskQuestion = user?.role === 'end_user' || user?.role === 'admin'
 
   return (
     <Container maxW="container.lg">
@@ -107,7 +107,7 @@ export function QuestionsPage() {
             size="sm"
             w={{ base: '100%', sm: '200px' }}
           />
-          {isEndUser && (
+          {canAskQuestion && (
             <Button
               size="sm"
               variant="outline"
