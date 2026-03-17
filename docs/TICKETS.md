@@ -275,6 +275,36 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
+## PBM-15 — Enhanced Q&A replies (threaded metadata)
+
+**Layer:** Backend + Frontend
+**Branch:** `PBM-15/qa-replies-enhancement`
+**PR Title:** `[PBM-15] support richer Q&A replies with metadata and multiple responses`
+
+- Extend Q&A reply model so a question can have **multiple replies** instead of a single reply field.
+- Add reply-level metadata: **reply title**, **reply body**, **replier display name** (and role if available), and timestamp.
+- Backend: update Q&A DTOs/endpoints and persistence model to create/list replies as a collection.
+- Frontend: render replies as a list/thread per question, including reply title and replier name.
+- Keep existing authorization semantics (rep/admin can reply) unless explicitly changed in scope.
+- **Do not implement yet** — ticket placeholder for tracking.
+
+---
+
+## PBM-16 — Auction search UI redesign
+
+**Layer:** Frontend
+**Branch:** `PBM-16/auction-search-ui-redesign`
+**PR Title:** `[PBM-16] redesign auction search UI layout, format, and styling`
+
+- Redesign the entire auction search experience (`AuctionListPage` + `SearchBar`) with a new layout and stronger visual hierarchy.
+- Replace current filter/form presentation with a cleaner, more scalable structure (grouped filters, clearer labels, improved spacing, consistent control states).
+- Refresh result card/list formatting and page composition for readability, scanability, and responsive behavior across desktop/tablet/mobile.
+- Standardize component styling and interaction states (default, hover, active, focus, disabled) with shared Chakra theme tokens.
+- Include loading, empty, and error states in the redesign to ensure a complete and consistent user experience.
+- **Do not implement yet** — ticket placeholder for tracking.
+
+---
+
 ## Bugs
 
 ### PBM-BUG-1 — Login state lost on page refresh

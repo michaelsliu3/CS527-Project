@@ -36,7 +36,14 @@ export function AdminDashboard() {
         Admin Dashboard
       </Text>
       <Flex gap={4} mb={8}>
-        <Button asChild size="sm" variant="outline" colorScheme="brand">
+        <Button
+          asChild
+          size="sm"
+          variant="outline"
+          borderColor={dark.borderSubtle}
+          color="white"
+          _hover={{ bg: 'whiteAlpha.100' }}
+        >
           <Link to="/admin/reports">View Reports</Link>
         </Button>
       </Flex>
