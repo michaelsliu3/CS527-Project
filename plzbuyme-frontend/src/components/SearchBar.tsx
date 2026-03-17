@@ -4,9 +4,9 @@ import {
   Button,
   Checkbox,
   Flex,
-  HStack,
   Icon,
   Input,
+  Slider,
   SimpleGrid,
   Text,
   Wrap,
@@ -41,10 +41,48 @@ const STATUS_OPTIONS = [
   { value: 'sold', label: 'Sold' },
 ]
 
-const CAR_SUBCATEGORY_IDS = [1, 2, 3, 4, 5, 6]
 const CONDITION_OPTIONS = ['New', 'Like New', 'Excellent', 'Good', 'Fair', 'Poor']
 const TRANSMISSION_OPTIONS = ['Automatic', 'Manual', 'CVT']
 const FUEL_OPTIONS = ['Gasoline', 'Diesel', 'Electric', 'Hybrid', 'Plug-in Hybrid']
+const PRICE_SLIDER_MIN = 0
+const PRICE_SLIDER_MAX = 100000
+const PRICE_SLIDER_DEFAULT_MAX = 50000
+const QUICK_PRICE_PRESETS: Array<{ label: string; min: number; max: number }> = [
+  { label: '<$10', min: PRICE_SLIDER_MIN, max: 10 },
+  { label: '$10 - $50', min: 10, max: 50 },
+  { label: '$50 - $250', min: 50, max: 250 },
+  { label: '>$250', min: 250, max: PRICE_SLIDER_MAX },
+]
+const sectionToggleButtonProps = {
+  variant: 'ghost',
+  w: '100%',
+  justifyContent: 'space-between',
+  px: 0,
+  py: 7,
+  bg: 'transparent',
+  color: 'white',
+  fontWeight: 'semibold',
+  _hover: { bg: 'transparent', color: 'white' },
+  _active: { bg: 'transparent', color: 'white' },
+  _focusVisible: { bg: 'transparent', color: 'white', boxShadow: 'none' },
+  _expanded: { bg: 'transparent', color: 'white' },
+} as const
+
+function getPriceRangeFromSearchParams(searchParams: URLSearchParams): [number, number] {
+  const minPriceParam = searchParams.get('minPrice')
+  const maxPriceParam = searchParams.get('maxPrice')
+  const minFromQuery =
+    minPriceParam === null || minPriceParam.trim() === '' ? Number.NaN : Number(minPriceParam)
+  const maxFromQuery =
+    maxPriceParam === null || maxPriceParam.trim() === '' ? Number.NaN : Number(maxPriceParam)
+  const minValue = Number.isFinite(minFromQuery)
+    ? Math.max(PRICE_SLIDER_MIN, Math.min(minFromQuery, PRICE_SLIDER_MAX))
+    : PRICE_SLIDER_MIN
+  const maxValue = Number.isFinite(maxFromQuery)
+    ? Math.max(PRICE_SLIDER_MIN, Math.min(maxFromQuery, PRICE_SLIDER_MAX))
+    : PRICE_SLIDER_DEFAULT_MAX
+  return [Math.min(minValue, maxValue), Math.max(minValue, maxValue)]
+}
 
 type SearchBarVariant = 'full' | 'top' | 'filters'
 type FilterSectionKey =
@@ -83,10 +121,9 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     transmission: false,
     fuelType: false,
   })
-
-  const isCarCategory =
-    selectedCategoryId !== '' &&
-    CAR_SUBCATEGORY_IDS.includes(Number(selectedCategoryId))
+  const [priceRange, setPriceRange] = useState<[number, number]>(() =>
+    getPriceRangeFromSearchParams(searchParams)
+  )
 
   useEffect(() => {
     let isMounted = true
@@ -99,14 +136,19 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
         const data = res.data
         setCategories(data)
 
+        const rootCategories = data.filter((c) => c.parentId === null)
+        const carsRoot = rootCategories.find((c) => c.name.toLowerCase() === 'cars')
         const existing = searchParams.get('categoryId')
         if (existing) {
           const idNum = Number(existing)
-          const rootCategories = data.filter((c) => c.parentId === null)
           const root = rootCategories.find((c) => c.id === idNum)
           if (root) {
             setSelectedRootId(root.id)
-            setSelectedCategoryId(root.id)
+            if (carsRoot && root.id === carsRoot.id) {
+              setSelectedCategoryId('')
+            } else {
+              setSelectedCategoryId(root.id)
+            }
           } else {
             const child = data.find((c) => c.id === idNum)
             if (child) {
@@ -115,6 +157,9 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
               if (parent) setSelectedRootId(parent.id)
             }
           }
+        } else if (carsRoot) {
+          setSelectedRootId(carsRoot.id)
+          setSelectedCategoryId('')
         }
       } catch {
         if (!isMounted) return
@@ -129,6 +174,10 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     return () => {
       isMounted = false
     }
+  }, [searchParams])
+
+  useEffect(() => {
+    setPriceRange(getPriceRangeFromSearchParams(searchParams))
   }, [searchParams])
 
   const rootCategories = categories.filter((c) => c.parentId === null)
@@ -153,12 +202,6 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
         ? selectedRootId
         : undefined
 
-  const handleRootChange = (value: string) => {
-    const id = value ? Number(value) : ''
-    setSelectedRootId(id)
-    setSelectedCategoryId(id || '')
-  }
-
   const handleSubcategoryChange = (value: string) => {
     const id = value ? Number(value) : ''
     setSelectedCategoryId(id)
@@ -166,16 +209,21 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
 
   const handleTopCategorySelect = (categoryId: number) => {
     const next = new URLSearchParams(searchParams)
-    next.set('categoryId', String(categoryId))
+    if (carsRootCategory && categoryId === carsRootCategory.id) {
+      next.delete('categoryId')
+    } else {
+      next.set('categoryId', String(categoryId))
+    }
     next.set('page', '1')
     setSearchParams(next)
 
     if (carsRootCategory && categoryId !== carsRootCategory.id) {
       setSelectedRootId(carsRootCategory.id)
+      setSelectedCategoryId(categoryId)
     } else {
       setSelectedRootId(categoryId)
+      setSelectedCategoryId('')
     }
-    setSelectedCategoryId(categoryId)
   }
 
   const fetchMakeSuggestions = useCallback(async (prefix: string) => {
@@ -263,12 +311,26 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     form.querySelectorAll<HTMLInputElement>('input[name="condition"]:checked').forEach((el) => condition.push(el.value))
     form.querySelectorAll<HTMLInputElement>('input[name="transmission"]:checked').forEach((el) => transmission.push(el.value))
     form.querySelectorAll<HTMLInputElement>('input[name="fuelType"]:checked').forEach((el) => fuelType.push(el.value))
+    const minPriceFromForm = (form.elements.namedItem('minPrice') as HTMLInputElement)?.value || undefined
+    const maxPriceFromForm = (form.elements.namedItem('maxPrice') as HTMLInputElement)?.value || undefined
+    const minPrice =
+      variant === 'filters'
+        ? priceRange[0] > PRICE_SLIDER_MIN
+          ? String(priceRange[0])
+          : undefined
+        : minPriceFromForm
+    const maxPrice =
+      variant === 'filters'
+        ? priceRange[1] < PRICE_SLIDER_MAX
+          ? String(priceRange[1])
+          : undefined
+        : maxPriceFromForm
 
     applyFilters({
       q: (form.elements.namedItem('q') as HTMLInputElement)?.value?.trim() || undefined,
       categoryId: selectedCategoryId ? String(selectedCategoryId) : undefined,
-      minPrice: (form.elements.namedItem('minPrice') as HTMLInputElement)?.value || undefined,
-      maxPrice: (form.elements.namedItem('maxPrice') as HTMLInputElement)?.value || undefined,
+      minPrice,
+      maxPrice,
       status: (form.elements.namedItem('status') as HTMLSelectElement)?.value || undefined,
       closingBefore: (form.elements.namedItem('closingBefore') as HTMLInputElement)?.value || undefined,
       closingAfter: (form.elements.namedItem('closingAfter') as HTMLInputElement)?.value || undefined,
@@ -303,6 +365,27 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     pointerEvents: isOpen ? 'auto' : 'none',
   })
 
+  const setPriceFromPreset = (min: number, max: number) => {
+    setPriceRange([min, max])
+  }
+
+  const onPriceSliderChange = (details: { value: number[] }) => {
+    if (details.value.length < 2) return
+    setPriceRange([details.value[0], details.value[1]])
+  }
+
+  const onPriceInputChange = (input: 'min' | 'max', nextValue: string) => {
+    const numeric = Number(nextValue)
+    if (!Number.isFinite(numeric)) return
+    const bounded = Math.max(PRICE_SLIDER_MIN, Math.min(numeric, PRICE_SLIDER_MAX))
+    setPriceRange((current) => {
+      if (input === 'min') {
+        return [Math.min(bounded, current[1]), current[1]]
+      }
+      return [current[0], Math.max(bounded, current[0])]
+    })
+  }
+
   const resetAllFilters = () => {
     const next = new URLSearchParams()
     next.set('page', '1')
@@ -313,11 +396,10 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     setModelInput('')
     setMakeSuggestions([])
     setModelSuggestions([])
+    setPriceRange([PRICE_SLIDER_MIN, PRICE_SLIDER_DEFAULT_MAX])
   }
 
-  const allSortOptions = isCarCategory
-    ? [...SORT_OPTIONS, ...CAR_SORT_OPTIONS]
-    : SORT_OPTIONS
+  const allSortOptions = [...SORT_OPTIONS, ...CAR_SORT_OPTIONS]
   const showTopBar = variant !== 'filters'
   const showFilters = variant !== 'top'
   const formColumns = variant === 'filters' ? 1 : { base: 1, md: 2, lg: 4 }
@@ -327,14 +409,15 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     <Box mb={variant === 'top' ? 3 : 0}>
       {showTopBar && (
       <Box
-        borderWidth="0.5px"
-        borderColor="whiteAlpha.200"
+        bg={dark.cardBg}
+        borderWidth="1px"
+        borderColor={dark.borderSubtle}
         borderRadius="sm"
-        overflowX="auto"
-        p="1px"
+        overflow="hidden"
         mb={showFilters ? 3 : 0}
+        w="full"
       >
-        <HStack gap={0}>
+        <Flex w="full">
           {topBarCategories.map((category, index) => {
             const isActive = activeTopCategoryId === category.id
             const isFirst = index === 0
@@ -343,7 +426,8 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
               <Button
                 key={category.id}
                 size="sm"
-                minW="max-content"
+                flex={1}
+                minW={0}
                 variant="ghost"
                 borderRadius={0}
                 borderLeftRadius={isFirst ? 'xs' : 0}
@@ -353,6 +437,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                 bg={isActive ? 'brand.500' : 'transparent'}
                 color="white"
                 fontWeight={isActive ? 'semibold' : 'medium'}
+                px={2}
                 _hover={{
                   bg: isActive ? 'brand.400' : 'whiteAlpha.100',
                 }}
@@ -365,7 +450,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
               </Button>
             )
           })}
-        </HStack>
+        </Flex>
       </Box>
       )}
 
@@ -397,94 +482,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
             <Box borderBottomWidth="1px" borderColor={dark.borderSubtle}>
               <Button
                 type="button"
-                variant="ghost"
-                w="100%"
-                justifyContent="space-between"
-                px={0}
-                py={5}
-                color="white"
-                fontWeight="semibold"
-                _hover={{ bg: 'transparent', color: 'whiteAlpha.900' }}
-                onClick={() => toggleSection('category')}
-                aria-expanded={openSections.category}
-              >
-                Category
-                <Icon
-                  as={HiChevronDown}
-                  boxSize={5}
-                  color={dark.muted}
-                  transition="transform 320ms cubic-bezier(0.22, 1, 0.36, 1)"
-                  transform={openSections.category ? 'rotate(180deg)' : 'rotate(0deg)'}
-                />
-              </Button>
-              <Box {...sectionAnimationProps(openSections.category)}>
-                <SimpleGrid columns={1} gap={3} py={4} overflow="hidden" minH={0}>
-                  <Box>
-                    <Text fontSize="xs" color={dark.muted} mb={1}>Category</Text>
-                    <select
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        background: dark.inputBg,
-                        border: `1px solid ${dark.borderSubtle}`,
-                        borderRadius: '6px',
-                        color: 'white',
-                      }}
-                      value={selectedRootId === '' ? '' : String(selectedRootId)}
-                      onChange={(e) => handleRootChange(e.target.value)}
-                      disabled={categoriesLoading}
-                    >
-                      <option value="">All</option>
-                      {rootCategories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Box>
-                  <Box>
-                    <Text fontSize="xs" color={dark.muted} mb={1}>Subcategory</Text>
-                    <select
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        background: dark.inputBg,
-                        border: `1px solid ${dark.borderSubtle}`,
-                        borderRadius: '6px',
-                        color: 'white',
-                      }}
-                      value={selectedCategoryId === '' ? '' : String(selectedCategoryId)}
-                      onChange={(e) => handleSubcategoryChange(e.target.value)}
-                      disabled={
-                        categoriesLoading ||
-                        !selectedRoot ||
-                        !selectedRoot.children ||
-                        selectedRoot.children.length === 0
-                      }
-                    >
-                      <option value="">All</option>
-                      {selectedRoot?.children?.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Box>
-                </SimpleGrid>
-              </Box>
-            </Box>
-
-            <Box borderBottomWidth="1px" borderColor={dark.borderSubtle}>
-              <Button
-                type="button"
-                variant="ghost"
-                w="100%"
-                justifyContent="space-between"
-                px={0}
-                py={5}
-                color="white"
-                fontWeight="semibold"
-                _hover={{ bg: 'transparent', color: 'whiteAlpha.900' }}
+                {...sectionToggleButtonProps}
                 onClick={() => toggleSection('price')}
                 aria-expanded={openSections.price}
               >
@@ -498,31 +496,133 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                 />
               </Button>
               <Box {...sectionAnimationProps(openSections.price)}>
-                <SimpleGrid columns={2} gap={2} py={4} overflow="hidden" minH={0}>
-                  <Input
-                    name="minPrice"
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    placeholder="Min"
-                    defaultValue={searchParams.get('minPrice') ?? ''}
-                    bg={dark.inputBg}
-                    borderColor={dark.borderSubtle}
-                    color="white"
-                    _placeholder={{ color: dark.placeholder }}
-                  />
-                  <Input
-                    name="maxPrice"
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    placeholder="Max"
-                    defaultValue={searchParams.get('maxPrice') ?? ''}
-                    bg={dark.inputBg}
-                    borderColor={dark.borderSubtle}
-                    color="white"
-                    _placeholder={{ color: dark.placeholder }}
-                  />
+                <SimpleGrid
+                  columns={1}
+                  gap={3}
+                  py={openSections.price ? 4 : 0}
+                  overflow="hidden"
+                  minH={0}
+                >
+                  <Slider.Root
+                    min={PRICE_SLIDER_MIN}
+                    max={PRICE_SLIDER_MAX}
+                    step={1}
+                    value={priceRange}
+                    onValueChange={onPriceSliderChange}
+                  >
+                    <Slider.Control py={2}>
+                      <Slider.Track h="6px" bg="whiteAlpha.200" borderRadius="full">
+                        <Slider.Range bg="brand.500" />
+                      </Slider.Track>
+                      <Slider.Thumb
+                        index={0}
+                        boxSize={5}
+                        bg="white"
+                        borderWidth="2px"
+                        borderColor={dark.cardBg}
+                      />
+                      <Slider.Thumb
+                        index={1}
+                        boxSize={5}
+                        bg="white"
+                        borderWidth="2px"
+                        borderColor={dark.cardBg}
+                      />
+                    </Slider.Control>
+                  </Slider.Root>
+
+                  <SimpleGrid columns={2} gap={3}>
+                    <Box>
+                      <Text fontSize="sm" color={dark.muted} mb={1.5} fontWeight="semibold">
+                        From
+                      </Text>
+                      <Box position="relative">
+                        <Text
+                          position="absolute"
+                          left={3}
+                          top="50%"
+                          transform="translateY(-50%)"
+                          color="whiteAlpha.800"
+                          zIndex={1}
+                        >
+                          $
+                        </Text>
+                        <Input
+                          name="minPrice"
+                          type="number"
+                          min={PRICE_SLIDER_MIN}
+                          max={PRICE_SLIDER_MAX}
+                          step={1}
+                          value={priceRange[0]}
+                          onChange={(e) => onPriceInputChange('min', e.target.value)}
+                          pl={7}
+                          bg={dark.inputBg}
+                          borderColor={dark.borderSubtle}
+                          color="white"
+                          _placeholder={{ color: dark.placeholder }}
+                        />
+                      </Box>
+                    </Box>
+                    <Box>
+                      <Text fontSize="sm" color={dark.muted} mb={1.5} fontWeight="semibold">
+                        To
+                      </Text>
+                      <Box position="relative">
+                        <Text
+                          position="absolute"
+                          left={3}
+                          top="50%"
+                          transform="translateY(-50%)"
+                          color="whiteAlpha.800"
+                          zIndex={1}
+                        >
+                          $
+                        </Text>
+                        <Input
+                          name="maxPrice"
+                          type="number"
+                          min={PRICE_SLIDER_MIN}
+                          max={PRICE_SLIDER_MAX}
+                          step={1}
+                          value={priceRange[1]}
+                          onChange={(e) => onPriceInputChange('max', e.target.value)}
+                          pl={7}
+                          bg={dark.inputBg}
+                          borderColor={dark.borderSubtle}
+                          color="white"
+                          _placeholder={{ color: dark.placeholder }}
+                        />
+                      </Box>
+                    </Box>
+                  </SimpleGrid>
+
+                  <Wrap gap={2}>
+                    {QUICK_PRICE_PRESETS.map((preset) => {
+                      const isActive = priceRange[0] === preset.min && priceRange[1] === preset.max
+                      return (
+                        <WrapItem key={preset.label}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            px={4}
+                            borderRadius="full"
+                            bg={isActive ? 'brand.500' : dark.inputBg}
+                            color={isActive ? 'white' : dark.muted}
+                            borderWidth="1px"
+                            borderColor={isActive ? 'brand.500' : dark.borderSubtle}
+                            _hover={{
+                              bg: isActive ? 'brand.400' : 'whiteAlpha.100',
+                              color: 'white',
+                              borderColor: isActive ? 'brand.400' : 'whiteAlpha.300',
+                            }}
+                            onClick={() => setPriceFromPreset(preset.min, preset.max)}
+                          >
+                            {preset.label}
+                          </Button>
+                        </WrapItem>
+                      )
+                    })}
+                  </Wrap>
                 </SimpleGrid>
               </Box>
             </Box>
@@ -530,14 +630,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
             <Box borderBottomWidth="1px" borderColor={dark.borderSubtle}>
               <Button
                 type="button"
-                variant="ghost"
-                w="100%"
-                justifyContent="space-between"
-                px={0}
-                py={5}
-                color="white"
-                fontWeight="semibold"
-                _hover={{ bg: 'transparent', color: 'whiteAlpha.900' }}
+                {...sectionToggleButtonProps}
                 onClick={() => toggleSection('listing')}
                 aria-expanded={openSections.listing}
               >
@@ -551,7 +644,13 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                 />
               </Button>
               <Box {...sectionAnimationProps(openSections.listing)}>
-                <SimpleGrid columns={1} gap={3} py={4} overflow="hidden" minH={0}>
+                <SimpleGrid
+                  columns={1}
+                  gap={3}
+                  py={openSections.listing ? 4 : 0}
+                  overflow="hidden"
+                  minH={0}
+                >
                   <Box>
                     <Text fontSize="xs" color={dark.muted} mb={1}>Status</Text>
                     <select
@@ -628,19 +727,11 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
               </Box>
             </Box>
 
-            {isCarCategory && (
-              <>
+            <>
                 <Box borderBottomWidth="1px" borderColor={dark.borderSubtle}>
                   <Button
                     type="button"
-                    variant="ghost"
-                    w="100%"
-                    justifyContent="space-between"
-                    px={0}
-                    py={5}
-                    color="white"
-                    fontWeight="semibold"
-                    _hover={{ bg: 'transparent', color: 'whiteAlpha.900' }}
+                    {...sectionToggleButtonProps}
                     onClick={() => toggleSection('carBasics')}
                     aria-expanded={openSections.carBasics}
                   >
@@ -654,7 +745,13 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                     />
                   </Button>
                   <Box {...sectionAnimationProps(openSections.carBasics)}>
-                    <SimpleGrid columns={1} gap={3} py={4} overflow="hidden" minH={0}>
+                    <SimpleGrid
+                      columns={1}
+                      gap={3}
+                      py={openSections.carBasics ? 4 : 0}
+                      overflow="hidden"
+                      minH={0}
+                    >
                       <Box>
                         <Text fontSize="xs" color={dark.muted} mb={1}>Make</Text>
                         <Input
@@ -779,14 +876,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                 <Box borderBottomWidth="1px" borderColor={dark.borderSubtle}>
                   <Button
                     type="button"
-                    variant="ghost"
-                    w="100%"
-                    justifyContent="space-between"
-                    px={0}
-                    py={5}
-                    color="white"
-                    fontWeight="semibold"
-                    _hover={{ bg: 'transparent', color: 'whiteAlpha.900' }}
+                    {...sectionToggleButtonProps}
                     onClick={() => toggleSection('condition')}
                     aria-expanded={openSections.condition}
                   >
@@ -800,7 +890,12 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                     />
                   </Button>
                   <Box {...sectionAnimationProps(openSections.condition)}>
-                    <Wrap py={4} gap={2} overflow="hidden" minH={0}>
+                    <Wrap
+                      py={openSections.condition ? 4 : 0}
+                      gap={2}
+                      overflow="hidden"
+                      minH={0}
+                    >
                       {CONDITION_OPTIONS.map((c) => (
                         <WrapItem key={c}>
                           <Checkbox.Root
@@ -834,14 +929,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                 <Box borderBottomWidth="1px" borderColor={dark.borderSubtle}>
                   <Button
                     type="button"
-                    variant="ghost"
-                    w="100%"
-                    justifyContent="space-between"
-                    px={0}
-                    py={5}
-                    color="white"
-                    fontWeight="semibold"
-                    _hover={{ bg: 'transparent', color: 'whiteAlpha.900' }}
+                    {...sectionToggleButtonProps}
                     onClick={() => toggleSection('transmission')}
                     aria-expanded={openSections.transmission}
                   >
@@ -855,7 +943,12 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                     />
                   </Button>
                   <Box {...sectionAnimationProps(openSections.transmission)}>
-                    <Wrap py={4} gap={2} overflow="hidden" minH={0}>
+                    <Wrap
+                      py={openSections.transmission ? 4 : 0}
+                      gap={2}
+                      overflow="hidden"
+                      minH={0}
+                    >
                       {TRANSMISSION_OPTIONS.map((t) => (
                         <WrapItem key={t}>
                           <Checkbox.Root
@@ -889,14 +982,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                 <Box borderBottomWidth="1px" borderColor={dark.borderSubtle}>
                   <Button
                     type="button"
-                    variant="ghost"
-                    w="100%"
-                    justifyContent="space-between"
-                    px={0}
-                    py={5}
-                    color="white"
-                    fontWeight="semibold"
-                    _hover={{ bg: 'transparent', color: 'whiteAlpha.900' }}
+                    {...sectionToggleButtonProps}
                     onClick={() => toggleSection('fuelType')}
                     aria-expanded={openSections.fuelType}
                   >
@@ -910,7 +996,12 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                     />
                   </Button>
                   <Box {...sectionAnimationProps(openSections.fuelType)}>
-                    <Wrap py={4} gap={2} overflow="hidden" minH={0}>
+                    <Wrap
+                      py={openSections.fuelType ? 4 : 0}
+                      gap={2}
+                      overflow="hidden"
+                      minH={0}
+                    >
                       {FUEL_OPTIONS.map((f) => (
                         <WrapItem key={f}>
                           <Checkbox.Root
@@ -940,8 +1031,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                     </Wrap>
                   </Box>
                 </Box>
-              </>
-            )}
+            </>
           </Box>
         </Box>
       ) : (
@@ -958,29 +1048,6 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                 color="white"
                 _placeholder={{ color: dark.placeholder }}
               />
-            </Box>
-            <Box>
-              <Text fontSize="sm" color={dark.muted} mb={1}>Category</Text>
-              <select
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  background: dark.inputBg,
-                  border: `1px solid ${dark.borderSubtle}`,
-                  borderRadius: '6px',
-                  color: 'white',
-                }}
-                value={selectedRootId === '' ? '' : String(selectedRootId)}
-                onChange={(e) => handleRootChange(e.target.value)}
-                disabled={categoriesLoading}
-              >
-                <option value="">All</option>
-                {rootCategories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
             </Box>
             <Box>
               <Text fontSize="sm" color={dark.muted} mb={1}>Subcategory</Text>
@@ -1114,8 +1181,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
             </Box>
           </SimpleGrid>
 
-          {isCarCategory && (
-            <Box mt={4} pt={4} borderTopWidth="1px" borderColor={dark.borderSubtle}>
+          <Box mt={4} pt={4} borderTopWidth="1px" borderColor={dark.borderSubtle}>
               <Text fontSize="sm" fontWeight="medium" color={dark.muted} mb={3}>Car filters</Text>
               <SimpleGrid columns={carFilterColumns} gap={4}>
                 <Box>
@@ -1324,7 +1390,6 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                 ))}
               </Wrap>
             </Box>
-          )}
         </>
       )}
 
