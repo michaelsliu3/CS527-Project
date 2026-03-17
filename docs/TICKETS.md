@@ -275,17 +275,18 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-15 — Enhanced Q&A replies (threaded metadata)
+## PBM-15 — Q&A multi-reply + replier metadata ✅
 
 **Layer:** Backend + Frontend
 **Branch:** `PBM-15/qa-replies-enhancement`
-**PR Title:** `[PBM-15] support richer Q&A replies with metadata and multiple responses`
+**PR Title:** `[PBM-15] add multi-reply support with replier metadata in Q&A`
 
-- Extend Q&A reply model so a question can have **multiple replies** instead of a single reply field.
-- Add reply-level metadata: **reply title**, **reply body**, **replier display name** (and role if available), and timestamp.
-- Backend: update Q&A DTOs/endpoints and persistence model to create/list replies as a collection.
-- Frontend: render replies as a list/thread per question, including reply title and replier name.
-- Keep existing authorization semantics (rep/admin can reply) unless explicitly changed in scope.
+- Extend Q&A so each question returns a **replies collection** (ordered oldest-to-newest), allowing multiple replies per question.
+- Standardize reply payload to **body-only** input (`ReplyDto.Body`) and remove reply title from model/DTO/UI.
+- Include reply metadata in responses: `replierDisplayName`, `replierRole` (`customer_rep` / `admin` / `end_user`), and `createdAt`.
+- Backend: update `QuestionReply` persistence model, Q&A DTO mapping, keyword search (subject/body/reply body/replier name), and migration removing `QuestionReplies.Title`.
+- Frontend: update forums and rep dashboard Q&A views to render reply threads with replier labels/badges and relative reply timestamps.
+- Authorization remains rep/admin-only for replying.
 
 ---
 
@@ -331,6 +332,23 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Frontend: show avatars in shared identity surfaces (navbar/profile menu and user-related cards/lists where appropriate).
 - **Forums/Q&A reminder:** make sure forums views (`QuestionsPage`, reply threads, and rep Q&A tab) are updated to display profile pictures next to usernames so identity metadata changes stay consistent there.
 - **Tests:** add backend tests for avatar validation/update behavior; add frontend tests for profile picture upload UI states and forum avatar rendering fallback behavior.
+
+---
+
+## PBM-19 — Forums advanced comments/replies UX
+
+**Layer:** Backend + Frontend
+**Branch:** `PBM-19/forums-advanced-comments-replies`
+**PR Title:** `[PBM-19] add advanced forum interactions for voting, threaded replies, and sorting`
+
+- Enhance forums/question threads with richer interaction controls directly under question and reply content.
+- Add action icons/UI affordances for `Upvote`, `Downvote`, and `Reply` (comment) actions on questions and replies, with clear active/inactive states and counts.
+- Implement threaded reply presentation (tree-style or nested reply layout) so users can understand parent-child conversation flow at a glance.
+- Add comment/reply sorting options (e.g., `Top`, `Newest`, `Oldest`) and define deterministic tie-breaking behavior for equal score/timestamp cases.
+- Backend: add persistence and APIs for vote state/counts and reply parent relationships; enforce one vote per user per target with toggle/update behavior.
+- Frontend: update forums components to render vote/comment controls, nested thread UI, and sorting controls with responsive behavior and accessible interaction targets.
+- **Tests:** backend tests for vote constraints, score aggregation, and thread retrieval/sorting; frontend tests for icon action behavior, nested rendering, and sort mode changes.
+- **Do not implement yet** — ticket placeholder for tracking.
 
 ---
 
