@@ -115,7 +115,13 @@ export function AdminDashboard() {
                 </Text>
               )}
             </Box>
-            <Button type="submit" colorScheme="brand" loading={form.formState.isSubmitting}>
+            <Button
+              type="submit"
+              bg="brand.500"
+              color="white"
+              _hover={{ bg: 'brand.400' }}
+              loading={form.formState.isSubmitting}
+            >
               Create Rep
             </Button>
           </Flex>
