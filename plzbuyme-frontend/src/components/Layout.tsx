@@ -131,7 +131,7 @@ export function Layout() {
                     )}
                   </RouterLink>
                   <Menu.Root>
-                    <Menu.Trigger>
+                    <Menu.Trigger asChild>
                       <Button variant="ghost" size="sm" color={linkColor} _hover={{ color: linkHover, bg: 'whiteAlpha.100' }}>
                         <HiOutlineUserCircle size={18} style={{ marginRight: 6 }} />
                         {user.username}

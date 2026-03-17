@@ -102,14 +102,18 @@ public class QuestionsAndRepE2ETests : IClassFixture<PlzBuyMeWebApplicationFacto
         var adminToken = await LoginAsync("admin", "admin123");
         var replyReq = new HttpRequestMessage(HttpMethod.Post, $"api/questions/{questionId}/reply");
         replyReq.Headers.Add("Authorization", "Bearer " + adminToken);
-        replyReq.Content = JsonContent.Create(new { reply = "Please check your card limit or try another payment method." });
+        replyReq.Content = JsonContent.Create(new
+        {
+            body = "Please check your card limit or try another payment method."
+        });
         var replyRes = await _client.SendAsync(replyReq);
         replyRes.StatusCode.Should().Be(HttpStatusCode.OK);
         var replied = await replyRes.Content.ReadFromJsonAsync<QuestionResponseDto>(JsonOptions);
         replied.Should().NotBeNull();
-        replied!.Reply.Should().Be("Please check your card limit or try another payment method.");
-        replied.RepliedBy.Should().BeGreaterThan(0);
-        replied.RepliedAt.Should().NotBeNull();
+        replied!.Replies.Should().ContainSingle();
+        replied.Replies[0].Body.Should().Be("Please check your card limit or try another payment method.");
+        replied.Replies[0].ReplierDisplayName.Should().NotBeNullOrWhiteSpace();
+        replied.Replies[0].CreatedAt.Should().NotBe(default);
     }
 
     [Fact]
@@ -307,7 +311,7 @@ public class QuestionsAndRepE2ETests : IClassFixture<PlzBuyMeWebApplicationFacto
 
         var replyReq = new HttpRequestMessage(HttpMethod.Post, $"api/questions/{questionId}/reply");
         replyReq.Headers.Add("Authorization", "Bearer " + endUserToken);
-        replyReq.Content = JsonContent.Create(new { reply = "I am end-user" });
+        replyReq.Content = JsonContent.Create(new { body = "I am end-user" });
         var replyRes = await _client.SendAsync(replyReq);
         replyRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }

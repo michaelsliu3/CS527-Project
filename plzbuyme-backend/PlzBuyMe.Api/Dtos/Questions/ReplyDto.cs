@@ -5,6 +5,6 @@ namespace PlzBuyMe.Api.Dtos.Questions;
 public record ReplyDto
 {
     [Required]
-    public string Reply { get; init; } = string.Empty;
+    public string Body { get; init; } = string.Empty;
 }
 

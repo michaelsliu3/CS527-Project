@@ -17,5 +17,5 @@ public class User
     public ICollection<Alert> Alerts { get; set; } = new List<Alert>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public ICollection<Question> QuestionsAsked { get; set; } = new List<Question>();
-    public ICollection<Question> QuestionsReplied { get; set; } = new List<Question>();
+    public ICollection<QuestionReply> QuestionReplies { get; set; } = new List<QuestionReply>();
 }

@@ -7,10 +7,7 @@ public record QuestionResponseDto
     public string Username { get; init; } = string.Empty;
     public string Subject { get; init; } = string.Empty;
     public string Body { get; init; } = string.Empty;
-    public string? Reply { get; init; }
-    public int? RepliedBy { get; init; }
-    public string? RepliedByUsername { get; init; }
+    public IReadOnlyList<QuestionReplyDto> Replies { get; init; } = [];
     public DateTime CreatedAt { get; init; }
-    public DateTime? RepliedAt { get; init; }
 }
 

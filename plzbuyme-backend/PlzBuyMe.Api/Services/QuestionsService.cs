@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos.Questions;
+using PlzBuyMe.Api.Models;
 
 namespace PlzBuyMe.Api.Services;
 
@@ -17,7 +18,8 @@ public class QuestionsService : IQuestionsService
     {
         var query = _db.Questions
             .Include(q => q.User)
-            .Include(q => q.RepliedByUser)
+            .Include(q => q.Replies)
+            .ThenInclude(r => r.RepliedByUser)
             .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(keyword))
@@ -26,27 +28,16 @@ public class QuestionsService : IQuestionsService
             query = query.Where(q =>
                 q.Subject.ToLower().Contains(term) ||
                 q.Body.ToLower().Contains(term) ||
-                (q.Reply != null && q.Reply.ToLower().Contains(term)));
+                q.Replies.Any(r =>
+                    r.Body.ToLower().Contains(term) ||
+                    r.ReplierDisplayName.ToLower().Contains(term)));
         }
 
         var items = await query
             .OrderByDescending(q => q.CreatedAt)
-            .Select(q => new QuestionResponseDto
-            {
-                Id = q.Id,
-                UserId = q.UserId,
-                Username = q.User.Username,
-                Subject = q.Subject,
-                Body = q.Body,
-                Reply = q.Reply,
-                RepliedBy = q.RepliedBy,
-                RepliedByUsername = q.RepliedByUser != null ? q.RepliedByUser.Username : null,
-                CreatedAt = q.CreatedAt,
-                RepliedAt = q.RepliedAt
-            })
             .ToListAsync();
 
-        return items;
+        return items.Select(MapQuestion).ToList();
     }
 
     public async Task<QuestionResponseDto> CreateQuestionAsync(int userId, CreateQuestionDto dto)
@@ -63,41 +54,55 @@ public class QuestionsService : IQuestionsService
 
         var created = await _db.Questions
             .Include(q => q.User)
-            .Include(q => q.RepliedByUser)
+            .Include(q => q.Replies)
+            .ThenInclude(r => r.RepliedByUser)
             .AsNoTracking()
             .FirstAsync(q => q.Id == question.Id);
 
-        return new QuestionResponseDto
-        {
-            Id = created.Id,
-            UserId = created.UserId,
-            Username = created.User.Username,
-            Subject = created.Subject,
-            Body = created.Body,
-            Reply = created.Reply,
-            RepliedBy = created.RepliedBy,
-            RepliedByUsername = created.RepliedByUser != null ? created.RepliedByUser.Username : null,
-            CreatedAt = created.CreatedAt,
-            RepliedAt = created.RepliedAt
-        };
+        return MapQuestion(created);
     }
 
     public async Task<QuestionResponseDto?> ReplyAsync(int questionId, int repliedByUserId, ReplyDto dto)
     {
         var question = await _db.Questions
             .Include(q => q.User)
-            .Include(q => q.RepliedByUser)
+            .Include(q => q.Replies)
+            .ThenInclude(r => r.RepliedByUser)
             .FirstOrDefaultAsync(q => q.Id == questionId);
 
         if (question == null)
             return null;
 
-        question.Reply = dto.Reply.Trim();
-        question.RepliedBy = repliedByUserId;
-        question.RepliedAt = DateTime.UtcNow;
+        var replier = await _db.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == repliedByUserId);
+
+        var reply = new QuestionReply
+        {
+            QuestionId = question.Id,
+            RepliedByUserId = repliedByUserId,
+            Body = dto.Body.Trim(),
+            ReplierDisplayName = replier?.Username ?? "Support Team",
+            ReplierRole = replier != null ? ToRoleLabel(replier.Role) : null,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.QuestionReplies.Add(reply);
 
         await _db.SaveChangesAsync();
 
+        var refreshed = await _db.Questions
+            .Include(q => q.User)
+            .Include(q => q.Replies)
+            .ThenInclude(r => r.RepliedByUser)
+            .AsNoTracking()
+            .FirstAsync(q => q.Id == question.Id);
+
+        return MapQuestion(refreshed);
+    }
+
+    private static QuestionResponseDto MapQuestion(Models.Question question)
+    {
         return new QuestionResponseDto
         {
             Id = question.Id,
@@ -105,11 +110,28 @@ public class QuestionsService : IQuestionsService
             Username = question.User.Username,
             Subject = question.Subject,
             Body = question.Body,
-            Reply = question.Reply,
-            RepliedBy = question.RepliedBy,
-            RepliedByUsername = question.RepliedByUser?.Username,
-            CreatedAt = question.CreatedAt,
-            RepliedAt = question.RepliedAt
+            Replies = question.Replies
+                .OrderBy(r => r.CreatedAt)
+                .Select(r => new QuestionReplyDto
+                {
+                    Id = r.Id,
+                    Body = r.Body,
+                    ReplierDisplayName = r.ReplierDisplayName,
+                    ReplierRole = r.ReplierRole ?? (r.RepliedByUser != null ? ToRoleLabel(r.RepliedByUser.Role) : null),
+                    CreatedAt = r.CreatedAt
+                })
+                .ToList(),
+            CreatedAt = question.CreatedAt
+        };
+    }
+
+    private static string ToRoleLabel(UserRole role)
+    {
+        return role switch
+        {
+            UserRole.CustomerRep => "customer_rep",
+            UserRole.Admin => "admin",
+            _ => "end_user"
         };
     }
 }

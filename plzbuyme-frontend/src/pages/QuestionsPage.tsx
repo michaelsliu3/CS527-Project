@@ -9,6 +9,7 @@ function useDebounce<T>(value: T, delayMs: number): T {
   return debouncedValue
 }
 import {
+  Badge,
   Box,
   Button,
   Container,
@@ -37,6 +38,40 @@ interface AskQuestionFormValues {
 }
 
 const KEYWORD_DEBOUNCE_MS = 350
+
+function formatRelativeTime(dateInput: string): string {
+  const postedAt = new Date(dateInput).getTime()
+  const now = Date.now()
+  const diffMs = Math.max(0, now - postedAt)
+  const hours = Math.floor(diffMs / (1000 * 60 * 60))
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  const months = Math.floor(days / 30)
+  const years = Math.floor(days / 365)
+
+  if (days < 1) {
+    return `${Math.max(1, hours)}h ago`
+  }
+  if (days < 30) {
+    return `${days}d ago`
+  }
+  if (days < 365) {
+    return `${Math.max(1, months)}mo ago`
+  }
+  return `${Math.max(1, years)}y ago`
+}
+
+function getReplyTagLabel(replierRole: string | null, isOp: boolean): 'OP' | 'Admin' | 'Rep' | null {
+  if (isOp) return 'OP'
+  if (replierRole === 'admin') return 'Admin'
+  if (replierRole === 'customer_rep') return 'Rep'
+  return null
+}
+
+function getReplyTagColor(tag: 'OP' | 'Admin' | 'Rep'): 'green' | 'purple' | 'blue' {
+  if (tag === 'OP') return 'green'
+  if (tag === 'Admin') return 'purple'
+  return 'blue'
+}
 
 export function QuestionsPage() {
   const { user } = useAuth()
@@ -151,26 +186,39 @@ export function QuestionsPage() {
                 {q.subject}
               </Text>
               <Text color={dark.muted} fontSize="sm" mb={2}>
-                {new Date(q.createdAt).toLocaleString()}
+                {q.username} • {formatRelativeTime(q.createdAt)}
               </Text>
               <Text color={dark.label} whiteSpace="pre-wrap" mb={3}>
                 {q.body}
               </Text>
-              {q.reply ? (
-                <Box pl={3} borderLeftWidth="3px" borderColor="brand.500">
-                  <Text fontSize="sm" color={dark.placeholder} mb={1}>
-                    Reply
-                  </Text>
-                  <Text color={dark.muted} whiteSpace="pre-wrap">
-                    {q.reply}
-                  </Text>
-                  {q.repliedAt && (
-                    <Text fontSize="xs" color={dark.placeholder} mt={1}>
-                      {new Date(q.repliedAt).toLocaleString()}
-                    </Text>
-                  )}
-                </Box>
-              ) : isRepOrAdmin ? (
+              {q.replies.length > 0 ? (
+                <Flex direction="column" gap={3} mb={3}>
+                  {q.replies.map((reply) => (
+                    <Box key={reply.id} pl={3} borderLeftWidth="3px" borderColor="brand.500">
+                      <Flex align="center" gap={2} mb={1} wrap="wrap">
+                        <Text fontSize="xs" color={dark.placeholder}>
+                          {reply.replierDisplayName}
+                        </Text>
+                        {(() => {
+                          const tag = getReplyTagLabel(reply.replierRole, reply.replierDisplayName === q.username)
+                          return tag ? (
+                            <Badge size="sm" colorPalette={getReplyTagColor(tag)}>
+                              {tag}
+                            </Badge>
+                          ) : null
+                        })()}
+                        <Text fontSize="xs" color={dark.placeholder}>
+                          • {formatRelativeTime(reply.createdAt)}
+                        </Text>
+                      </Flex>
+                      <Text color={dark.muted} whiteSpace="pre-wrap">
+                        {reply.body}
+                      </Text>
+                    </Box>
+                  ))}
+                </Flex>
+              ) : null}
+              {isRepOrAdmin ? (
                 <ReplyForm
                   questionId={q.id}
                   replyingId={replyingId}
@@ -275,17 +323,17 @@ function ReplyForm({
   onSuccess: () => void
   onError: (msg: string) => void
 }) {
-  const [replyText, setReplyText] = useState('')
+  const [replyBody, setReplyBody] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const isActive = replyingId === questionId
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!replyText.trim()) return
+    if (!replyBody.trim()) return
     setSubmitting(true)
     try {
-      await replyToQuestion(questionId, { reply: replyText.trim() })
-      setReplyText('')
+      await replyToQuestion(questionId, { body: replyBody.trim() })
+      setReplyBody('')
       setReplyingId(null)
       onSuccess()
     } catch (err) {
@@ -317,9 +365,9 @@ function ReplyForm({
   return (
     <Box as="form" onSubmit={handleSubmit} mt={2}>
       <Textarea
-        value={replyText}
-        onChange={(e) => setReplyText(e.target.value)}
-        placeholder="Your reply..."
+        value={replyBody}
+        onChange={(e) => setReplyBody(e.target.value)}
+        placeholder="Reply details..."
         bg={dark.inputBg}
         borderColor={dark.borderSubtle}
         color="white"
@@ -345,7 +393,7 @@ function ReplyForm({
           color="white"
           _hover={{ bg: 'brand.400' }}
           loading={submitting}
-          disabled={!replyText.trim()}
+          disabled={!replyBody.trim()}
         >
           Submit reply
         </Button>

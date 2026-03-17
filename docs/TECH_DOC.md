@@ -336,10 +336,19 @@ Self-referencing foreign key enables the hierarchical subcategory tree.
 | `user_id`        | INT               | FK → users.id, NOT NULL           |
 | `subject`        | VARCHAR(256)      | NOT NULL                          |
 | `body`           | TEXT              | NOT NULL                          |
-| `reply`          | TEXT              | NULLABLE                          |
-| `replied_by`     | INT               | FK → users.id, NULLABLE           |
 | `created_at`     | DATETIME          | DEFAULT CURRENT_TIMESTAMP         |
-| `replied_at`     | DATETIME          | NULLABLE                          |
+
+#### `question_replies`
+
+| Column                 | Type              | Constraints                                                     |
+|------------------------|-------------------|-----------------------------------------------------------------|
+| `id`                   | INT               | PK, AUTO_INCREMENT                                              |
+| `question_id`          | INT               | FK → questions.id, NOT NULL, ON DELETE CASCADE                 |
+| `replied_by_user_id`   | INT               | FK → users.id, NULLABLE, ON DELETE SET NULL                    |
+| `body`                 | TEXT              | NOT NULL                                                        |
+| `replier_display_name` | VARCHAR(128)      | NOT NULL                                                        |
+| `replier_role`         | VARCHAR(32)       | NULLABLE (`customer_rep`, `admin`, `end_user`)                 |
+| `created_at`           | DATETIME          | DEFAULT CURRENT_TIMESTAMP                                       |
 
 ### 4.3 Key Indexes
 
@@ -539,6 +548,13 @@ All endpoints return JSON. Protected routes require `Authorization: Bearer <toke
 | GET    | `api/questions`                | Browse Q&A           | Logged in |
 | POST   | `api/questions`                | Post a question      | End-user  |
 | POST   | `api/questions/{id}/reply`     | Reply to a question  | Rep       |
+
+- `POST api/questions/{id}/reply` request body:
+  - `{ "body": "..." }`
+- `GET api/questions` and `POST` responses return each question with:
+  - `id`, `userId`, `username`, `subject`, `body`, `createdAt`
+  - `replies[]` ordered oldest-to-newest, where each reply includes:
+    - `id`, `body`, `replierDisplayName`, `replierRole`, `createdAt`
 
 ### Customer Rep — `api/rep`
 

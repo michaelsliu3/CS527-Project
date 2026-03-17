@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<Alert> Alerts => Set<Alert>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Question> Questions => Set<Question>();
+    public DbSet<QuestionReply> QuestionReplies => Set<QuestionReply>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -181,10 +182,22 @@ public class AppDbContext : DbContext
                 .WithMany(u => u.QuestionsAsked)
                 .HasForeignKey(q => q.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(q => q.RepliedByUser)
-                .WithMany(u => u.QuestionsReplied)
-                .HasForeignKey(q => q.RepliedBy)
-                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ── QuestionReply ──
+        modelBuilder.Entity<QuestionReply>(e =>
+        {
+            e.Property(qr => qr.ReplierDisplayName).HasMaxLength(128);
+            e.Property(qr => qr.ReplierRole).HasMaxLength(32);
+            e.HasOne(qr => qr.Question)
+                .WithMany(q => q.Replies)
+                .HasForeignKey(qr => qr.QuestionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(qr => qr.RepliedByUser)
+                .WithMany(u => u.QuestionReplies)
+                .HasForeignKey(qr => qr.RepliedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(qr => new { qr.QuestionId, qr.CreatedAt });
         });
     }
 
