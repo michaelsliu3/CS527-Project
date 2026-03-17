@@ -301,7 +301,6 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Refresh result card/list formatting and page composition for readability, scanability, and responsive behavior across desktop/tablet/mobile.
 - Standardize component styling and interaction states (default, hover, active, focus, disabled) with shared Chakra theme tokens.
 - Include loading, empty, and error states in the redesign to ensure a complete and consistent user experience.
-- **Do not implement yet** — ticket placeholder for tracking.
 
 ---
 

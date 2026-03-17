@@ -180,5 +180,115 @@ public class QuestionsControllerTests
         items.Should().NotBeNull();
         items!.Should().ContainSingle(q => q.Subject.Contains("Shipping"));
     }
+
+    [Fact]
+    public async Task Keyword_Search_Matches_Reply_Body()
+    {
+        await using var db = CreateDbContext();
+        var service = new QuestionsService(db);
+
+        var endUser = new User
+        {
+            Username = "user-reply-body",
+            Email = "user-reply-body@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        var rep = new User
+        {
+            Username = "rep-reply-body",
+            Email = "rep-reply-body@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.CustomerRep
+        };
+        db.Users.AddRange(endUser, rep);
+        await db.SaveChangesAsync();
+
+        var question = new Question
+        {
+            UserId = endUser.Id,
+            Subject = "General question",
+            Body = "Need assistance"
+        };
+        db.Questions.Add(question);
+        await db.SaveChangesAsync();
+
+        db.QuestionReplies.Add(new QuestionReply
+        {
+            QuestionId = question.Id,
+            RepliedByUserId = rep.Id,
+            Body = "Tracking update: shipment delayed by weather",
+            ReplierDisplayName = rep.Username,
+            ReplierRole = "customer_rep",
+            CreatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var controller = new QuestionsController(service);
+        ControllerTestHelpers.SetUser(controller, endUser.Id, "end_user");
+
+        var result = await controller.List("weather");
+
+        result.Should().BeOfType<OkObjectResult>();
+        var ok = (OkObjectResult)result;
+        var items = ok.Value as IEnumerable<QuestionResponseDto>;
+        items.Should().NotBeNull();
+        items!.Should().ContainSingle(q => q.Id == question.Id);
+    }
+
+    [Fact]
+    public async Task Keyword_Search_Matches_Replier_Display_Name()
+    {
+        await using var db = CreateDbContext();
+        var service = new QuestionsService(db);
+
+        var endUser = new User
+        {
+            Username = "user-reply-name",
+            Email = "user-reply-name@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        var rep = new User
+        {
+            Username = "special-helper-rep",
+            Email = "special-helper-rep@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.CustomerRep
+        };
+        db.Users.AddRange(endUser, rep);
+        await db.SaveChangesAsync();
+
+        var question = new Question
+        {
+            UserId = endUser.Id,
+            Subject = "Billing question",
+            Body = "Invoice mismatch"
+        };
+        db.Questions.Add(question);
+        await db.SaveChangesAsync();
+
+        db.QuestionReplies.Add(new QuestionReply
+        {
+            QuestionId = question.Id,
+            RepliedByUserId = rep.Id,
+            Body = "Please recheck the latest invoice details.",
+            ReplierDisplayName = rep.Username,
+            ReplierRole = "customer_rep",
+            CreatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var controller = new QuestionsController(service);
+        ControllerTestHelpers.SetUser(controller, endUser.Id, "end_user");
+
+        var result = await controller.List("helper");
+
+        result.Should().BeOfType<OkObjectResult>();
+        var ok = (OkObjectResult)result;
+        var items = ok.Value as IEnumerable<QuestionResponseDto>;
+        items.Should().NotBeNull();
+        items!.Should().ContainSingle(q => q.Id == question.Id);
+    }
 }
 
