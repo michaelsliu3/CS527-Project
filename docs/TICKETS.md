@@ -262,7 +262,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-14 — Frontend Forums nav link
+## PBM-14 — Frontend Forums nav link ✅
 
 **Layer:** Frontend
 **Branch:** `PBM-14/frontend-forums-nav`
@@ -322,17 +322,19 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ## General Cleanup
 
-### PBM-STYLE-1 — Global UI styling consistency pass
+### PBM-STYLE-1 — Global UI styling consistency pass ✅
 
 **Layer:** Frontend  
 **Branch:** `PBM-STYLE-1/frontend-styling-pass`  
 **PR Title:** `[PBM-STYLE-1] perform global styling consistency cleanup`
 
-- **Scope:** Resolve broad visual inconsistencies across pages/components (spacing, typography, alignment, color usage, button/input/table states, card layouts, responsive behavior).
-- **Goals:** Standardize Chakra usage and theme tokens so shared patterns look and behave consistently; reduce one-off style props and duplicated styling logic.
-- **Deliverables:** Updated reusable components and page-level cleanup with before/after screenshots for key pages (Auctions list/detail, Auth pages, Dashboard pages).
-- **Validation:** Verify dark/light mode readability and mobile/desktop layouts for all touched pages.
-- **Do not implement yet** — ticket for tracking only.
+- **Scope delivered:** Focused styling and role-access consistency cleanup across shared navigation and action-heavy pages (`Layout`, `App` route guards, Alerts, Q&A, Admin dashboard/reports).
+- **Implemented fixes:**
+  - Align role-based frontend access with backend policy intent so admins can use end-user flows (`Sell`, `My Auctions`, `Alerts`, and `Ask a Question` in Q&A).
+  - Standardize primary/secondary action button patterns to match the established `Create auction` style (solid brand primary + outline secondary) in Alerts and Q&A dialogs/forms.
+  - Improve admin-facing CTA consistency in dashboard/reports screens.
+  - Add/adjust regression tests for role-based nav visibility and Q&A ask access behavior.
+- **Validation completed:** Targeted frontend unit tests for touched role-gated flows and manual visual checks for updated button/CTA consistency in touched pages.
 
 ### PBM-BUG-2 — General bug triage and stabilization sweep
 
