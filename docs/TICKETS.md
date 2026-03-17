@@ -286,7 +286,6 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Backend: update Q&A DTOs/endpoints and persistence model to create/list replies as a collection.
 - Frontend: render replies as a list/thread per question, including reply title and replier name.
 - Keep existing authorization semantics (rep/admin can reply) unless explicitly changed in scope.
-- **Do not implement yet** — ticket placeholder for tracking.
 
 ---
 
@@ -302,6 +301,36 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Standardize component styling and interaction states (default, hover, active, focus, disabled) with shared Chakra theme tokens.
 - Include loading, empty, and error states in the redesign to ensure a complete and consistent user experience.
 - **Do not implement yet** — ticket placeholder for tracking.
+
+---
+
+## PBM-17 — Admin user role management in Rep dashboard
+
+**Layer:** Backend + Frontend
+**Branch:** `PBM-17/admin-role-management-rep-dashboard`
+**PR Title:** `[PBM-17] allow admins to update user role from rep dashboard edit flow`
+
+- Add support for **admin-managed user role changes** in the Rep dashboard Users tab edit flow.
+- In `RepDashboard`, when an admin clicks **Edit** on a user, include a role dropdown with values: `User`, `Rep`, `Admin`.
+- Restrict role editing to admins only. Non-admin users should not see or be able to submit role changes.
+- Backend: ensure the update-user endpoint accepts and validates role updates from admins, rejects invalid role values, and enforces admin authorization.
+- Frontend: prefill dropdown with current role, submit role updates with the rest of the edit form, and show success/error toasts accordingly.
+- **Tests:** add/extend frontend tests for admin-only role dropdown visibility and role update submission; add backend tests for authorization, validation, and successful role change persistence.
+
+---
+
+## PBM-18 — User profile pictures + forums identity polish
+
+**Layer:** Backend + Frontend
+**Branch:** `PBM-18/profile-pictures-forums`
+**PR Title:** `[PBM-18] add profile picture upload and display across app and forums`
+
+- Add support for user profile pictures (avatar image URL/storage key) in the user model and profile API response/update flow.
+- Backend: add persistence and API support for avatar uploads/updates (or avatar URL updates), including validation for allowed file types/size and safe replacement behavior.
+- Frontend: update `ProfilePage` to upload/change/remove profile picture and preview current avatar.
+- Frontend: show avatars in shared identity surfaces (navbar/profile menu and user-related cards/lists where appropriate).
+- **Forums/Q&A reminder:** make sure forums views (`QuestionsPage`, reply threads, and rep Q&A tab) are updated to display profile pictures next to usernames so identity metadata changes stay consistent there.
+- **Tests:** add backend tests for avatar validation/update behavior; add frontend tests for profile picture upload UI states and forum avatar rendering fallback behavior.
 
 ---
 
