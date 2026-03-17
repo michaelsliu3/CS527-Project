@@ -89,15 +89,64 @@ public class QuestionsControllerTests
         var controller = new QuestionsController(service);
         ControllerTestHelpers.SetUser(controller, rep.Id, "customer_rep");
 
-        var dto = new ReplyDto { Reply = "Here is an answer" };
+        var dto = new ReplyDto
+        {
+            Body = "Here is an answer"
+        };
         var result = await controller.Reply(question.Id, dto);
 
         result.Should().BeOfType<OkObjectResult>();
         var ok = (OkObjectResult)result;
         ok.Value.Should().BeOfType<QuestionResponseDto>();
         var response = (QuestionResponseDto)ok.Value!;
-        response.Reply.Should().Be("Here is an answer");
-        response.RepliedBy.Should().Be(rep.Id);
+        response.Replies.Should().HaveCount(1);
+        response.Replies[0].Title.Should().BeEmpty();
+        response.Replies[0].Body.Should().Be("Here is an answer");
+        response.Replies[0].ReplierDisplayName.Should().Be("rep1");
+        response.Replies[0].ReplierRole.Should().Be("customer_rep");
+    }
+
+    [Fact]
+    public async Task Rep_Can_Add_Multiple_Replies_To_Question()
+    {
+        await using var db = CreateDbContext();
+        var service = new QuestionsService(db);
+        var endUser = new User
+        {
+            Username = "user2",
+            Email = "user2@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        var rep = new User
+        {
+            Username = "rep2",
+            Email = "rep2@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.CustomerRep
+        };
+        db.Users.AddRange(endUser, rep);
+        await db.SaveChangesAsync();
+
+        var question = new Question
+        {
+            UserId = endUser.Id,
+            Subject = "Need help",
+            Body = "First body"
+        };
+        db.Questions.Add(question);
+        await db.SaveChangesAsync();
+
+        var controller = new QuestionsController(service);
+        ControllerTestHelpers.SetUser(controller, rep.Id, "customer_rep");
+
+        await controller.Reply(question.Id, new ReplyDto { Body = "First answer" });
+        var second = await controller.Reply(question.Id, new ReplyDto { Body = "Second answer" });
+
+        second.Should().BeOfType<OkObjectResult>();
+        var payload = (QuestionResponseDto)((OkObjectResult)second).Value!;
+        payload.Replies.Should().HaveCount(2);
+        payload.Replies.Select(r => r.Body).Should().ContainInOrder("First answer", "Second answer");
     }
 
     [Fact]

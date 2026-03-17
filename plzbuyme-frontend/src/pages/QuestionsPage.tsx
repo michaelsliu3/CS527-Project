@@ -151,26 +151,32 @@ export function QuestionsPage() {
                 {q.subject}
               </Text>
               <Text color={dark.muted} fontSize="sm" mb={2}>
-                {new Date(q.createdAt).toLocaleString()}
+                {new Date(q.createdAt).toLocaleString()} by {q.username}
               </Text>
               <Text color={dark.label} whiteSpace="pre-wrap" mb={3}>
                 {q.body}
               </Text>
-              {q.reply ? (
-                <Box pl={3} borderLeftWidth="3px" borderColor="brand.500">
-                  <Text fontSize="sm" color={dark.placeholder} mb={1}>
-                    Reply
-                  </Text>
-                  <Text color={dark.muted} whiteSpace="pre-wrap">
-                    {q.reply}
-                  </Text>
-                  {q.repliedAt && (
-                    <Text fontSize="xs" color={dark.placeholder} mt={1}>
-                      {new Date(q.repliedAt).toLocaleString()}
-                    </Text>
-                  )}
-                </Box>
-              ) : isRepOrAdmin ? (
+              {q.replies.length > 0 ? (
+                <Flex direction="column" gap={3} mb={3}>
+                  {q.replies.map((reply) => (
+                    <Box key={reply.id} pl={3} borderLeftWidth="3px" borderColor="brand.500">
+                      {reply.title ? (
+                        <Text fontSize="sm" color="white" fontWeight="semibold">
+                          {reply.title}
+                        </Text>
+                      ) : null}
+                      <Text fontSize="xs" color={dark.placeholder} mb={1}>
+                        {reply.replierDisplayName}
+                        {reply.replierRole ? ` (${reply.replierRole})` : ''} - {new Date(reply.createdAt).toLocaleString()}
+                      </Text>
+                      <Text color={dark.muted} whiteSpace="pre-wrap">
+                        {reply.body}
+                      </Text>
+                    </Box>
+                  ))}
+                </Flex>
+              ) : null}
+              {isRepOrAdmin ? (
                 <ReplyForm
                   questionId={q.id}
                   replyingId={replyingId}
@@ -275,17 +281,17 @@ function ReplyForm({
   onSuccess: () => void
   onError: (msg: string) => void
 }) {
-  const [replyText, setReplyText] = useState('')
+  const [replyBody, setReplyBody] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const isActive = replyingId === questionId
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!replyText.trim()) return
+    if (!replyBody.trim()) return
     setSubmitting(true)
     try {
-      await replyToQuestion(questionId, { reply: replyText.trim() })
-      setReplyText('')
+      await replyToQuestion(questionId, { body: replyBody.trim() })
+      setReplyBody('')
       setReplyingId(null)
       onSuccess()
     } catch (err) {
@@ -317,9 +323,9 @@ function ReplyForm({
   return (
     <Box as="form" onSubmit={handleSubmit} mt={2}>
       <Textarea
-        value={replyText}
-        onChange={(e) => setReplyText(e.target.value)}
-        placeholder="Your reply..."
+        value={replyBody}
+        onChange={(e) => setReplyBody(e.target.value)}
+        placeholder="Reply details..."
         bg={dark.inputBg}
         borderColor={dark.borderSubtle}
         color="white"
@@ -345,7 +351,7 @@ function ReplyForm({
           color="white"
           _hover={{ bg: 'brand.400' }}
           loading={submitting}
-          disabled={!replyText.trim()}
+          disabled={!replyBody.trim()}
         >
           Submit reply
         </Button>

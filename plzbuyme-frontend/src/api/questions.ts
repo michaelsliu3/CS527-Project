@@ -3,12 +3,20 @@ import { apiClient } from './client'
 export interface QuestionResponse {
   id: number
   userId: number
+  username: string
   subject: string
   body: string
-  reply: string | null
-  repliedBy: number | null
+  replies: QuestionReply[]
   createdAt: string
-  repliedAt: string | null
+}
+
+export interface QuestionReply {
+  id: number
+  title: string | null
+  body: string
+  replierDisplayName: string
+  replierRole: string | null
+  createdAt: string
 }
 
 export interface CreateQuestionDto {
@@ -17,7 +25,8 @@ export interface CreateQuestionDto {
 }
 
 export interface ReplyDto {
-  reply: string
+  title?: string
+  body: string
 }
 
 export function listQuestions(keyword?: string) {
