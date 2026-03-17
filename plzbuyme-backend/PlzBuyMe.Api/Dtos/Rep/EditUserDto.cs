@@ -12,5 +12,8 @@ public record EditUserDto
     [MaxLength(128)]
     [EmailAddress]
     public string Email { get; init; } = string.Empty;
+
+    [MaxLength(32)]
+    public string? Role { get; init; }
 }
 

@@ -4,6 +4,7 @@ export interface UserSummary {
   id: number
   username: string
   email: string
+  role: string
   isActive: boolean
   createdAt: string
 }
@@ -18,6 +19,7 @@ export interface PaginatedUsers {
 export interface EditUserDto {
   username: string
   email: string
+  role?: string
 }
 
 export interface ResetPasswordDto {

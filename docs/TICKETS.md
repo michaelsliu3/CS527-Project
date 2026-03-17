@@ -351,6 +351,22 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
+## PBM-20 — VIP role + customizable display name color
+
+**Layer:** Backend + Frontend
+**Branch:** `PBM-20/vip-role-name-color`
+**PR Title:** `[PBM-20] add VIP role and customizable display name color for VIP+ users`
+
+- Add a new `VIP` role tier and ensure role handling supports `VIP` for end-users and any higher-privilege roles.
+- Backend: update role enum/validation/JWT claim handling so users can be assigned `VIP` without breaking existing `end_user`, `customer_rep`, and `admin` permissions.
+- Backend: add persistence and API support for a user-configurable display name color (e.g., validated hex color) in profile/update flows.
+- Authorization rule: users with `VIP` role or higher roles (`customer_rep`, `admin`) can customize their display name color; non-VIP end-users cannot.
+- Frontend: add profile settings control for name color selection (picker + manual input), preview state, save/reset actions, and user-facing validation feedback.
+- Frontend: render customized name color consistently in shared identity surfaces (forums/Q&A, navbar/profile menu, and other username displays where applicable), with safe fallback when unset/invalid.
+- **Tests:** backend tests for role validation, VIP-or-higher authorization, and color format validation/persistence; frontend tests for control visibility by role, submit payload, preview behavior, and fallback rendering.
+
+---
+
 ## Bugs
 
 ### PBM-BUG-1 — Login state lost on page refresh

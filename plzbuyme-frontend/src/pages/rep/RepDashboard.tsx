@@ -5,6 +5,7 @@ import {
   Container,
   Flex,
   Input,
+  NativeSelect,
   Tabs,
   Text,
   Badge,
@@ -25,10 +26,11 @@ import {
   type EditUserDto,
 } from '../../api/rep'
 import { listQuestions, replyToQuestion, type QuestionResponse } from '../../api/questions'
-import { browseAuctions, getAuction, type AuctionListItem, type AuctionDetail, type BidHistoryItem } from '../../api/auctions'
+import { browseAuctions, getAuction, type AuctionListItem, type AuctionDetail } from '../../api/auctions'
 import { showErrorToast, showSuccessToast } from '../../components/ui/toaster'
 import { dark } from '../../theme/colors'
 import { tableStyles, thBase, tdStyle } from '../../theme/tableStyles'
+import { useAuth } from '../../context/AuthContext'
 
 const PAGE_SIZE = 10
 
@@ -66,6 +68,13 @@ function getReplyTagColor(tag: 'OP' | 'Admin' | 'Rep'): 'green' | 'purple' | 'bl
   return 'blue'
 }
 
+function roleToLabel(role?: string | null): 'User' | 'Rep' | 'Admin' {
+  const normalized = (role ?? '').trim().toLowerCase()
+  if (normalized === 'admin') return 'Admin'
+  if (normalized === 'customer_rep' || normalized === 'rep') return 'Rep'
+  return 'User'
+}
+
 export function RepDashboard() {
   return (
     <Container maxW="container.xl" py={6}>
@@ -95,6 +104,8 @@ export function RepDashboard() {
 }
 
 function RepUsersTab() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const [users, setUsers] = useState<UserSummary[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
@@ -158,6 +169,7 @@ function RepUsersTab() {
                 <tr>
                   <th style={{ ...thBase, textAlign: 'left' }}>Username</th>
                   <th style={{ ...thBase, textAlign: 'left' }}>Email</th>
+                  <th style={{ ...thBase, textAlign: 'left' }}>Role</th>
                   <th style={{ ...thBase, textAlign: 'left' }}>Active</th>
                   <th style={{ ...thBase, textAlign: 'left' }}>Created</th>
                   <th style={{ ...thBase, textAlign: 'left' }}>Actions</th>
@@ -171,6 +183,20 @@ function RepUsersTab() {
                     <tr key={u.id}>
                       <td style={{ ...cellStyle, textAlign: 'left' }}>{u.username}</td>
                       <td style={{ ...cellStyle, textAlign: 'left' }}>{u.email}</td>
+                      <td style={{ ...cellStyle, textAlign: 'left' }}>
+                        <Badge
+                          colorPalette={
+                            roleToLabel(u.role) === 'Admin'
+                              ? 'purple'
+                              : roleToLabel(u.role) === 'Rep'
+                                ? 'blue'
+                                : 'gray'
+                          }
+                          size="sm"
+                        >
+                          {roleToLabel(u.role)}
+                        </Badge>
+                      </td>
                       <td style={{ ...cellStyle, textAlign: 'left' }}>
                         <Badge colorPalette={u.isActive ? 'green' : 'red'} size="sm">
                           {u.isActive ? 'Yes' : 'No'}
@@ -225,10 +251,10 @@ function RepUsersTab() {
                 {totalCount} total
               </Text>
               <Flex gap={2}>
-                <Button size="sm" isDisabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                   Previous
                 </Button>
-                <Button size="sm" isDisabled={page * PAGE_SIZE >= totalCount} onClick={() => setPage((p) => p + 1)}>
+                <Button size="sm" disabled={page * PAGE_SIZE >= totalCount} onClick={() => setPage((p) => p + 1)}>
                   Next
                 </Button>
               </Flex>
@@ -240,6 +266,7 @@ function RepUsersTab() {
         <EditUserModal
           key={editUser.id}
           user={editUser}
+          isAdmin={isAdmin}
           onClose={() => setEditUser(null)}
           onSuccess={handleEditSuccess}
           onError={(msg) => showErrorToast('Error', msg)}
@@ -267,19 +294,24 @@ function RepUsersTab() {
 
 interface EditUserModalProps {
   user: UserSummary
+  isAdmin: boolean
   onClose: () => void
   onSuccess: () => void
   onError: (msg: string) => void
 }
 
-function EditUserModal({ user, onClose, onSuccess, onError }: EditUserModalProps) {
+function EditUserModal({ user, isAdmin, onClose, onSuccess, onError }: EditUserModalProps) {
   const { register, handleSubmit, formState } = useForm<EditUserDto>({
-    defaultValues: { username: user.username, email: user.email },
+    defaultValues: { username: user.username, email: user.email, role: roleToLabel(user.role) },
   })
 
   const onSubmit = async (data: EditUserDto) => {
     try {
-      await editRepUser(user.id, { username: data.username.trim(), email: data.email.trim() })
+      const payload: EditUserDto = { username: data.username.trim(), email: data.email.trim() }
+      if (isAdmin && data.role) {
+        payload.role = data.role
+      }
+      await editRepUser(user.id, payload)
       showSuccessToast('User updated')
       onSuccess()
     } catch (err) {
@@ -325,6 +357,27 @@ function EditUserModal({ user, onClose, onSuccess, onError }: EditUserModalProps
                     <Text fontSize="sm" color="red.400">{formState.errors.email.message}</Text>
                   )}
                 </Box>
+                {isAdmin && (
+                  <Box>
+                    <Text mb={1} color={dark.label} fontSize="sm">Role</Text>
+                    <NativeSelect.Root size="md">
+                      <NativeSelect.Field
+                        {...register('role', { required: 'Required' })}
+                        bg={dark.inputBg}
+                        borderColor={dark.borderSubtle}
+                        color="white"
+                      >
+                        <option value="User">User</option>
+                        <option value="Rep">Rep</option>
+                        <option value="Admin">Admin</option>
+                      </NativeSelect.Field>
+                      <NativeSelect.Indicator />
+                    </NativeSelect.Root>
+                    {formState.errors.role && (
+                      <Text fontSize="sm" color="red.400">{formState.errors.role.message}</Text>
+                    )}
+                  </Box>
+                )}
               </Flex>
             </Dialog.Body>
             <Dialog.Footer borderColor={dark.borderSubtle}>
@@ -840,8 +893,8 @@ function RepAuctionsTab() {
             <Flex justify="space-between" align="center" mt={4}>
               <Text color={dark.muted} fontSize="sm">{totalCount} total</Text>
               <Flex gap={2}>
-                <Button size="sm" isDisabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-                <Button size="sm" isDisabled={page * PAGE_SIZE >= totalCount} onClick={() => setPage((p) => p + 1)}>Next</Button>
+                <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+                <Button size="sm" disabled={page * PAGE_SIZE >= totalCount} onClick={() => setPage((p) => p + 1)}>Next</Button>
               </Flex>
             </Flex>
           )}

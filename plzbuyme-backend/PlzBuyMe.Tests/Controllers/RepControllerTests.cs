@@ -126,6 +126,49 @@ public class RepControllerTests
     }
 
     [Fact]
+    public async Task Admin_GetUsers_Returns_All_Roles()
+    {
+        await using var db = CreateDbContext();
+        var authService = CreateAuthService(db);
+        var repService = new RepService(db, authService);
+        var admin = new User
+        {
+            Username = "admin1",
+            Email = "admin1@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.Admin
+        };
+        var rep = new User
+        {
+            Username = "rep1",
+            Email = "rep1@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.CustomerRep
+        };
+        var user = new User
+        {
+            Username = "user1",
+            Email = "user1@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        db.Users.AddRange(admin, rep, user);
+        await db.SaveChangesAsync();
+
+        var controller = new RepController(repService);
+        ControllerTestHelpers.SetUser(controller, admin.Id, "admin");
+
+        var result = await controller.GetUsers(search: null, page: 1, pageSize: 20);
+
+        result.Should().BeOfType<OkObjectResult>();
+        var ok = (OkObjectResult)result;
+        var body = ok.Value.Should().BeOfType<PaginatedResultDto<UserSummaryDto>>().Subject;
+        body.Items.Should().Contain(u => u.Username == "admin1" && u.Role == "admin");
+        body.Items.Should().Contain(u => u.Username == "rep1" && u.Role == "customer_rep");
+        body.Items.Should().Contain(u => u.Username == "user1" && u.Role == "end_user");
+    }
+
+    [Fact]
     public async Task Rep_Can_Edit_User()
     {
         await using var db = CreateDbContext();
@@ -163,6 +206,127 @@ public class RepControllerTests
         var updated = await db.Users.FindAsync(user.Id);
         updated!.Username.Should().Be("updated");
         updated.Email.Should().Be("updated@example.com");
+    }
+
+    [Fact]
+    public async Task Rep_Cannot_Edit_User_Role()
+    {
+        await using var db = CreateDbContext();
+        var authService = CreateAuthService(db);
+        var repService = new RepService(db, authService);
+        var rep = new User
+        {
+            Username = "rep1",
+            Email = "rep1@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.CustomerRep
+        };
+        var user = new User
+        {
+            Username = "user1",
+            Email = "user1@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        db.Users.AddRange(rep, user);
+        await db.SaveChangesAsync();
+
+        var controller = new RepController(repService);
+        ControllerTestHelpers.SetUser(controller, rep.Id, "customer_rep");
+
+        var dto = new EditUserDto
+        {
+            Username = "updated",
+            Email = "updated@example.com",
+            Role = "Admin"
+        };
+
+        var result = await controller.EditUser(user.Id, dto);
+
+        result.Should().BeOfType<ForbidResult>();
+        var updated = await db.Users.FindAsync(user.Id);
+        updated!.Role.Should().Be(UserRole.EndUser);
+    }
+
+    [Fact]
+    public async Task Admin_Edit_User_With_Invalid_Role_Returns_BadRequest()
+    {
+        await using var db = CreateDbContext();
+        var authService = CreateAuthService(db);
+        var repService = new RepService(db, authService);
+        var admin = new User
+        {
+            Username = "admin",
+            Email = "admin@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.Admin
+        };
+        var user = new User
+        {
+            Username = "user1",
+            Email = "user1@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        db.Users.AddRange(admin, user);
+        await db.SaveChangesAsync();
+
+        var controller = new RepController(repService);
+        ControllerTestHelpers.SetUser(controller, admin.Id, "admin");
+
+        var dto = new EditUserDto
+        {
+            Username = "updated",
+            Email = "updated@example.com",
+            Role = "SuperUser"
+        };
+
+        var result = await controller.EditUser(user.Id, dto);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+        ((BadRequestObjectResult)result).Value.Should().Be("Invalid role. Allowed values: User, Rep, Admin.");
+    }
+
+    [Fact]
+    public async Task Admin_Can_Edit_User_And_Change_Role()
+    {
+        await using var db = CreateDbContext();
+        var authService = CreateAuthService(db);
+        var repService = new RepService(db, authService);
+        var admin = new User
+        {
+            Username = "admin",
+            Email = "admin@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.Admin
+        };
+        var user = new User
+        {
+            Username = "user1",
+            Email = "user1@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        db.Users.AddRange(admin, user);
+        await db.SaveChangesAsync();
+
+        var controller = new RepController(repService);
+        ControllerTestHelpers.SetUser(controller, admin.Id, "admin");
+
+        var dto = new EditUserDto
+        {
+            Username = "updated",
+            Email = "updated@example.com",
+            Role = "Rep"
+        };
+
+        var result = await controller.EditUser(user.Id, dto);
+
+        result.Should().BeOfType<NoContentResult>();
+        var updated = await db.Users.FindAsync(user.Id);
+        updated!.Username.Should().Be("updated");
+        updated.Email.Should().Be("updated@example.com");
+        updated.Role.Should().Be(UserRole.CustomerRep);
     }
 
     [Fact]

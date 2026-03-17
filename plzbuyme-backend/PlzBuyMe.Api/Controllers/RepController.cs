@@ -23,7 +23,8 @@ public class RepController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
-        var result = await _repService.GetUsersAsync(search, page, pageSize);
+        var isAdmin = User.IsInRole("admin");
+        var result = await _repService.GetUsersAsync(search, page, pageSize, isAdmin);
         return Ok(result);
     }
 
@@ -33,9 +34,12 @@ public class RepController : ControllerBase
         if (dto == null)
             return BadRequest("Request body is required.");
 
-        var (notFound, error) = await _repService.EditUserAsync(id, dto);
+        var isAdmin = User.IsInRole("admin");
+        var (notFound, forbidden, error) = await _repService.EditUserAsync(id, dto, isAdmin);
         if (notFound)
             return NotFound();
+        if (forbidden)
+            return Forbid();
         if (error != null)
             return BadRequest(error);
         return NoContent();

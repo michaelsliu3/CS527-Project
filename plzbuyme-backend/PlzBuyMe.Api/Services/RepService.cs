@@ -18,14 +18,18 @@ public class RepService : IRepService
         _authService = authService;
     }
 
-    public async Task<PaginatedResultDto<UserSummaryDto>> GetUsersAsync(string? search, int page, int pageSize)
+    public async Task<PaginatedResultDto<UserSummaryDto>> GetUsersAsync(string? search, int page, int pageSize, bool isAdmin)
     {
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
         var query = _db.Users
-            .AsNoTracking()
-            .Where(u => u.Role == UserRole.EndUser);
+            .AsNoTracking();
+
+        if (!isAdmin)
+        {
+            query = query.Where(u => u.Role == UserRole.EndUser);
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -45,6 +49,7 @@ public class RepService : IRepService
                 Id = u.Id,
                 Username = u.Username,
                 Email = u.Email,
+                Role = ToRoleValue(u.Role),
                 IsActive = u.IsActive,
                 CreatedAt = u.CreatedAt
             })
@@ -59,35 +64,47 @@ public class RepService : IRepService
         };
     }
 
-    public async Task<(bool NotFound, string? ErrorMessage)> EditUserAsync(int id, EditUserDto dto)
+    public async Task<(bool NotFound, bool Forbidden, string? ErrorMessage)> EditUserAsync(int id, EditUserDto dto, bool isAdmin)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == id);
         if (user == null)
-            return (true, null);
-        if (user.Role != UserRole.EndUser)
-            return (false, "Only end-users can be edited.");
+            return (true, false, null);
+        if (!isAdmin && user.Role != UserRole.EndUser)
+            return (false, false, "Only end-users can be edited.");
 
         var username = dto.Username.Trim();
         var email = dto.Email.Trim();
 
         if (string.IsNullOrWhiteSpace(username))
-            return (false, "Username is required.");
+            return (false, false, "Username is required.");
         if (string.IsNullOrWhiteSpace(email))
-            return (false, "Email is required.");
+            return (false, false, "Email is required.");
 
         var usernameTaken = await _db.Users.AnyAsync(u => u.Id != id && u.Username == username);
         if (usernameTaken)
-            return (false, "Username is already taken.");
+            return (false, false, "Username is already taken.");
 
         var emailTaken = await _db.Users.AnyAsync(u => u.Id != id && u.Email == email);
         if (emailTaken)
-            return (false, "Email is already taken.");
+            return (false, false, "Email is already taken.");
+
+        var roleText = dto.Role?.Trim();
+        if (!string.IsNullOrEmpty(roleText))
+        {
+            if (!isAdmin)
+                return (false, true, null);
+
+            if (!TryParseRole(roleText, out var parsedRole))
+                return (false, false, "Invalid role. Allowed values: User, Rep, Admin.");
+
+            user.Role = parsedRole;
+        }
 
         user.Username = username;
         user.Email = email;
         await _db.SaveChangesAsync();
 
-        return (false, null);
+        return (false, false, null);
     }
 
     public async Task<(bool NotFound, string? ErrorMessage)> DeleteUserAsync(int id)
@@ -153,6 +170,36 @@ public class RepService : IRepService
         item.Status = ItemStatus.Removed;
         await _db.SaveChangesAsync();
         return true;
+    }
+
+    private static string ToRoleValue(UserRole role)
+    {
+        return role switch
+        {
+            UserRole.Admin => "admin",
+            UserRole.CustomerRep => "customer_rep",
+            UserRole.EndUser => "end_user",
+            _ => "end_user"
+        };
+    }
+
+    private static bool TryParseRole(string roleText, out UserRole role)
+    {
+        role = roleText.ToLowerInvariant() switch
+        {
+            "user" => UserRole.EndUser,
+            "end_user" => UserRole.EndUser,
+            "rep" => UserRole.CustomerRep,
+            "customer_rep" => UserRole.CustomerRep,
+            "admin" => UserRole.Admin,
+            _ => default
+        };
+
+        return roleText.Equals("user", StringComparison.OrdinalIgnoreCase)
+            || roleText.Equals("end_user", StringComparison.OrdinalIgnoreCase)
+            || roleText.Equals("rep", StringComparison.OrdinalIgnoreCase)
+            || roleText.Equals("customer_rep", StringComparison.OrdinalIgnoreCase)
+            || roleText.Equals("admin", StringComparison.OrdinalIgnoreCase);
     }
 }
 
