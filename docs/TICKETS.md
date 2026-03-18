@@ -352,7 +352,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-20 — VIP role + customizable display name color
+## PBM-20 — VIP role + customizable display name color ✅
 
 **Layer:** Backend + Frontend
 **Branch:** `PBM-20/vip-role-name-color`
