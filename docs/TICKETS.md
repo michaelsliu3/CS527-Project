@@ -367,6 +367,38 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
+## PBM-21 — Advanced auction item cards with richer visuals
+
+**Layer:** Frontend
+**Branch:** `PBM-21/advanced-auction-item-cards`
+**PR Title:** `[PBM-21] upgrade auction item cards with images, improved countdown, and richer text formatting`
+
+- Redesign auction result cards (`AuctionCard`) with a stronger visual hierarchy and modern card layout optimized for desktop and mobile.
+- Add item image support in cards (thumbnail + fallback placeholder when no image exists), including consistent image aspect ratio, object-fit behavior, and lazy-loading.
+- Replace the current timer presentation with a clearer real-time countdown component (days/hours/minutes/seconds), urgency color states, and expired/closed formatting.
+- Improve text formatting for title/price/status/meta data (seller, category, bids, close time) with better typography, spacing, truncation, and alignment for scanability.
+- Add optional highlight badges/tags for high-signal states (e.g., `Ending soon`, `Reserve met`, `No reserve`, `Newly listed`) when data is available.
+- Ensure accessible semantics and keyboard focus states for the full card click target and internal actions.
+- **Tests:** add/extend frontend tests for image fallback rendering, countdown state transitions (active/ending-soon/expired), and card text truncation/metadata display.
+
+---
+
+## PBM-22 — Advanced top filter bar with category preview dropdown
+
+**Layer:** Frontend
+**Branch:** `PBM-22/advanced-top-filter-bar`
+**PR Title:** `[PBM-22] redesign top filter bar with category dropdown item previews`
+
+- Redesign the top filter/search bar on the auction browse page for a cleaner, more modern layout and clearer quick-filter interactions.
+- Add a rich category dropdown experience that previews matching items in the selected category with thumbnail image, item title, current price, and key metadata at a glance.
+- Support typeahead within category context so users can quickly scan and select items from the dropdown without leaving the filter flow.
+- Ensure dropdown preview rows are responsive, keyboard-navigable, and accessible (focus states, arrow navigation, enter-to-select, and screen-reader labels).
+- Define loading/empty/error states for dropdown content (skeleton rows, no-results state, and retry behavior) so the filter bar feels reliable.
+- Keep selection behavior consistent with existing query param/search behavior so choosing a preview item/category updates results deterministically.
+- **Tests:** add/extend frontend tests for dropdown preview rendering (image/title/price), keyboard navigation, select-to-filter behavior, and loading/empty/error states.
+
+---
+
 ## Bugs
 
 ### PBM-BUG-1 — Login state lost on page refresh ✅
