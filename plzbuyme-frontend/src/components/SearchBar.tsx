@@ -2,10 +2,12 @@ import { useState, useCallback, useEffect } from 'react'
 import {
   Box,
   Button,
-  Checkbox,
+  DatePicker,
   Flex,
   Icon,
   Input,
+  Portal,
+  parseDate,
   Slider,
   SimpleGrid,
   Text,
@@ -13,6 +15,7 @@ import {
   WrapItem,
 } from '@chakra-ui/react'
 import { HiChevronDown } from 'react-icons/hi'
+import { LuCalendar } from 'react-icons/lu'
 import { useSearchParams } from 'react-router-dom'
 import { getFieldValues } from '../api/auctions'
 import { dark } from '../theme/colors'
@@ -84,6 +87,16 @@ function getPriceRangeFromSearchParams(searchParams: URLSearchParams): [number, 
   return [Math.min(minValue, maxValue), Math.max(minValue, maxValue)]
 }
 
+function getConditionIndexFromSearchParams(searchParams: URLSearchParams): number | null {
+  const firstMatchedCondition = searchParams
+    .getAll('condition')
+    .find((value) => CONDITION_OPTIONS.includes(value))
+
+  if (!firstMatchedCondition) return null
+  const index = CONDITION_OPTIONS.indexOf(firstMatchedCondition)
+  return index >= 0 ? index : null
+}
+
 type SearchBarVariant = 'full' | 'top' | 'filters'
 type FilterSectionKey =
   | 'category'
@@ -96,6 +109,137 @@ type FilterSectionKey =
 
 interface SearchBarProps {
   variant?: SearchBarVariant
+}
+
+interface DateFilterPickerProps {
+  label: string
+  textSize?: 'xs' | 'sm'
+  name: 'closingAfter' | 'closingBefore'
+  value: string
+  onValueChange: (value: string) => void
+}
+
+function getDateOnlyValue(rawValue: string | null): string {
+  if (!rawValue) return ''
+  const trimmed = rawValue.trim()
+  if (!trimmed) return ''
+
+  const isoDatePart = /^(\d{4}-\d{2}-\d{2})/.exec(trimmed)
+  if (isoDatePart) return isoDatePart[1]
+
+  const parsed = new Date(trimmed)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return parsed.toISOString().slice(0, 10)
+}
+
+function toDatePickerValue(value: string) {
+  const normalized = getDateOnlyValue(value)
+  if (!normalized) return []
+
+  try {
+    return [parseDate(normalized)]
+  } catch {
+    return []
+  }
+}
+
+function DateFilterPicker({
+  label,
+  textSize = 'xs',
+  name,
+  value,
+  onValueChange,
+}: DateFilterPickerProps) {
+  return (
+    <Box>
+      <Text fontSize={textSize} color={dark.muted} mb={1}>{label}</Text>
+      <DatePicker.Root
+        name={name}
+        colorPalette="brand"
+        value={toDatePickerValue(value)}
+        onValueChange={(details) => {
+          const selected = details.value[0]
+          onValueChange(selected ? selected.toString() : '')
+        }}
+      >
+        <DatePicker.Control>
+          <DatePicker.Input
+            bg={dark.inputBg}
+            borderColor={dark.borderSubtle}
+            color="white"
+            _placeholder={{ color: dark.placeholder }}
+            _focusVisible={{ borderColor: 'brand.500', boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)' }}
+            placeholder="YYYY-MM-DD"
+          />
+          <DatePicker.IndicatorGroup>
+            <DatePicker.Trigger
+              color={dark.muted}
+              _hover={{ color: 'white', bg: 'whiteAlpha.100' }}
+              _focusVisible={{ boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)' }}
+            >
+              <LuCalendar />
+            </DatePicker.Trigger>
+          </DatePicker.IndicatorGroup>
+        </DatePicker.Control>
+        <Portal>
+          <DatePicker.Positioner zIndex={1700}>
+            <DatePicker.Content
+              bg={dark.cardBg}
+              borderWidth="1px"
+              borderColor={dark.borderSubtle}
+              color="white"
+              boxShadow="xl"
+              css={{
+                '& [data-part="table-cell-trigger"]': {
+                  color: 'white',
+                  borderRadius: '0.375rem',
+                },
+                '& [data-part="table-cell-trigger"]:hover': {
+                  background: 'rgba(255, 255, 255, 0.08)',
+                },
+                '& [data-part="table-cell-trigger"][data-selected]': {
+                  background: 'var(--chakra-colors-brand-500)',
+                  color: 'white',
+                },
+                '& [data-part="table-cell-trigger"][data-today]': {
+                  borderColor: 'var(--chakra-colors-brand-500)',
+                },
+                '& [data-part="next-trigger"], & [data-part="prev-trigger"], & [data-part="view-trigger"]': {
+                  color: 'white',
+                  borderRadius: '0.375rem',
+                },
+                '& [data-part="next-trigger"]:hover, & [data-part="prev-trigger"]:hover, & [data-part="view-trigger"]:hover': {
+                  background: 'rgba(255, 255, 255, 0.08)',
+                },
+                '& [data-part="month-select"], & [data-part="year-select"]': {
+                  background: dark.inputBg,
+                  color: 'white',
+                  borderColor: dark.borderSubtle,
+                  borderRadius: '0.375rem',
+                },
+                '& [data-part="table-header"]': {
+                  color: dark.muted,
+                },
+              }}
+            >
+              <DatePicker.View view="day">
+                <DatePicker.Header />
+                <DatePicker.DayTable />
+              </DatePicker.View>
+              <DatePicker.View view="month">
+                <DatePicker.Header />
+                <DatePicker.MonthTable />
+              </DatePicker.View>
+              <DatePicker.View view="year">
+                <DatePicker.Header />
+                <DatePicker.YearTable />
+              </DatePicker.View>
+            </DatePicker.Content>
+          </DatePicker.Positioner>
+        </Portal>
+      </DatePicker.Root>
+    </Box>
+  )
 }
 
 export function SearchBar({ variant = 'full' }: SearchBarProps) {
@@ -121,8 +265,21 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     transmission: false,
     fuelType: false,
   })
+  const [conditionSliderIndex, setConditionSliderIndex] = useState<number>(() => {
+    const index = getConditionIndexFromSearchParams(searchParams)
+    return index ?? 0
+  })
+  const [isConditionSelected, setIsConditionSelected] = useState<boolean>(() =>
+    getConditionIndexFromSearchParams(searchParams) !== null
+  )
   const [priceRange, setPriceRange] = useState<[number, number]>(() =>
     getPriceRangeFromSearchParams(searchParams)
+  )
+  const [closingAfter, setClosingAfter] = useState<string>(() =>
+    getDateOnlyValue(searchParams.get('closingAfter'))
+  )
+  const [closingBefore, setClosingBefore] = useState<string>(() =>
+    getDateOnlyValue(searchParams.get('closingBefore'))
   )
 
   useEffect(() => {
@@ -178,6 +335,17 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
 
   useEffect(() => {
     setPriceRange(getPriceRangeFromSearchParams(searchParams))
+  }, [searchParams])
+
+  useEffect(() => {
+    const index = getConditionIndexFromSearchParams(searchParams)
+    if (index === null) {
+      setConditionSliderIndex(0)
+      setIsConditionSelected(false)
+      return
+    }
+    setConditionSliderIndex(index)
+    setIsConditionSelected(true)
   }, [searchParams])
 
   const rootCategories = categories.filter((c) => c.parentId === null)
@@ -267,6 +435,11 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     return () => clearTimeout(t)
   }, [modelInput, fetchModelSuggestions])
 
+  useEffect(() => {
+    setClosingAfter(getDateOnlyValue(searchParams.get('closingAfter')))
+    setClosingBefore(getDateOnlyValue(searchParams.get('closingBefore')))
+  }, [searchParams])
+
   function applyFilters(values: Record<string, string | string[] | undefined>) {
     const next = new URLSearchParams(searchParams)
     next.delete('make')
@@ -305,12 +478,14 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const form = e.target as HTMLFormElement
-    const condition: string[] = []
-    const transmission: string[] = []
-    const fuelType: string[] = []
-    form.querySelectorAll<HTMLInputElement>('input[name="condition"]:checked').forEach((el) => condition.push(el.value))
-    form.querySelectorAll<HTMLInputElement>('input[name="transmission"]:checked').forEach((el) => transmission.push(el.value))
-    form.querySelectorAll<HTMLInputElement>('input[name="fuelType"]:checked').forEach((el) => fuelType.push(el.value))
+    const condition =
+      isConditionSelected && CONDITION_OPTIONS[conditionSliderIndex]
+        ? [CONDITION_OPTIONS[conditionSliderIndex]]
+        : []
+    const transmissionValue = (form.elements.namedItem('transmission') as HTMLSelectElement)?.value || undefined
+    const transmission: string[] = transmissionValue ? [transmissionValue] : []
+    const fuelTypeValue = (form.elements.namedItem('fuelType') as HTMLSelectElement)?.value || undefined
+    const fuelType: string[] = fuelTypeValue ? [fuelTypeValue] : []
     const minPriceFromForm = (form.elements.namedItem('minPrice') as HTMLInputElement)?.value || undefined
     const maxPriceFromForm = (form.elements.namedItem('maxPrice') as HTMLInputElement)?.value || undefined
     const minPrice =
@@ -332,8 +507,8 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
       minPrice,
       maxPrice,
       status: (form.elements.namedItem('status') as HTMLSelectElement)?.value || undefined,
-      closingBefore: (form.elements.namedItem('closingBefore') as HTMLInputElement)?.value || undefined,
-      closingAfter: (form.elements.namedItem('closingAfter') as HTMLInputElement)?.value || undefined,
+      closingBefore: closingBefore || undefined,
+      closingAfter: closingAfter || undefined,
       seller: (form.elements.namedItem('seller') as HTMLInputElement)?.value?.trim() || undefined,
       sort: (form.elements.namedItem('sort') as HTMLSelectElement)?.value || undefined,
       make: makeInput.trim() || undefined,
@@ -374,6 +549,13 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     setPriceRange([details.value[0], details.value[1]])
   }
 
+  const onConditionSliderChange = (details: { value: number[] }) => {
+    if (details.value.length === 0) return
+    const nextIndex = Math.max(0, Math.min(CONDITION_OPTIONS.length - 1, details.value[0]))
+    setConditionSliderIndex(nextIndex)
+    setIsConditionSelected(true)
+  }
+
   const onPriceInputChange = (input: 'min' | 'max', nextValue: string) => {
     const numeric = Number(nextValue)
     if (!Number.isFinite(numeric)) return
@@ -397,6 +579,8 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     setMakeSuggestions([])
     setModelSuggestions([])
     setPriceRange([PRICE_SLIDER_MIN, PRICE_SLIDER_DEFAULT_MAX])
+    setClosingAfter('')
+    setClosingBefore('')
   }
 
   const allSortOptions = [...SORT_OPTIONS, ...CAR_SORT_OPTIONS]
@@ -701,28 +885,18 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                       _placeholder={{ color: dark.placeholder }}
                     />
                   </Box>
-                  <Box>
-                    <Text fontSize="xs" color={dark.muted} mb={1}>Closing after</Text>
-                    <Input
-                      name="closingAfter"
-                      type="datetime-local"
-                      defaultValue={searchParams.get('closingAfter') ?? ''}
-                      bg={dark.inputBg}
-                      borderColor={dark.borderSubtle}
-                      color="white"
-                    />
-                  </Box>
-                  <Box>
-                    <Text fontSize="xs" color={dark.muted} mb={1}>Closing before</Text>
-                    <Input
-                      name="closingBefore"
-                      type="datetime-local"
-                      defaultValue={searchParams.get('closingBefore') ?? ''}
-                      bg={dark.inputBg}
-                      borderColor={dark.borderSubtle}
-                      color="white"
-                    />
-                  </Box>
+                  <DateFilterPicker
+                    label="Closing after"
+                    name="closingAfter"
+                    value={closingAfter}
+                    onValueChange={setClosingAfter}
+                  />
+                  <DateFilterPicker
+                    label="Closing before"
+                    name="closingBefore"
+                    value={closingBefore}
+                    onValueChange={setClosingBefore}
+                  />
                 </SimpleGrid>
               </Box>
             </Box>
@@ -890,39 +1064,59 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                     />
                   </Button>
                   <Box {...sectionAnimationProps(openSections.condition)}>
-                    <Wrap
+                    <Box
                       py={openSections.condition ? 4 : 0}
-                      gap={2}
                       overflow="hidden"
                       minH={0}
                     >
-                      {CONDITION_OPTIONS.map((c) => (
-                        <WrapItem key={c}>
-                          <Checkbox.Root
-                            name="condition"
-                            value={c}
-                            defaultChecked={searchParams.getAll('condition').includes(c)}
-                            variant="outline"
+                      <Flex justify="space-between" align="center" mb={2}>
+                        <Text fontSize="xs" color={dark.muted}>Slide to choose one condition</Text>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="ghost"
+                          color={dark.muted}
+                          _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+                          onClick={() => setIsConditionSelected(false)}
+                        >
+                          Clear
+                        </Button>
+                      </Flex>
+
+                      <Slider.Root
+                        min={0}
+                        max={CONDITION_OPTIONS.length - 1}
+                        step={1}
+                        value={[conditionSliderIndex]}
+                        onValueChange={onConditionSliderChange}
+                      >
+                        <Slider.Control py={2}>
+                          <Slider.Track h="6px" bg="whiteAlpha.200" borderRadius="full">
+                            <Slider.Range bg="brand.500" />
+                          </Slider.Track>
+                          <Slider.Thumb
+                            index={0}
+                            boxSize={5}
+                            bg="white"
+                            borderWidth="2px"
+                            borderColor={dark.cardBg}
+                          />
+                        </Slider.Control>
+                      </Slider.Root>
+                      <SimpleGrid columns={6} mt={2} gap={1}>
+                        {CONDITION_OPTIONS.map((option, idx) => (
+                          <Text
+                            key={option}
+                            fontSize="2xs"
+                            textAlign="center"
+                            color={isConditionSelected && idx === conditionSliderIndex ? 'white' : dark.muted}
+                            fontWeight={isConditionSelected && idx === conditionSliderIndex ? 'semibold' : 'normal'}
                           >
-                            <Checkbox.HiddenInput />
-                            <Checkbox.Control
-                              borderColor={dark.borderSubtle}
-                              bg={dark.inputBg}
-                              color="white"
-                              _hover={{ borderColor: 'brand.400', bg: 'whiteAlpha.100' }}
-                              _checked={{
-                                bg: 'brand.500',
-                                borderColor: 'brand.500',
-                                _hover: { bg: 'brand.400', borderColor: 'brand.400' },
-                              }}
-                            />
-                            <Checkbox.Label ml={-0.5} pr={2.5}>
-                              {c}
-                            </Checkbox.Label>
-                          </Checkbox.Root>
-                        </WrapItem>
-                      ))}
-                    </Wrap>
+                            {option}
+                          </Text>
+                        ))}
+                      </SimpleGrid>
+                    </Box>
                   </Box>
                 </Box>
 
@@ -943,39 +1137,34 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                     />
                   </Button>
                   <Box {...sectionAnimationProps(openSections.transmission)}>
-                    <Wrap
+                    <Box
                       py={openSections.transmission ? 4 : 0}
-                      gap={2}
                       overflow="hidden"
                       minH={0}
                     >
-                      {TRANSMISSION_OPTIONS.map((t) => (
-                        <WrapItem key={t}>
-                          <Checkbox.Root
-                            name="transmission"
-                            value={t}
-                            defaultChecked={searchParams.getAll('transmission').includes(t)}
-                            variant="outline"
-                          >
-                            <Checkbox.HiddenInput />
-                            <Checkbox.Control
-                              borderColor={dark.borderSubtle}
-                              bg={dark.inputBg}
-                              color="white"
-                              _hover={{ borderColor: 'brand.400', bg: 'whiteAlpha.100' }}
-                              _checked={{
-                                bg: 'brand.500',
-                                borderColor: 'brand.500',
-                                _hover: { bg: 'brand.400', borderColor: 'brand.400' },
-                              }}
-                            />
-                            <Checkbox.Label ml={0} pr={2}>
-                              {t}
-                            </Checkbox.Label>
-                          </Checkbox.Root>
-                        </WrapItem>
-                      ))}
-                    </Wrap>
+                      <Text fontSize="xs" color={dark.muted} mb={1.5}>
+                        Choose transmission
+                      </Text>
+                      <select
+                        name="transmission"
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          background: dark.inputBg,
+                          border: `1px solid ${dark.borderSubtle}`,
+                          borderRadius: '6px',
+                          color: 'white',
+                        }}
+                        defaultValue={searchParams.get('transmission') ?? ''}
+                      >
+                        <option value="">Any transmission</option>
+                        {TRANSMISSION_OPTIONS.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </Box>
                   </Box>
                 </Box>
 
@@ -996,39 +1185,34 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                     />
                   </Button>
                   <Box {...sectionAnimationProps(openSections.fuelType)}>
-                    <Wrap
+                    <Box
                       py={openSections.fuelType ? 4 : 0}
-                      gap={2}
                       overflow="hidden"
                       minH={0}
                     >
-                      {FUEL_OPTIONS.map((f) => (
-                        <WrapItem key={f}>
-                          <Checkbox.Root
-                            name="fuelType"
-                            value={f}
-                            defaultChecked={searchParams.getAll('fuelType').includes(f)}
-                            variant="outline"
-                          >
-                            <Checkbox.HiddenInput />
-                            <Checkbox.Control
-                              borderColor={dark.borderSubtle}
-                              bg={dark.inputBg}
-                              color="white"
-                              _hover={{ borderColor: 'brand.400', bg: 'whiteAlpha.100' }}
-                              _checked={{
-                                bg: 'brand.500',
-                                borderColor: 'brand.500',
-                                _hover: { bg: 'brand.400', borderColor: 'brand.400' },
-                              }}
-                            />
-                            <Checkbox.Label ml={0} pr={2}>
-                              {f}
-                            </Checkbox.Label>
-                          </Checkbox.Root>
-                        </WrapItem>
-                      ))}
-                    </Wrap>
+                      <Text fontSize="xs" color={dark.muted} mb={1.5}>
+                        Choose fuel type
+                      </Text>
+                      <select
+                        name="fuelType"
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          background: dark.inputBg,
+                          border: `1px solid ${dark.borderSubtle}`,
+                          borderRadius: '6px',
+                          color: 'white',
+                        }}
+                        defaultValue={searchParams.get('fuelType') ?? ''}
+                      >
+                        <option value="">Any fuel type</option>
+                        {FUEL_OPTIONS.map((f) => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </select>
+                    </Box>
                   </Box>
                 </Box>
             </>
@@ -1126,28 +1310,20 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                 ))}
               </select>
             </Box>
-            <Box>
-              <Text fontSize="sm" color={dark.muted} mb={1}>Closing after</Text>
-              <Input
-                name="closingAfter"
-                type="datetime-local"
-                defaultValue={searchParams.get('closingAfter') ?? ''}
-                bg={dark.inputBg}
-                borderColor={dark.borderSubtle}
-                color="white"
-              />
-            </Box>
-            <Box>
-              <Text fontSize="sm" color={dark.muted} mb={1}>Closing before</Text>
-              <Input
-                name="closingBefore"
-                type="datetime-local"
-                defaultValue={searchParams.get('closingBefore') ?? ''}
-                bg={dark.inputBg}
-                borderColor={dark.borderSubtle}
-                color="white"
-              />
-            </Box>
+            <DateFilterPicker
+              label="Closing after"
+              textSize="sm"
+              name="closingAfter"
+              value={closingAfter}
+              onValueChange={setClosingAfter}
+            />
+            <DateFilterPicker
+              label="Closing before"
+              textSize="sm"
+              name="closingBefore"
+              value={closingBefore}
+              onValueChange={setClosingBefore}
+            />
             <Box>
               <Text fontSize="sm" color={dark.muted} mb={1}>Seller</Text>
               <Input
@@ -1302,93 +1478,98 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                   />
                 </Box>
               </SimpleGrid>
-              <Wrap mt={3} gap={2}>
-                <Text fontSize="xs" color={dark.muted} w="100%">Condition</Text>
-                {CONDITION_OPTIONS.map((c) => (
-                  <WrapItem key={c}>
-                    <Checkbox.Root
-                      name="condition"
-                      value={c}
-                      defaultChecked={searchParams.getAll('condition').includes(c)}
-                      variant="outline"
+              <Box mt={3}>
+                <Flex justify="space-between" align="center" mb={2}>
+                  <Text fontSize="xs" color={dark.muted}>Condition</Text>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    color={dark.muted}
+                    _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+                    onClick={() => setIsConditionSelected(false)}
+                  >
+                    Clear
+                  </Button>
+                </Flex>
+                <Slider.Root
+                  min={0}
+                  max={CONDITION_OPTIONS.length - 1}
+                  step={1}
+                  value={[conditionSliderIndex]}
+                  onValueChange={onConditionSliderChange}
+                >
+                  <Slider.Control py={2}>
+                    <Slider.Track h="6px" bg="whiteAlpha.200" borderRadius="full">
+                      <Slider.Range bg="brand.500" />
+                    </Slider.Track>
+                    <Slider.Thumb
+                      index={0}
+                      boxSize={5}
+                      bg="white"
+                      borderWidth="2px"
+                      borderColor={dark.cardBg}
+                    />
+                  </Slider.Control>
+                </Slider.Root>
+                <SimpleGrid columns={6} mt={2} gap={1}>
+                  {CONDITION_OPTIONS.map((option, idx) => (
+                    <Text
+                      key={option}
+                      fontSize="2xs"
+                      textAlign="center"
+                      color={isConditionSelected && idx === conditionSliderIndex ? 'white' : dark.muted}
+                      fontWeight={isConditionSelected && idx === conditionSliderIndex ? 'semibold' : 'normal'}
                     >
-                      <Checkbox.HiddenInput />
-                      <Checkbox.Control
-                        borderColor={dark.borderSubtle}
-                        bg={dark.inputBg}
-                        color="white"
-                        _hover={{ borderColor: 'brand.400', bg: 'whiteAlpha.100' }}
-                        _checked={{
-                          bg: 'brand.500',
-                          borderColor: 'brand.500',
-                          _hover: { bg: 'brand.400', borderColor: 'brand.400' },
-                        }}
-                      />
-                      <Checkbox.Label ml={-0.5} pr={2.5}>
-                        {c}
-                      </Checkbox.Label>
-                    </Checkbox.Root>
-                  </WrapItem>
-                ))}
-              </Wrap>
-              <Wrap mt={2} gap={2}>
-                <Text fontSize="xs" color={dark.muted} w="100%">Transmission</Text>
-                {TRANSMISSION_OPTIONS.map((t) => (
-                  <WrapItem key={t}>
-                    <Checkbox.Root
-                      name="transmission"
-                      value={t}
-                      defaultChecked={searchParams.getAll('transmission').includes(t)}
-                      variant="outline"
-                    >
-                      <Checkbox.HiddenInput />
-                      <Checkbox.Control
-                        borderColor={dark.borderSubtle}
-                        bg={dark.inputBg}
-                        color="white"
-                        _hover={{ borderColor: 'brand.400', bg: 'whiteAlpha.100' }}
-                        _checked={{
-                          bg: 'brand.500',
-                          borderColor: 'brand.500',
-                          _hover: { bg: 'brand.400', borderColor: 'brand.400' },
-                        }}
-                      />
-                      <Checkbox.Label ml={0} pr={2}>
-                        {t}
-                      </Checkbox.Label>
-                    </Checkbox.Root>
-                  </WrapItem>
-                ))}
-              </Wrap>
-              <Wrap mt={2} gap={2}>
-                <Text fontSize="xs" color={dark.muted} w="100%">Fuel type</Text>
-                {FUEL_OPTIONS.map((f) => (
-                  <WrapItem key={f}>
-                    <Checkbox.Root
-                      name="fuelType"
-                      value={f}
-                      defaultChecked={searchParams.getAll('fuelType').includes(f)}
-                      variant="outline"
-                    >
-                      <Checkbox.HiddenInput />
-                      <Checkbox.Control
-                        borderColor={dark.borderSubtle}
-                        bg={dark.inputBg}
-                        color="white"
-                        _hover={{ borderColor: 'brand.400', bg: 'whiteAlpha.100' }}
-                        _checked={{
-                          bg: 'brand.500',
-                          borderColor: 'brand.500',
-                          _hover: { bg: 'brand.400', borderColor: 'brand.400' },
-                        }}
-                      />
-                      <Checkbox.Label ml={0} pr={2}>
-                        {f}
-                      </Checkbox.Label>
-                    </Checkbox.Root>
-                  </WrapItem>
-                ))}
-              </Wrap>
+                      {option}
+                    </Text>
+                  ))}
+                </SimpleGrid>
+              </Box>
+              <Box mt={2}>
+                <Text fontSize="xs" color={dark.muted} mb={1}>Transmission</Text>
+                <select
+                  name="transmission"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: dark.inputBg,
+                    border: `1px solid ${dark.borderSubtle}`,
+                    borderRadius: '6px',
+                    color: 'white',
+                  }}
+                  defaultValue={searchParams.get('transmission') ?? ''}
+                >
+                  <option value="">Any transmission</option>
+                  {TRANSMISSION_OPTIONS.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </Box>
+              <Box mt={2}>
+                <Text fontSize="xs" color={dark.muted} mb={1}>Fuel type</Text>
+                <select
+                  name="fuelType"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: dark.inputBg,
+                    border: `1px solid ${dark.borderSubtle}`,
+                    borderRadius: '6px',
+                    color: 'white',
+                  }}
+                  defaultValue={searchParams.get('fuelType') ?? ''}
+                >
+                  <option value="">Any fuel type</option>
+                  {FUEL_OPTIONS.map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
+                </select>
+              </Box>
             </Box>
         </>
       )}
