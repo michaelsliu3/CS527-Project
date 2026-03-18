@@ -16,7 +16,11 @@ import { apiClient } from '../api/client'
 import { showErrorToast, showSuccessToast } from '../components/ui/toaster'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
-import { normalizeDisplayNameColor, resolveDisplayNameColor } from '../utils/displayNameColor'
+import {
+  DISPLAY_NAME_STYLE_PRESETS,
+  normalizeDisplayNameColor,
+} from '../utils/displayNameColor'
+import { DisplayNameText } from '../components/DisplayNameText'
 
 interface Profile {
   id: number
@@ -115,9 +119,8 @@ export function ProfilePage() {
   const normalizedColor = normalizeDisplayNameColor(colorInput)
   const colorValidationError =
     colorInput.trim().length > 0 && !normalizedColor
-      ? 'Use a valid hex color like #A1B2C3.'
+      ? 'Use a valid hex (#A1B2C3) or preset (RAINBOW, PURPBLU, RGBFLOW).'
       : null
-  const previewColor = resolveDisplayNameColor(colorInput, 'white')
   const originalColor = displayProfile.displayNameColor ?? ''
   const colorChanged = (normalizedColor ?? '') !== (normalizeDisplayNameColor(originalColor) ?? '')
 
@@ -162,11 +165,34 @@ export function ProfilePage() {
               <Field.Root>
                 <Field.Label color={dark.label}>Display name color</Field.Label>
                 <Box display="flex" flexDirection="column" gap={3}>
+                  <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
+                    <Button
+                      size="xs"
+                      variant={normalizeDisplayNameColor(colorInput) === 'RAINBOW' ? 'solid' : 'outline'}
+                      onClick={() => setColorInput('RAINBOW')}
+                    >
+                      Rainbow
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant={normalizeDisplayNameColor(colorInput) === 'PURPBLU' ? 'solid' : 'outline'}
+                      onClick={() => setColorInput('PURPBLU')}
+                    >
+                      Purple-Blue Fade
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant={normalizeDisplayNameColor(colorInput) === 'RGBFLOW' ? 'solid' : 'outline'}
+                      onClick={() => setColorInput('RGBFLOW')}
+                    >
+                      RGB Flow
+                    </Button>
+                  </Box>
                   <Box display="flex" gap={3} alignItems="center" flexWrap="wrap">
                     <Input
                       type="color"
                       aria-label="Pick display name color"
-                      value={normalizedColor ?? '#FFFFFF'}
+                      value={normalizedColor?.startsWith('#') ? normalizedColor : '#FFFFFF'}
                       onChange={(e) => setColorInput(e.target.value)}
                       w="56px"
                       p={1}
@@ -176,7 +202,7 @@ export function ProfilePage() {
                     <Input
                       value={colorInput}
                       onChange={(e) => setColorInput(e.target.value)}
-                      placeholder="#A1B2C3"
+                      placeholder="#A1B2C3 or RAINBOW"
                       bg={dark.bg}
                       borderColor={colorValidationError ? 'red.400' : dark.borderSubtle}
                       color="white"
@@ -185,9 +211,16 @@ export function ProfilePage() {
                   </Box>
                   <Box color={dark.label} fontSize="sm">
                     Preview:{' '}
-                    <Box as="span" fontWeight="600" color={previewColor}>
-                      {displayProfile.username}
+                    <Box as="span" fontWeight="600">
+                      <DisplayNameText
+                        name={displayProfile.username}
+                        displayNameColor={colorInput}
+                        fallbackColor="white"
+                      />
                     </Box>
+                  </Box>
+                  <Box color={dark.placeholder} fontSize="xs">
+                    Presets: {DISPLAY_NAME_STYLE_PRESETS.join(', ')}
                   </Box>
                   {colorValidationError && (
                     <Box color="red.400" fontSize="sm">

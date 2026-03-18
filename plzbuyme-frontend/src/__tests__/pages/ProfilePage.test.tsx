@@ -96,7 +96,7 @@ describe('ProfilePage display name color', () => {
     const user = userEvent.setup()
     renderProfile()
 
-    const input = await screen.findByPlaceholderText('#A1B2C3')
+    const input = await screen.findByPlaceholderText('#A1B2C3 or RAINBOW')
     await user.clear(input)
     await user.type(input, '#ab12cd')
     await user.click(screen.getByRole('button', { name: 'Save color' }))
@@ -116,11 +116,44 @@ describe('ProfilePage display name color', () => {
 
     const user = userEvent.setup()
     renderProfile()
-    const input = await screen.findByPlaceholderText('#A1B2C3')
+    const input = await screen.findByPlaceholderText('#A1B2C3 or RAINBOW')
     await user.clear(input)
     await user.type(input, 'blue')
 
-    expect(screen.getByText('Use a valid hex color like #A1B2C3.')).toBeInTheDocument()
+    expect(
+      screen.getByText('Use a valid hex (#A1B2C3) or preset (RAINBOW, PURPBLU, RGBFLOW).')
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save color' })).toBeDisabled()
+  })
+
+  it('submits animated preset payload', async () => {
+    const updateDisplayNameColor = vi.fn()
+    mockedUseAuth.mockReturnValue({
+      user: { id: 1, username: 'alice', displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      loading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      updateDisplayNameColor,
+    })
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: { id: 1, username: 'alice', displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+    } as never)
+    vi.mocked(apiClient.patch).mockResolvedValueOnce({
+      data: { displayNameColor: 'RAINBOW' },
+    } as never)
+
+    const user = userEvent.setup()
+    renderProfile()
+
+    await user.click(await screen.findByRole('button', { name: 'Rainbow' }))
+    await user.click(screen.getByRole('button', { name: 'Save color' }))
+
+    await waitFor(() => {
+      expect(apiClient.patch).toHaveBeenCalledWith('auth/profile/display-name-color', {
+        displayNameColor: 'RAINBOW',
+      })
+    })
+    expect(updateDisplayNameColor).toHaveBeenCalledWith('RAINBOW')
   })
 })

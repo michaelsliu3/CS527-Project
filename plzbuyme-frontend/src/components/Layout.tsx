@@ -7,7 +7,7 @@ import { showErrorToast, showNotificationToast } from './ui/toaster'
 import { HiOutlineBell, HiOutlineUserCircle } from 'react-icons/hi'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
-import { resolveDisplayNameColor } from '../utils/displayNameColor'
+import { DisplayNameText } from './DisplayNameText'
 
 /** How often to poll for new notifications while the user is logged in (used for badge + real-time toasts). */
 const NOTIFICATION_POLL_INTERVAL_MS = 5_000
@@ -137,9 +137,11 @@ export function Layout() {
                     <Menu.Trigger asChild>
                       <Button variant="ghost" size="sm" color={linkColor} _hover={{ color: linkHover, bg: 'whiteAlpha.100' }}>
                         <HiOutlineUserCircle size={18} style={{ marginRight: 6 }} />
-                        <Box as="span" color={resolveDisplayNameColor(user.displayNameColor, linkColor)}>
-                          {user.username}
-                        </Box>
+                        <DisplayNameText
+                          name={user.username}
+                          displayNameColor={user.displayNameColor}
+                          fallbackColor={linkColor}
+                        />
                       </Button>
                     </Menu.Trigger>
                     <Menu.Positioner>

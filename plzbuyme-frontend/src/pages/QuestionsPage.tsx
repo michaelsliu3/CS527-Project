@@ -32,7 +32,7 @@ import { useAuth } from '../context/AuthContext'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
 import { APP_PAGE_PX } from '../theme/layout'
-import { resolveDisplayNameColor } from '../utils/displayNameColor'
+import { DisplayNameText } from '../components/DisplayNameText'
 
 interface AskQuestionFormValues {
   subject: string
@@ -189,9 +189,11 @@ export function QuestionsPage() {
                 {q.subject}
               </Text>
               <Text color={dark.muted} fontSize="sm" mb={2}>
-                <Box as="span" color={resolveDisplayNameColor(q.usernameDisplayNameColor, dark.muted)}>
-                  {q.username}
-                </Box>{' '}
+                <DisplayNameText
+                  name={q.username}
+                  displayNameColor={q.usernameDisplayNameColor}
+                  fallbackColor={dark.muted}
+                />{' '}
                 • {formatRelativeTime(q.createdAt)}
               </Text>
               <Text color={dark.label} whiteSpace="pre-wrap" mb={3}>
@@ -203,12 +205,11 @@ export function QuestionsPage() {
                     <Box key={reply.id} pl={3} borderLeftWidth="3px" borderColor="brand.500">
                       <Flex align="center" gap={2} mb={1} wrap="wrap">
                         <Text fontSize="xs" color={dark.placeholder}>
-                          <Box
-                            as="span"
-                            color={resolveDisplayNameColor(reply.replierDisplayNameColor, dark.placeholder)}
-                          >
-                            {reply.replierDisplayName}
-                          </Box>
+                          <DisplayNameText
+                            name={reply.replierDisplayName}
+                            displayNameColor={reply.replierDisplayNameColor}
+                            fallbackColor={dark.placeholder}
+                          />
                         </Text>
                         {(() => {
                           const tag = getReplyTagLabel(reply.replierRole, reply.replierDisplayName === q.username)
