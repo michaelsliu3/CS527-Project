@@ -196,6 +196,7 @@ export function QuestionsPage() {
                   name={q.username}
                   displayNameColor={q.usernameDisplayNameColor}
                   fallbackColor={dark.muted}
+                  fontWeight="bold"
                 />{' '}
                 • {formatRelativeTime(q.createdAt)}
               </Text>
@@ -212,6 +213,7 @@ export function QuestionsPage() {
                             name={reply.replierDisplayName}
                             displayNameColor={reply.replierDisplayNameColor}
                             fallbackColor={dark.placeholder}
+                            fontWeight="bold"
                           />
                         </Text>
                         {(() => {

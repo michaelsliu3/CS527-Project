@@ -10,6 +10,7 @@ interface DisplayNameTextProps {
   name: string
   displayNameColor: string | null | undefined
   fallbackColor: string
+  fontWeight?: string | number
 }
 
 const gradientShift = keyframes`
@@ -37,7 +38,12 @@ function presetGradient(preset: string): string {
   }
 }
 
-export function DisplayNameText({ name, displayNameColor, fallbackColor }: DisplayNameTextProps) {
+export function DisplayNameText({
+  name,
+  displayNameColor,
+  fallbackColor,
+  fontWeight,
+}: DisplayNameTextProps) {
   const normalized = normalizeDisplayNameColor(displayNameColor)
 
   if (isDisplayNamePreset(normalized)) {
@@ -45,6 +51,7 @@ export function DisplayNameText({ name, displayNameColor, fallbackColor }: Displ
       <Box
         as="span"
         display="inline-block"
+        fontWeight={fontWeight}
         backgroundImage={presetGradient(normalized)}
         backgroundSize="260% 260%"
         backgroundClip="text"
@@ -57,7 +64,7 @@ export function DisplayNameText({ name, displayNameColor, fallbackColor }: Displ
   }
 
   return (
-    <Box as="span" color={resolveDisplayNameColor(displayNameColor, fallbackColor)}>
+    <Box as="span" color={resolveDisplayNameColor(displayNameColor, fallbackColor)} fontWeight={fontWeight}>
       {name}
     </Box>
   )

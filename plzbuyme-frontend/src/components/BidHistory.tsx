@@ -39,6 +39,7 @@ export function BidHistory({ bids }: BidHistoryProps) {
                     name={bid.bidderUsername}
                     displayNameColor={bid.bidderDisplayNameColor}
                     fallbackColor="white"
+                    fontWeight="bold"
                   />
                   {bid.isAuto && (
                     <Badge ml={2} size="sm" colorPalette="blue" variant="subtle">

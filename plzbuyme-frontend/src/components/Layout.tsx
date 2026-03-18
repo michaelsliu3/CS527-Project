@@ -141,6 +141,7 @@ export function Layout() {
                           name={user.username}
                           displayNameColor={user.displayNameColor}
                           fallbackColor={linkColor}
+                          fontWeight="bold"
                         />
                       </Button>
                     </Menu.Trigger>

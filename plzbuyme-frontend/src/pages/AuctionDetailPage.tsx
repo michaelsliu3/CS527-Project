@@ -165,7 +165,7 @@ export function AuctionDetailPage() {
     <Container maxW="container.lg" px={APP_PAGE_PX}>
       <Box mb={6}>
         <Flex align="center" gap={2} mb={2}>
-          <Heading size="lg" color="white">
+          <Heading size="lg" color="white" fontWeight="extrabold">
             {auction.title}
           </Heading>
           <Badge colorPalette={statusColor} size="sm">
@@ -178,6 +178,7 @@ export function AuctionDetailPage() {
             name={auction.sellerUsername}
             displayNameColor={auction.sellerDisplayNameColor}
             fallbackColor={dark.muted}
+            fontWeight="bold"
           />
         </Text>
         {auction.status === 'active' && (

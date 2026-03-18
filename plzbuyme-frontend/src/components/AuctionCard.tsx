@@ -46,7 +46,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
         <Card.Body p={4}>
           <Flex align="flex-start" justify="space-between" gap={2} mb={2}>
             <Box overflow="hidden" textOverflow="ellipsis" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as 'vertical' }}>
-            <Heading size="sm" color="white">
+            <Heading size="sm" color="white" fontWeight="extrabold">
               {auction.title}
             </Heading>
           </Box>
@@ -70,6 +70,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                 name={auction.sellerUsername}
                 displayNameColor={auction.sellerDisplayNameColor}
                 fallbackColor={dark.muted}
+                fontWeight="bold"
               />{' '}
               · {auction.bidCount} bid{auction.bidCount !== 1 ? 's' : ''}
             </Text>
