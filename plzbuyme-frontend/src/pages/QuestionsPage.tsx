@@ -125,7 +125,10 @@ export function QuestionsPage() {
 
   const isRepOrAdmin = user?.role === 'customer_rep' || user?.role === 'admin'
   const canAskQuestion =
-    user?.role === 'end_user' || user?.role === 'vip' || user?.role === 'admin'
+    user?.role === 'end_user' ||
+    user?.role === 'vip' ||
+    user?.role === 'customer_rep' ||
+    user?.role === 'admin'
 
   return (
     <Container maxW="container.lg" px={APP_PAGE_PX}>

@@ -65,8 +65,8 @@ describe('QuestionsPage ask question access', () => {
     expect(await screen.findByRole('button', { name: /Ask a Question/i })).toBeInTheDocument()
   })
 
-  it('does not show Ask a Question for customer reps', async () => {
+  it('shows Ask a Question for customer reps', async () => {
     renderQuestionsPage('customer_rep')
-    expect(screen.queryByRole('button', { name: /Ask a Question/i })).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Ask a Question/i })).toBeInTheDocument()
   })
 })

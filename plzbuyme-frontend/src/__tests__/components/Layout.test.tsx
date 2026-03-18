@@ -69,5 +69,13 @@ describe('Layout navbar role links', () => {
     expect(screen.getByRole('link', { name: /My Auctions/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Alerts/i })).toBeInTheDocument()
   })
+
+  it('shows sell and alerts links for customer reps', async () => {
+    renderWithProviders('customer_rep')
+
+    expect(await screen.findByRole('link', { name: /Sell/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /My Auctions/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Alerts/i })).toBeInTheDocument()
+  })
 })
 

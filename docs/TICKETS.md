@@ -400,6 +400,23 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
+## PBM-23 — Rich text comments in forums (Markdown/HTML)
+
+**Layer:** Backend + Frontend
+**Branch:** `PBM-23/questions-rich-text-comments`
+**PR Title:** `[PBM-23] support markdown/sanitized html rendering for question and reply comments`
+
+- Add support for rich text formatting in forums comments (`QuestionsPage`) so users can write formatted question bodies and replies.
+- Backend: define the accepted format strategy (Markdown and/or sanitized HTML), validate payload size, and sanitize/normalize stored content to prevent XSS.
+- Backend: ensure existing plain-text comments remain compatible and render correctly after migration/format changes.
+- Frontend: add a composer UX for comments with formatting help (e.g., bold/italic/code/link/list examples) and optional preview mode before submit.
+- Frontend: render rich content consistently for question bodies and reply bodies while preserving line breaks and safe fallback for malformed input.
+- Security: enforce strict allowlist sanitization for tags/attributes/links and block script/event-handler injection attempts.
+- **Tests:** backend tests for sanitization rules and payload validation; frontend tests for composer submit payload, preview behavior, and safe rendering/fallback for markdown/html content.
+- **Do not implement yet** — ticket placeholder for tracking.
+
+---
+
 ## Bugs
 
 ### PBM-BUG-1 — Login state lost on page refresh ✅

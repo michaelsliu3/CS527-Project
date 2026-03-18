@@ -15,7 +15,7 @@ const NOTIFICATION_POLL_INTERVAL_MS = 5_000
 const linkColor = dark.muted
 const linkHover = '#ffffff'
 const canUseEndUserFeatures = (role: string) =>
-  role === 'end_user' || role === 'vip' || role === 'admin'
+  role === 'end_user' || role === 'vip' || role === 'customer_rep' || role === 'admin'
 
 export function Layout() {
   const { user, loading, logout } = useAuth()
