@@ -28,7 +28,7 @@ describe('AuctionListPage', () => {
   })
 
   it('fetches and renders paginated results', async () => {
-    vi.mocked(api.browseAuctions).mockResolvedValueOnce({
+    vi.mocked(api.browseAuctions).mockResolvedValue({
       data: {
         items: [
           {
@@ -55,13 +55,13 @@ describe('AuctionListPage', () => {
     await waitFor(() => {
       expect(api.browseAuctions).toHaveBeenCalled()
     })
-    expect(screen.getByText('Test Car')).toBeInTheDocument()
-    expect(screen.getByText('$15,000')).toBeInTheDocument()
-    expect(screen.getByText(/1 total/)).toBeInTheDocument()
+    expect(await screen.findByText('Test Car')).toBeInTheDocument()
+    expect(await screen.findByText('$15,000')).toBeInTheDocument()
+    expect(await screen.findByText(/1 total/)).toBeInTheDocument()
   })
 
   it('shows no auctions message when empty', async () => {
-    vi.mocked(api.browseAuctions).mockResolvedValueOnce({
+    vi.mocked(api.browseAuctions).mockResolvedValue({
       data: {
         items: [],
         totalCount: 0,
@@ -77,6 +77,6 @@ describe('AuctionListPage', () => {
     await waitFor(() => {
       expect(api.browseAuctions).toHaveBeenCalled()
     })
-    expect(screen.getByText(/No auctions found/)).toBeInTheDocument()
+    expect(await screen.findByText(/No auctions found/)).toBeInTheDocument()
   })
 })

@@ -31,6 +31,7 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
+import { APP_PAGE_PX } from '../theme/layout'
 
 interface AskQuestionFormValues {
   subject: string
@@ -125,7 +126,7 @@ export function QuestionsPage() {
   const canAskQuestion = user?.role === 'end_user' || user?.role === 'admin'
 
   return (
-    <Container maxW="container.lg">
+    <Container maxW="container.lg" px={APP_PAGE_PX}>
       <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={4}>
         <Text fontSize="2xl" fontWeight="bold" color="white">
           Q&A

@@ -22,6 +22,7 @@ import {
 } from '../api/categories'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
+import { APP_PAGE_PX } from '../theme/layout'
 
 interface CreateFormValues {
   title: string
@@ -139,7 +140,7 @@ export function CreateAuctionPage() {
 
   if (!user) {
     return (
-      <Container maxW="container.md">
+      <Container maxW="container.md" px={APP_PAGE_PX}>
         <Text color={dark.muted}>Please log in to create an auction.</Text>
       </Container>
     )
@@ -199,7 +200,7 @@ export function CreateAuctionPage() {
   const minCloseStr = minClose.toISOString().slice(0, 16)
 
   return (
-    <Container maxW="container.md">
+    <Container maxW="container.md" px={APP_PAGE_PX}>
       <Heading size="lg" mb={6} color="white">
         Create auction
       </Heading>

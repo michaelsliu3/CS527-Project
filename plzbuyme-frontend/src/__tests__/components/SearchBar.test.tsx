@@ -6,9 +6,14 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { SearchBar } from '../../components/SearchBar'
 import { system } from '../../theme'
 import * as auctions from '../../api/auctions'
+import * as categoriesApi from '../../api/categories'
 
 vi.mock('../../api/auctions', () => ({
   getFieldValues: vi.fn(),
+}))
+
+vi.mock('../../api/categories', () => ({
+  fetchCategories: vi.fn(),
 }))
 
 function renderSearchBar(initialEntry = '/auctions') {
@@ -26,6 +31,23 @@ function renderSearchBar(initialEntry = '/auctions') {
 describe('SearchBar', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(categoriesApi.fetchCategories).mockResolvedValue({
+      data: [
+        {
+          id: 1,
+          name: 'Cars',
+          parentId: null,
+          children: [
+            { id: 2, name: 'Sedans', parentId: 1, children: [] },
+            { id: 3, name: 'SUVs', parentId: 1, children: [] },
+          ],
+        },
+      ],
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as unknown as Awaited<ReturnType<typeof categoriesApi.fetchCategories>>)
   })
 
   it('has keyword input and Search button and submits without error', async () => {
@@ -67,5 +89,19 @@ describe('SearchBar', () => {
     renderSearchBar('/auctions?categoryId=2')
     expect(screen.getByRole('option', { name: /Year: newest/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /Mileage: low to high/i })).toBeInTheDocument()
+  })
+
+  it('shows top category bar and applies selection', async () => {
+    const user = userEvent.setup()
+    renderSearchBar('/auctions')
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /All Cars/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Sedans/i })).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /SUVs/i }))
+
+    expect(screen.getByPlaceholderText(/e.g. Toyota/i)).toBeInTheDocument()
   })
 })

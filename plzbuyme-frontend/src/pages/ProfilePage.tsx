@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { apiClient } from '../api/client'
 import { dark } from '../theme/colors'
+import { APP_PAGE_PX } from '../theme/layout'
 
 interface Profile {
   id: number
@@ -65,7 +66,7 @@ export function ProfilePage() {
 
   if (loading) {
     return (
-      <Container maxW="md">
+      <Container maxW="md" px={APP_PAGE_PX}>
         <Box display="flex" justifyContent="center" py={8}>
           <Spinner size="lg" />
         </Box>
@@ -76,7 +77,7 @@ export function ProfilePage() {
   if (loadError || (!profile && !user)) {
     if (loadError) {
       return (
-        <Container maxW="md">
+        <Container maxW="md" px={APP_PAGE_PX}>
           <Card.Root p={6} bg={dark.cardBg} borderColor={dark.borderSubtle} borderWidth="1px">
             <Card.Body color={dark.muted}>Failed to load profile.</Card.Body>
           </Card.Root>
@@ -90,7 +91,7 @@ export function ProfilePage() {
   if (!displayProfile) return null
 
   return (
-    <Container maxW="md">
+    <Container maxW="md" px={APP_PAGE_PX}>
       <Card.Root p={6} bg={dark.cardBg} borderColor={dark.borderSubtle} borderWidth="1px">
         <Card.Header>
           <Card.Title color="white">Profile</Card.Title>

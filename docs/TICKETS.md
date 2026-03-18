@@ -290,21 +290,22 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-16 — Auction search UI redesign
+## PBM-16 — Auction search UI redesign ✅
 
 **Layer:** Frontend
 **Branch:** `PBM-16/auction-search-ui-redesign`
 **PR Title:** `[PBM-16] redesign auction search UI layout, format, and styling`
 
-- Redesign the entire auction search experience (`AuctionListPage` + `SearchBar`) with a new layout and stronger visual hierarchy.
-- Replace current filter/form presentation with a cleaner, more scalable structure (grouped filters, clearer labels, improved spacing, consistent control states).
-- Refresh result card/list formatting and page composition for readability, scanability, and responsive behavior across desktop/tablet/mobile.
-- Standardize component styling and interaction states (default, hover, active, focus, disabled) with shared Chakra theme tokens.
-- Include loading, empty, and error states in the redesign to ensure a complete and consistent user experience.
+- Restructured `AuctionListPage` into a two-part search experience: a top search/category bar plus a dedicated filter sidebar (`SearchBar` `variant="top"` + `variant="filters"`), with responsive desktop/mobile behavior.
+- Implemented top-category quick selectors (including Cars root + subcategories) and preserved relevant filter inputs when switching categories so users do not lose in-progress search criteria.
+- Expanded and polished filter controls in `SearchBar` (grouped sections, improved spacing, quick price presets, date controls, and car-specific filter/sort options such as year/mileage).
+- Updated browse results presentation and pagination composition, and ensured explicit loading/empty/error states remain consistent in the redesigned page flow.
+- Backend search behavior was refined to use wildcard matching for `q` against title/description so the redesigned search UI aligns with expected keyword matching behavior.
+- Standardized horizontal page spacing across app pages via shared `APP_PAGE_PX` layout token, and added/updated `SearchBar` tests covering key redesigned interactions.
 
 ---
 
-## PBM-17 — Admin user role management in Rep dashboard
+## PBM-17 — Admin user role management in Rep dashboard ✅
 
 **Layer:** Backend + Frontend
 **Branch:** `PBM-17/admin-role-management-rep-dashboard`
@@ -367,9 +368,41 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
+## PBM-21 — Advanced auction item cards with richer visuals
+
+**Layer:** Frontend
+**Branch:** `PBM-21/advanced-auction-item-cards`
+**PR Title:** `[PBM-21] upgrade auction item cards with images, improved countdown, and richer text formatting`
+
+- Redesign auction result cards (`AuctionCard`) with a stronger visual hierarchy and modern card layout optimized for desktop and mobile.
+- Add item image support in cards (thumbnail + fallback placeholder when no image exists), including consistent image aspect ratio, object-fit behavior, and lazy-loading.
+- Replace the current timer presentation with a clearer real-time countdown component (days/hours/minutes/seconds), urgency color states, and expired/closed formatting.
+- Improve text formatting for title/price/status/meta data (seller, category, bids, close time) with better typography, spacing, truncation, and alignment for scanability.
+- Add optional highlight badges/tags for high-signal states (e.g., `Ending soon`, `Reserve met`, `No reserve`, `Newly listed`) when data is available.
+- Ensure accessible semantics and keyboard focus states for the full card click target and internal actions.
+- **Tests:** add/extend frontend tests for image fallback rendering, countdown state transitions (active/ending-soon/expired), and card text truncation/metadata display.
+
+---
+
+## PBM-22 — Advanced top filter bar with category preview dropdown
+
+**Layer:** Frontend
+**Branch:** `PBM-22/advanced-top-filter-bar`
+**PR Title:** `[PBM-22] redesign top filter bar with category dropdown item previews`
+
+- Redesign the top filter/search bar on the auction browse page for a cleaner, more modern layout and clearer quick-filter interactions.
+- Add a rich category dropdown experience that previews matching items in the selected category with thumbnail image, item title, current price, and key metadata at a glance.
+- Support typeahead within category context so users can quickly scan and select items from the dropdown without leaving the filter flow.
+- Ensure dropdown preview rows are responsive, keyboard-navigable, and accessible (focus states, arrow navigation, enter-to-select, and screen-reader labels).
+- Define loading/empty/error states for dropdown content (skeleton rows, no-results state, and retry behavior) so the filter bar feels reliable.
+- Keep selection behavior consistent with existing query param/search behavior so choosing a preview item/category updates results deterministically.
+- **Tests:** add/extend frontend tests for dropdown preview rendering (image/title/price), keyboard navigation, select-to-filter behavior, and loading/empty/error states.
+
+---
+
 ## Bugs
 
-### PBM-BUG-1 — Login state lost on page refresh
+### PBM-BUG-1 — Login state lost on page refresh ✅
 
 **Layer:** Frontend  
 **Branch:** `PBM-BUG-1/fix-session-persistence`  
@@ -397,6 +430,17 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
   - Improve admin-facing CTA consistency in dashboard/reports screens.
   - Add/adjust regression tests for role-based nav visibility and Q&A ask access behavior.
 - **Validation completed:** Targeted frontend unit tests for touched role-gated flows and manual visual checks for updated button/CTA consistency in touched pages.
+
+### PBM-STYLE-2 — Ongoing UI styling consistency backlog
+
+**Layer:** Frontend  
+**Branch:** `PBM-STYLE-2/frontend-styling-backlog`  
+**PR Title:** `[PBM-STYLE-2] apply ongoing UI styling consistency fixes`
+
+- **Scope:** Ongoing ticket to capture and implement incremental visual/style consistency fixes discovered during regular usage and QA review.
+- **Initial issue:** On `MyAuctionsPage`, the `All` / `Active` / `Sold` / `Closed` filter controls are not visually consistent with the established action button style used by `Set auto-bid`.
+- **Goal:** Standardize control appearance and interaction states (default, hover, active, focus, disabled) using existing Chakra theme tokens/components so related actions feel cohesive across pages.
+- **Validation:** Add/extend targeted frontend tests where practical and perform manual UI checks on touched screens.
 
 ### PBM-BUG-2 — General bug triage and stabilization sweep
 
