@@ -68,7 +68,12 @@ const sectionToggleButtonProps = {
   _hover: { bg: 'transparent', color: 'white' },
   _active: { bg: 'transparent', color: 'white' },
   _focusVisible: { bg: 'transparent', color: 'white', boxShadow: 'none' },
-  _expanded: { bg: 'transparent', color: 'white' },
+  _expanded: { bg: 'transparent', color: 'white', pb: 5 },
+} as const
+
+const sectionContentPadding = {
+  pt: 0,
+  pb: 4,
 } as const
 
 function getPriceRangeFromSearchParams(searchParams: URLSearchParams): [number, number] {
@@ -683,7 +688,8 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                 <SimpleGrid
                   columns={1}
                   gap={3}
-                  py={openSections.price ? 4 : 0}
+                  pt={openSections.price ? sectionContentPadding.pt : 0}
+                  pb={openSections.price ? sectionContentPadding.pb : 0}
                   overflow="hidden"
                   minH={0}
                 >
@@ -831,7 +837,8 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                 <SimpleGrid
                   columns={1}
                   gap={3}
-                  py={openSections.listing ? 4 : 0}
+                  pt={openSections.listing ? sectionContentPadding.pt : 0}
+                  pb={openSections.listing ? sectionContentPadding.pb : 0}
                   overflow="hidden"
                   minH={0}
                 >
@@ -922,7 +929,8 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                     <SimpleGrid
                       columns={1}
                       gap={3}
-                      py={openSections.carBasics ? 4 : 0}
+                      pt={openSections.carBasics ? sectionContentPadding.pt : 0}
+                      pb={openSections.carBasics ? sectionContentPadding.pb : 0}
                       overflow="hidden"
                       minH={0}
                     >
@@ -1065,7 +1073,8 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                   </Button>
                   <Box {...sectionAnimationProps(openSections.condition)}>
                     <Box
-                      py={openSections.condition ? 4 : 0}
+                      pt={openSections.condition ? sectionContentPadding.pt : 0}
+                      pb={openSections.condition ? sectionContentPadding.pb : 0}
                       overflow="hidden"
                       minH={0}
                     >
@@ -1138,7 +1147,8 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                   </Button>
                   <Box {...sectionAnimationProps(openSections.transmission)}>
                     <Box
-                      py={openSections.transmission ? 4 : 0}
+                      pt={openSections.transmission ? sectionContentPadding.pt : 0}
+                      pb={openSections.transmission ? sectionContentPadding.pb : 0}
                       overflow="hidden"
                       minH={0}
                     >
@@ -1186,7 +1196,8 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                   </Button>
                   <Box {...sectionAnimationProps(openSections.fuelType)}>
                     <Box
-                      py={openSections.fuelType ? 4 : 0}
+                      pt={openSections.fuelType ? sectionContentPadding.pt : 0}
+                      pb={openSections.fuelType ? sectionContentPadding.pb : 0}
                       overflow="hidden"
                       minH={0}
                     >
