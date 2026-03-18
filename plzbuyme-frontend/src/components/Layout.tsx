@@ -6,6 +6,7 @@ import { listNotifications, markNotificationRead } from '../api/notifications'
 import { showErrorToast, showNotificationToast } from './ui/toaster'
 import { HiOutlineBell, HiOutlineUserCircle } from 'react-icons/hi'
 import { dark } from '../theme/colors'
+import { APP_PAGE_PX } from '../theme/layout'
 
 /** How often to poll for new notifications while the user is logged in (used for badge + real-time toasts). */
 const NOTIFICATION_POLL_INTERVAL_MS = 5_000
@@ -93,7 +94,7 @@ export function Layout() {
   return (
     <Box minH="100vh" bg={dark.bg} color="white">
       <Box as="nav" borderBottomWidth="1px" borderColor={dark.borderSubtle} py={3} bg={dark.navBg}>
-        <Container maxW="container.xl">
+        <Container maxW="container.xl" px={APP_PAGE_PX}>
           <Flex align="center" justify="space-between" gap={4}>
             <RouterLink to="/">
               <Heading size="md" color="brand.400">

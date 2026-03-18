@@ -31,6 +31,7 @@ import { showErrorToast, showSuccessToast } from '../../components/ui/toaster'
 import { dark } from '../../theme/colors'
 import { tableStyles, thBase, tdStyle } from '../../theme/tableStyles'
 import { useAuth } from '../../context/AuthContext'
+import { APP_PAGE_PX } from '../../theme/layout'
 
 const PAGE_SIZE = 10
 
@@ -77,7 +78,7 @@ function roleToLabel(role?: string | null): 'User' | 'Rep' | 'Admin' {
 
 export function RepDashboard() {
   return (
-    <Container maxW="container.xl" py={6}>
+    <Container maxW="container.xl" py={6} px={APP_PAGE_PX}>
       <Text fontSize="2xl" fontWeight="bold" color="white" mb={6}>
         Rep Dashboard
       </Text>

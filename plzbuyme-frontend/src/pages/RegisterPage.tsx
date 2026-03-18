@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext'
 import { isAxiosError } from 'axios'
 import { HiEye, HiEyeOff } from 'react-icons/hi'
 import { dark } from '../theme/colors'
+import { APP_PAGE_PX } from '../theme/layout'
 
 interface RegisterForm {
   username: string
@@ -101,8 +102,8 @@ export function RegisterPage() {
   }
 
   return (
-    <Flex className="dark" minH="100vh" align="center" justify="center" bg={dark.bg} px={4} py={10}>
-      <Container maxW="md" p={0}>
+    <Flex className="dark" minH="100vh" align="center" justify="center" bg={dark.bg} px={3} py={10}>
+      <Container maxW="md" p={0} px={APP_PAGE_PX}>
         <Stack gap={8} align="center">
           <Heading size="lg" fontWeight="bold" color="brand.400">
             plzbuy.me

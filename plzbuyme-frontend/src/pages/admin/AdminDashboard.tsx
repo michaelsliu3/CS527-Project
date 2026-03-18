@@ -5,6 +5,7 @@ import { isAxiosError } from 'axios'
 import { createRep, type CreateRepDto } from '../../api/admin'
 import { showErrorToast, showSuccessToast } from '../../components/ui/toaster'
 import { dark } from '../../theme/colors'
+import { APP_PAGE_PX } from '../../theme/layout'
 
 export function AdminDashboard() {
   const form = useForm<CreateRepDto>({
@@ -31,7 +32,7 @@ export function AdminDashboard() {
   }
 
   return (
-    <Container maxW="container.md" py={6}>
+    <Container maxW="container.md" py={6} px={APP_PAGE_PX}>
       <Text fontSize="2xl" fontWeight="bold" color="white" mb={6}>
         Admin Dashboard
       </Text>

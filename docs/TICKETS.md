@@ -304,7 +304,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-17 — Admin user role management in Rep dashboard
+## PBM-17 — Admin user role management in Rep dashboard ✅
 
 **Layer:** Backend + Frontend
 **Branch:** `PBM-17/admin-role-management-rep-dashboard`
@@ -369,7 +369,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ## Bugs
 
-### PBM-BUG-1 — Login state lost on page refresh
+### PBM-BUG-1 — Login state lost on page refresh ✅
 
 **Layer:** Frontend  
 **Branch:** `PBM-BUG-1/fix-session-persistence`  
@@ -397,6 +397,17 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
   - Improve admin-facing CTA consistency in dashboard/reports screens.
   - Add/adjust regression tests for role-based nav visibility and Q&A ask access behavior.
 - **Validation completed:** Targeted frontend unit tests for touched role-gated flows and manual visual checks for updated button/CTA consistency in touched pages.
+
+### PBM-STYLE-2 — Ongoing UI styling consistency backlog
+
+**Layer:** Frontend  
+**Branch:** `PBM-STYLE-2/frontend-styling-backlog`  
+**PR Title:** `[PBM-STYLE-2] apply ongoing UI styling consistency fixes`
+
+- **Scope:** Ongoing ticket to capture and implement incremental visual/style consistency fixes discovered during regular usage and QA review.
+- **Initial issue:** On `MyAuctionsPage`, the `All` / `Active` / `Sold` / `Closed` filter controls are not visually consistent with the established action button style used by `Set auto-bid`.
+- **Goal:** Standardize control appearance and interaction states (default, hover, active, focus, disabled) using existing Chakra theme tokens/components so related actions feel cohesive across pages.
+- **Validation:** Add/extend targeted frontend tests where practical and perform manual UI checks on touched screens.
 
 ### PBM-BUG-2 — General bug triage and stabilization sweep
 

@@ -6,6 +6,7 @@ import { AuctionCard } from '../components/AuctionCard'
 import { SearchBar } from '../components/SearchBar'
 import { showErrorToast } from '../components/ui/toaster'
 import { dark } from '../theme/colors'
+import { APP_PAGE_PX } from '../theme/layout'
 
 function buildBrowseParams(searchParams: URLSearchParams): BrowseParams {
   const params: BrowseParams = {}
@@ -96,7 +97,7 @@ export function AuctionListPage() {
   }
 
   return (
-    <Container maxW="container.xl">
+    <Container maxW="container.xl" px={APP_PAGE_PX}>
       <SearchBar variant="top" />
 
       <Flex direction={{ base: 'column', lg: 'row' }} gap={4} align="flex-start">

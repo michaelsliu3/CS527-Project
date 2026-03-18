@@ -5,7 +5,6 @@ using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos;
 using PlzBuyMe.Api.Dtos.Auctions;
 using PlzBuyMe.Api.Models;
-using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 
 namespace PlzBuyMe.Api.Services;
 
@@ -228,7 +227,10 @@ public class AuctionService : IAuctionService
         if (!string.IsNullOrWhiteSpace(query.Q))
         {
             var term = query.Q.Trim();
-            q = q.Where(i => EF.Functions.Match(new[] { i.Title, i.Description ?? string.Empty }, term, MySqlMatchSearchMode.NaturalLanguage) > 0);
+            var likePattern = $"%{term}%";
+            q = q.Where(i =>
+                EF.Functions.Like(i.Title, likePattern) ||
+                (i.Description != null && EF.Functions.Like(i.Description, likePattern)));
         }
         if (query.CategoryId.HasValue)
             q = q.Where(i => i.CategoryId == query.CategoryId.Value);

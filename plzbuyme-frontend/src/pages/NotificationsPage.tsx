@@ -11,6 +11,7 @@ import {
 import { HiOutlineTrophy } from 'react-icons/hi2'
 import { listNotifications, markNotificationRead, markAllNotificationsRead, type NotificationItem } from '../api/notifications'
 import { dark } from '../theme/colors'
+import { APP_PAGE_PX } from '../theme/layout'
 
 const NOTIFICATION_ICONS: Record<string, React.ElementType> = {
   outbid: HiOutlineExclamation,
@@ -102,7 +103,7 @@ export function NotificationsPage() {
   const hasUnread = items.some((i) => !i.isRead)
 
   return (
-    <Container maxW="container.md">
+    <Container maxW="container.md" px={APP_PAGE_PX}>
       <Flex justify="space-between" align="center" mb={6}>
         <Text fontSize="2xl" fontWeight="bold" color="white">
           Notifications

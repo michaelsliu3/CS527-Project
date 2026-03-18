@@ -1,11 +1,12 @@
 import { Box, Button, Container, Heading, Text } from '@chakra-ui/react'
 import { useNavigate } from 'react-router-dom'
 import { dark } from '../theme/colors'
+import { APP_PAGE_PX } from '../theme/layout'
 
 export function HomePage() {
   const navigate = useNavigate()
   return (
-    <Container maxW="container.md">
+    <Container maxW="container.md" px={APP_PAGE_PX}>
       <Box textAlign="center" py={12}>
         <Heading size="xl" mb={4} color="white">
           Welcome to plzbuy.me

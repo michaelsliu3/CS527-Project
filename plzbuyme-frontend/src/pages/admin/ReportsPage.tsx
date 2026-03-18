@@ -25,10 +25,11 @@ import {
 import { showErrorToast } from '../../components/ui/toaster'
 import { dark } from '../../theme/colors'
 import { tableStyles, thBase, tdStyle } from '../../theme/tableStyles'
+import { APP_PAGE_PX } from '../../theme/layout'
 
 export function ReportsPage() {
   return (
-    <Container maxW="container.xl" py={6}>
+    <Container maxW="container.xl" py={6} px={APP_PAGE_PX}>
       <Flex justify="space-between" align="center" mb={6}>
         <Text fontSize="2xl" fontWeight="bold" color="white">
           Reports

@@ -27,6 +27,7 @@ import { AuctionCard } from '../components/AuctionCard'
 import { showErrorToast } from '../components/ui/toaster'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
+import { APP_PAGE_PX } from '../theme/layout'
 
 function formatCountdown(closeDateTime: string): string {
   const end = new Date(closeDateTime).getTime()
@@ -147,7 +148,7 @@ export function AuctionDetailPage() {
 
   if (error || !auction) {
     return (
-      <Container maxW="container.md">
+      <Container maxW="container.md" px={APP_PAGE_PX}>
         <Text color="red.400">{error ?? 'Not found.'}</Text>
         <Button mt={4} variant="outline" onClick={() => navigate('/auctions')}>
           Back to listings
@@ -160,7 +161,7 @@ export function AuctionDetailPage() {
     auction.status === 'active' ? 'green' : auction.status === 'sold' ? 'blue' : 'gray'
 
   return (
-    <Container maxW="container.lg">
+    <Container maxW="container.lg" px={APP_PAGE_PX}>
       <Box mb={6}>
         <Flex align="center" gap={2} mb={2}>
           <Heading size="lg" color="white">

@@ -3,6 +3,7 @@ import { Container, Flex, SimpleGrid, Spinner, Text, Button } from '@chakra-ui/r
 import { getMyAuctions, type AuctionListItem } from '../api/auctions'
 import { AuctionCard } from '../components/AuctionCard'
 import { dark } from '../theme/colors'
+import { APP_PAGE_PX } from '../theme/layout'
 
 const STATUS_TABS = [
   { value: '', label: 'All' },
@@ -27,7 +28,7 @@ export function MyAuctionsPage() {
   }, [statusFilter])
 
   return (
-    <Container maxW="container.xl">
+    <Container maxW="container.xl" px={APP_PAGE_PX}>
       <Text fontSize="2xl" fontWeight="bold" color="white" mb={4}>
         My auctions
       </Text>
