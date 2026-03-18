@@ -24,6 +24,7 @@ import {
 } from '../api/auctions'
 import { BidHistory } from '../components/BidHistory'
 import { AuctionCard } from '../components/AuctionCard'
+import { DisplayNameText } from '../components/DisplayNameText'
 import { showErrorToast } from '../components/ui/toaster'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
@@ -172,7 +173,12 @@ export function AuctionDetailPage() {
           </Badge>
         </Flex>
         <Text color={dark.muted}>
-          {auction.categoryName} · by {auction.sellerUsername}
+          {auction.categoryName} · by{' '}
+          <DisplayNameText
+            name={auction.sellerUsername}
+            displayNameColor={auction.sellerDisplayNameColor}
+            fallbackColor={dark.muted}
+          />
         </Text>
         {auction.status === 'active' && (
           <Text fontSize="sm" color={dark.muted} mt={1}>

@@ -3,6 +3,7 @@ import { Link as RouterLink } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import type { AuctionListItem } from '../api/auctions'
 import { dark } from '../theme/colors'
+import { DisplayNameText } from './DisplayNameText'
 
 function formatCountdown(closeDateTime: string): string {
   const end = new Date(closeDateTime).getTime()
@@ -64,7 +65,13 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               {auction.categoryName}
             </Badge>
             <Text fontSize="xs" color={dark.muted}>
-              by {auction.sellerUsername} · {auction.bidCount} bid{auction.bidCount !== 1 ? 's' : ''}
+              by{' '}
+              <DisplayNameText
+                name={auction.sellerUsername}
+                displayNameColor={auction.sellerDisplayNameColor}
+                fallbackColor={dark.muted}
+              />{' '}
+              · {auction.bidCount} bid{auction.bidCount !== 1 ? 's' : ''}
             </Text>
           </Flex>
         </Card.Body>

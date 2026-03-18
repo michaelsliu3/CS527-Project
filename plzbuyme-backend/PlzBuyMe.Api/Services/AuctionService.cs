@@ -316,6 +316,7 @@ public class AuctionService : IAuctionService
                     Status = i.Status.ToString().ToLowerInvariant(),
                     CategoryName = i.Category.Name,
                     SellerUsername = i.Seller.Username,
+                    SellerDisplayNameColor = i.Seller.DisplayNameColor,
                     BidCount = i.Bids.Count
                 })
                 .ToListAsync();
@@ -337,6 +338,7 @@ public class AuctionService : IAuctionService
                     Status = i.Status.ToString().ToLowerInvariant(),
                     CategoryName = i.Category.Name,
                     SellerUsername = i.Seller.Username,
+                    SellerDisplayNameColor = i.Seller.DisplayNameColor,
                     BidCount = i.Bids.Count
                 })
                 .ToListAsync();
@@ -500,6 +502,7 @@ public class AuctionService : IAuctionService
             {
                 Id = b.Id,
                 BidderUsername = b.Bidder.Username,
+                BidderDisplayNameColor = b.Bidder.DisplayNameColor,
                 Amount = b.Amount,
                 IsAuto = b.IsAuto,
                 CreatedAt = b.CreatedAt
@@ -515,6 +518,7 @@ public class AuctionService : IAuctionService
             CategoryName = item.Category.Name,
             SellerId = item.SellerId,
             SellerUsername = item.Seller.Username,
+            SellerDisplayNameColor = item.Seller.DisplayNameColor,
             InitialPrice = item.InitialPrice,
             BidIncrement = item.BidIncrement,
             CurrentPrice = item.CurrentPrice,
@@ -548,6 +552,7 @@ public class AuctionService : IAuctionService
                 Status = i.Status.ToString().ToLowerInvariant(),
                 CategoryName = i.Category.Name,
                 SellerUsername = i.Seller.Username,
+                SellerDisplayNameColor = i.Seller.DisplayNameColor,
                 BidCount = i.Bids.Count
             })
             .ToListAsync();
@@ -585,6 +590,7 @@ public class AuctionService : IAuctionService
                 Status = x.Item.Status.ToString().ToLowerInvariant(),
                 CategoryName = x.Item.Category.Name,
                 SellerUsername = x.Item.Seller.Username,
+                SellerDisplayNameColor = x.Item.Seller.DisplayNameColor,
                 BidCount = x.Item.Bids.Count
             })
             .ToList();
@@ -614,6 +620,7 @@ public class AuctionService : IAuctionService
                 Status = i.Status.ToString().ToLowerInvariant(),
                 CategoryName = i.Category.Name,
                 SellerUsername = i.Seller.Username,
+                SellerDisplayNameColor = i.Seller.DisplayNameColor,
                 BidCount = i.Bids.Count
             })
             .ToListAsync();

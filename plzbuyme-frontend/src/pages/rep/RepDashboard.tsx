@@ -817,7 +817,13 @@ function RepAuctionsTab() {
                       <td style={{ ...cellStyle, textAlign: 'left' }}>
                         <Badge size="sm">{a.status}</Badge>
                       </td>
-                      <td style={{ ...cellStyle, textAlign: 'left', color: dark.muted }}>{a.sellerUsername}</td>
+                      <td style={{ ...cellStyle, textAlign: 'left', color: dark.muted }}>
+                        <DisplayNameText
+                          name={a.sellerUsername}
+                          displayNameColor={a.sellerDisplayNameColor}
+                          fallbackColor={dark.muted}
+                        />
+                      </td>
                       <td style={{ ...cellStyle, textAlign: 'left' }}>
                         <Flex gap={2}>
                           <Button
@@ -871,7 +877,13 @@ function RepAuctionsTab() {
                         const rowKey = b.id != null ? b.id : `${b.bidderUsername}-${b.createdAt}-${idx}`
                         return (
                           <tr key={rowKey}>
-                            <td style={{ ...cellStyle, textAlign: 'left' }}>{b.bidderUsername}</td>
+                            <td style={{ ...cellStyle, textAlign: 'left' }}>
+                              <DisplayNameText
+                                name={b.bidderUsername}
+                                displayNameColor={b.bidderDisplayNameColor}
+                                fallbackColor="white"
+                              />
+                            </td>
                             <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 500 }}>
                               ${b.amount.toLocaleString()}
                               {b.isAuto && <Badge ml={2} size="sm">Auto</Badge>}
