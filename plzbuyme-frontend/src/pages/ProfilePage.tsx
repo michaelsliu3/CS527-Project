@@ -13,22 +13,27 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { apiClient } from '../api/client'
+import { showErrorToast, showSuccessToast } from '../components/ui/toaster'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
+import { normalizeDisplayNameColor, resolveDisplayNameColor } from '../utils/displayNameColor'
 
 interface Profile {
   id: number
   username: string
+  displayNameColor: string | null
   email: string
   role: string
 }
 
 export function ProfilePage() {
-  const { user, logout } = useAuth()
+  const { user, logout, updateDisplayNameColor } = useAuth()
   const navigate = useNavigate()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
+  const [colorInput, setColorInput] = useState('')
+  const [savingColor, setSavingColor] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const deleteDialog = useDisclosure()
 
@@ -37,7 +42,10 @@ export function ProfilePage() {
     apiClient
       .get<Profile>('auth/profile')
       .then(({ data }) => {
-        if (!cancelled) setProfile(data)
+        if (!cancelled) {
+          setProfile(data)
+          setColorInput(data.displayNameColor ?? '')
+        }
       })
       .catch(() => {
         if (!cancelled) setLoadError(true)
@@ -87,8 +95,56 @@ export function ProfilePage() {
     return null
   }
 
-  const displayProfile = profile ?? (user ? { id: user.id, username: user.username, email: user.email, role: user.role } : null)
+  const displayProfile =
+    profile ??
+    (user
+      ? {
+          id: user.id,
+          username: user.username,
+          displayNameColor: user.displayNameColor ?? null,
+          email: user.email,
+          role: user.role,
+        }
+      : null)
   if (!displayProfile) return null
+
+  const canCustomizeColor =
+    displayProfile.role === 'vip' ||
+    displayProfile.role === 'customer_rep' ||
+    displayProfile.role === 'admin'
+  const normalizedColor = normalizeDisplayNameColor(colorInput)
+  const colorValidationError =
+    colorInput.trim().length > 0 && !normalizedColor
+      ? 'Use a valid hex color like #A1B2C3.'
+      : null
+  const previewColor = resolveDisplayNameColor(colorInput, 'white')
+  const originalColor = displayProfile.displayNameColor ?? ''
+  const colorChanged = (normalizedColor ?? '') !== (normalizeDisplayNameColor(originalColor) ?? '')
+
+  const handleSaveColor = async () => {
+    if (!canCustomizeColor || colorValidationError || !colorChanged) return
+    setSavingColor(true)
+    try {
+      const payloadColor = normalizedColor ?? null
+      const { data } = await apiClient.patch<{ displayNameColor: string | null }>(
+        'auth/profile/display-name-color',
+        { displayNameColor: payloadColor }
+      )
+      const nextColor = data.displayNameColor ?? null
+      setProfile((prev) => (prev ? { ...prev, displayNameColor: nextColor } : prev))
+      setColorInput(nextColor ?? '')
+      updateDisplayNameColor(nextColor)
+      showSuccessToast('Name color updated')
+    } catch {
+      showErrorToast('Error', 'Failed to update display name color.')
+    } finally {
+      setSavingColor(false)
+    }
+  }
+
+  const handleResetColor = () => {
+    setColorInput('')
+  }
 
   return (
     <Container maxW="md" px={APP_PAGE_PX}>
@@ -102,6 +158,69 @@ export function ProfilePage() {
               <Field.Label color={dark.label}>Username</Field.Label>
               <Input value={displayProfile.username} readOnly disabled bg={dark.bg} borderColor={dark.borderSubtle} color="white" />
             </Field.Root>
+            {canCustomizeColor && (
+              <Field.Root>
+                <Field.Label color={dark.label}>Display name color</Field.Label>
+                <Box display="flex" flexDirection="column" gap={3}>
+                  <Box display="flex" gap={3} alignItems="center" flexWrap="wrap">
+                    <Input
+                      type="color"
+                      aria-label="Pick display name color"
+                      value={normalizedColor ?? '#FFFFFF'}
+                      onChange={(e) => setColorInput(e.target.value)}
+                      w="56px"
+                      p={1}
+                      bg={dark.bg}
+                      borderColor={dark.borderSubtle}
+                    />
+                    <Input
+                      value={colorInput}
+                      onChange={(e) => setColorInput(e.target.value)}
+                      placeholder="#A1B2C3"
+                      bg={dark.bg}
+                      borderColor={colorValidationError ? 'red.400' : dark.borderSubtle}
+                      color="white"
+                      maxLength={7}
+                    />
+                  </Box>
+                  <Box color={dark.label} fontSize="sm">
+                    Preview:{' '}
+                    <Box as="span" fontWeight="600" color={previewColor}>
+                      {displayProfile.username}
+                    </Box>
+                  </Box>
+                  {colorValidationError && (
+                    <Box color="red.400" fontSize="sm">
+                      {colorValidationError}
+                    </Box>
+                  )}
+                  <Box display="flex" gap={2}>
+                    <Button
+                      type="button"
+                      bg="brand.500"
+                      color="white"
+                      _hover={{ bg: 'brand.400' }}
+                      disabled={!colorChanged || !!colorValidationError}
+                      loading={savingColor}
+                      onClick={handleSaveColor}
+                    >
+                      Save color
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      borderColor={dark.borderSubtle}
+                      color="white"
+                      _hover={{ bg: 'whiteAlpha.100' }}
+                      disabled={!colorChanged}
+                      onClick={handleResetColor}
+                    >
+                      Reset
+                    </Button>
+                  </Box>
+                </Box>
+              </Field.Root>
+            )}
             <Field.Root>
               <Field.Label color={dark.label}>Email</Field.Label>
               <Input type="email" value={displayProfile.email} readOnly disabled bg={dark.bg} borderColor={dark.borderSubtle} color="white" />

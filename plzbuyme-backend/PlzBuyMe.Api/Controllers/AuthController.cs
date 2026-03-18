@@ -58,6 +58,31 @@ public class AuthController : ControllerBase
     }
 
     [Authorize]
+    [HttpPatch("profile/display-name-color")]
+    public async Task<IActionResult> UpdateDisplayNameColor([FromBody] UpdateDisplayNameColorDto? dto)
+    {
+        if (dto == null)
+            return BadRequest(new AuthErrorDto { Code = "ValidationError", Message = "Request body is required." });
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            return Forbid();
+
+        var result = await _authService.UpdateDisplayNameColorAsync(userId, dto.DisplayNameColor);
+        if (result.NotFound)
+            return NotFound();
+        if (result.Forbidden)
+            return Forbid();
+        if (result.ValidationError != null)
+            return BadRequest(new AuthErrorDto { Code = "ValidationError", Message = result.ValidationError });
+
+        return Ok(new UpdateDisplayNameColorDto
+        {
+            DisplayNameColor = result.DisplayNameColor
+        });
+    }
+
+    [Authorize]
     [HttpDelete("profile")]
     public async Task<IActionResult> DeleteProfile()
     {

@@ -7,6 +7,7 @@ public class QuestionReply
     public int? RepliedByUserId { get; set; }
     public string Body { get; set; } = string.Empty;
     public string ReplierDisplayName { get; set; } = string.Empty;
+    public string? ReplierDisplayNameColor { get; set; }
     public string? ReplierRole { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

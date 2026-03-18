@@ -14,6 +14,7 @@ const TOKEN_KEY = 'token'
 export interface AuthUser {
   id: number
   username: string
+  displayNameColor: string | null
   email: string
   role: string
 }
@@ -31,6 +32,7 @@ interface JwtPayload {
 interface AuthResponse {
   token: string
   username: string
+  displayNameColor?: string | null
   email: string
   role: string
   userId: number
@@ -42,6 +44,7 @@ interface AuthContextValue {
   login: (username: string, password: string) => Promise<{ username: string }>
   register: (username: string, email: string, password: string) => Promise<{ username: string }>
   logout: () => void
+  updateDisplayNameColor: (displayNameColor: string | null) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -71,8 +74,9 @@ function decodeToken(token: string): AuthUser | null {
       firstString(payload, ['unique_name', 'name', DOTNET_CLAIM_NAME]) ?? ''
     const email = firstString(payload, ['email', DOTNET_CLAIM_EMAIL]) ?? ''
     const role = firstString(payload, ['role', DOTNET_CLAIM_ROLE]) ?? ''
+    const displayNameColor = firstString(payload, ['display_name_color'])
     if (!id || !username) return null
-    return { id, username, email, role }
+    return { id, username, displayNameColor, email, role }
   } catch {
     return null
   }
@@ -112,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser({
       id: data.userId,
       username: data.username,
+      displayNameColor: data.displayNameColor ?? null,
       email: data.email,
       role: data.role,
     })
@@ -129,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({
         id: data.userId,
         username: data.username,
+        displayNameColor: data.displayNameColor ?? null,
         email: data.email,
         role: data.role,
       })
@@ -142,12 +148,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }, [])
 
+  const updateDisplayNameColor = useCallback((displayNameColor: string | null) => {
+    setUser((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        displayNameColor,
+      }
+    })
+  }, [])
+
   const value: AuthContextValue = {
     user,
     loading,
     login,
     register,
     logout,
+    updateDisplayNameColor,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

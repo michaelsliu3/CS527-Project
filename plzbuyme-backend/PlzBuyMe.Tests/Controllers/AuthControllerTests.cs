@@ -223,6 +223,62 @@ public class AuthControllerTests
     }
 
     [Fact]
+    public async Task UpdateDisplayNameColor_WhenVipOrHigherAuthorized_ReturnsOk()
+    {
+        var mock = new Mock<IAuthService>();
+        mock.Setup(s => s.UpdateDisplayNameColorAsync(7, "#AABBCC"))
+            .ReturnsAsync((false, false, null, "#AABBCC"));
+        var controller = CreateController(mock);
+        SetUser(controller, 7);
+
+        var result = await controller.UpdateDisplayNameColor(new UpdateDisplayNameColorDto
+        {
+            DisplayNameColor = "#AABBCC"
+        });
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeOfType<UpdateDisplayNameColorDto>().Subject;
+        body.DisplayNameColor.Should().Be("#AABBCC");
+        mock.Verify(s => s.UpdateDisplayNameColorAsync(7, "#AABBCC"), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateDisplayNameColor_WhenForbiddenRole_ReturnsForbid()
+    {
+        var mock = new Mock<IAuthService>();
+        mock.Setup(s => s.UpdateDisplayNameColorAsync(3, "#123456"))
+            .ReturnsAsync((false, true, null, null));
+        var controller = CreateController(mock);
+        SetUser(controller, 3);
+
+        var result = await controller.UpdateDisplayNameColor(new UpdateDisplayNameColorDto
+        {
+            DisplayNameColor = "#123456"
+        });
+
+        result.Should().BeOfType<ForbidResult>();
+    }
+
+    [Fact]
+    public async Task UpdateDisplayNameColor_WhenInvalidHex_ReturnsBadRequest()
+    {
+        var mock = new Mock<IAuthService>();
+        mock.Setup(s => s.UpdateDisplayNameColorAsync(2, "bad-value"))
+            .ReturnsAsync((false, false, "Display name color must be a valid hex code like #A1B2C3.", null));
+        var controller = CreateController(mock);
+        SetUser(controller, 2);
+
+        var result = await controller.UpdateDisplayNameColor(new UpdateDisplayNameColorDto
+        {
+            DisplayNameColor = "bad-value"
+        });
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        var body = badRequest.Value.Should().BeOfType<AuthErrorDto>().Subject;
+        body.Code.Should().Be("ValidationError");
+    }
+
+    [Fact]
     public async Task DeleteProfile_WhenUserNotFound_ReturnsNotFound()
     {
         var mock = new Mock<IAuthService>();

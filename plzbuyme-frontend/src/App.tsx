@@ -35,7 +35,7 @@ function App() {
         <Route
           path="/auctions/create"
           element={
-            <ProtectedRoute roles={['end_user', 'admin']}>
+            <ProtectedRoute roles={['end_user', 'vip', 'admin']}>
               <CreateAuctionPage />
             </ProtectedRoute>
           }
@@ -44,7 +44,7 @@ function App() {
         <Route
           path="/my-auctions"
           element={
-            <ProtectedRoute roles={['end_user', 'admin']}>
+            <ProtectedRoute roles={['end_user', 'vip', 'admin']}>
               <MyAuctionsPage />
             </ProtectedRoute>
           }
@@ -52,7 +52,7 @@ function App() {
         <Route
           path="/alerts"
           element={
-            <ProtectedRoute roles={['end_user', 'admin']}>
+            <ProtectedRoute roles={['end_user', 'vip', 'admin']}>
               <AlertsPage />
             </ProtectedRoute>
           }

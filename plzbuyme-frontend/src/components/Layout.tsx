@@ -7,13 +7,15 @@ import { showErrorToast, showNotificationToast } from './ui/toaster'
 import { HiOutlineBell, HiOutlineUserCircle } from 'react-icons/hi'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
+import { resolveDisplayNameColor } from '../utils/displayNameColor'
 
 /** How often to poll for new notifications while the user is logged in (used for badge + real-time toasts). */
 const NOTIFICATION_POLL_INTERVAL_MS = 5_000
 
 const linkColor = dark.muted
 const linkHover = '#ffffff'
-const canUseEndUserFeatures = (role: string) => role === 'end_user' || role === 'admin'
+const canUseEndUserFeatures = (role: string) =>
+  role === 'end_user' || role === 'vip' || role === 'admin'
 
 export function Layout() {
   const { user, loading, logout } = useAuth()
@@ -135,7 +137,9 @@ export function Layout() {
                     <Menu.Trigger asChild>
                       <Button variant="ghost" size="sm" color={linkColor} _hover={{ color: linkHover, bg: 'whiteAlpha.100' }}>
                         <HiOutlineUserCircle size={18} style={{ marginRight: 6 }} />
-                        {user.username}
+                        <Box as="span" color={resolveDisplayNameColor(user.displayNameColor, linkColor)}>
+                          {user.username}
+                        </Box>
                       </Button>
                     </Menu.Trigger>
                     <Menu.Positioner>

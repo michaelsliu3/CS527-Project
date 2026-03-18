@@ -4,6 +4,7 @@ export interface QuestionResponse {
   id: number
   userId: number
   username: string
+  usernameDisplayNameColor: string | null
   subject: string
   body: string
   replies: QuestionReply[]
@@ -14,6 +15,7 @@ export interface QuestionReply {
   id: number
   body: string
   replierDisplayName: string
+  replierDisplayNameColor: string | null
   replierRole: string | null
   createdAt: string
 }

@@ -93,6 +93,104 @@ public class AuthServiceTests
     }
 
     [Fact]
+    public void GenerateJwt_EmitsVipRole_And_DisplayNameColor_Claims()
+    {
+        using var context = TestDbContextFactory.Create();
+        var user = new User
+        {
+            Id = 7,
+            Username = "vip-user",
+            Email = "vip@test.com",
+            PasswordHash = "x",
+            Role = UserRole.Vip,
+            DisplayNameColor = "#AABBCC",
+            IsActive = true
+        };
+        context.Users.Add(user);
+        context.SaveChanges();
+
+        var authService = CreateAuthService(context);
+        var token = authService.GenerateJwt(user);
+        var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
+        jwt.Claims.Should().Contain(c => c.Value == "vip");
+        jwt.Claims.Should().Contain(c => c.Type == "display_name_color" && c.Value == "#AABBCC");
+    }
+
+    [Fact]
+    public async Task UpdateDisplayNameColor_WhenVipAndValidHex_PersistsNormalizedColor()
+    {
+        using var context = TestDbContextFactory.Create();
+        var user = new User
+        {
+            Username = "vip1",
+            Email = "vip1@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.Vip,
+            IsActive = true
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var authService = CreateAuthService(context);
+        var result = await authService.UpdateDisplayNameColorAsync(user.Id, "  #ab12cd ");
+
+        result.NotFound.Should().BeFalse();
+        result.Forbidden.Should().BeFalse();
+        result.ValidationError.Should().BeNull();
+        result.DisplayNameColor.Should().Be("#AB12CD");
+        var persisted = await context.Users.FindAsync(user.Id);
+        persisted!.DisplayNameColor.Should().Be("#AB12CD");
+    }
+
+    [Fact]
+    public async Task UpdateDisplayNameColor_WhenEndUser_ReturnsForbidden()
+    {
+        using var context = TestDbContextFactory.Create();
+        var user = new User
+        {
+            Username = "regular-user",
+            Email = "regular@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            IsActive = true
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var authService = CreateAuthService(context);
+        var result = await authService.UpdateDisplayNameColorAsync(user.Id, "#123456");
+
+        result.Forbidden.Should().BeTrue();
+        result.ValidationError.Should().BeNull();
+        var persisted = await context.Users.FindAsync(user.Id);
+        persisted!.DisplayNameColor.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateDisplayNameColor_WhenInvalidHex_ReturnsValidationError()
+    {
+        using var context = TestDbContextFactory.Create();
+        var user = new User
+        {
+            Username = "vip2",
+            Email = "vip2@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.Vip,
+            IsActive = true
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var authService = CreateAuthService(context);
+        var result = await authService.UpdateDisplayNameColorAsync(user.Id, "blue");
+
+        result.Forbidden.Should().BeFalse();
+        result.ValidationError.Should().NotBeNullOrWhiteSpace();
+        var persisted = await context.Users.FindAsync(user.Id);
+        persisted!.DisplayNameColor.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Login_ByEmail_ReturnsSameUserAsLoginByUsername()
     {
         using var context = TestDbContextFactory.Create();

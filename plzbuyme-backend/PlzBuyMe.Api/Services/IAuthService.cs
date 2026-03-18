@@ -12,6 +12,7 @@ public interface IAuthService
     Task<RegisterResult> RegisterAsync(RegisterDto dto);
     Task<LoginResult> LoginAsync(LoginDto dto);
     Task<ProfileDto?> GetProfileAsync(int userId);
+    Task<(bool NotFound, bool Forbidden, string? ValidationError, string? DisplayNameColor)> UpdateDisplayNameColorAsync(int userId, string? displayNameColor);
     Task<bool> DeleteProfileAsync(int userId);
     Task<CreateRepResult> CreateRepAsync(CreateRepDto dto);
 }

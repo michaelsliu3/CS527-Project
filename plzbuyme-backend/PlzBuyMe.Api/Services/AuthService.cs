@@ -1,4 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Text.RegularExpressions;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,7 @@ namespace PlzBuyMe.Api.Services;
 
 public class AuthService : IAuthService
 {
+    private static readonly Regex HexColorRegex = new("^#[0-9a-fA-F]{6}$", RegexOptions.Compiled);
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
 
@@ -47,6 +49,8 @@ public class AuthService : IAuthService
             new(ClaimTypes.Email, user.Email),
             new(ClaimTypes.Role, RoleToClaimValue(user.Role))
         };
+        if (!string.IsNullOrWhiteSpace(user.DisplayNameColor))
+            claims.Add(new Claim("display_name_color", user.DisplayNameColor));
 
         var token = new JwtSecurityToken(
             issuer: jwtSection["Issuer"],
@@ -85,6 +89,7 @@ public class AuthService : IAuthService
             {
                 Token = token,
                 Username = user.Username,
+                DisplayNameColor = user.DisplayNameColor,
                 Email = user.Email,
                 Role = RoleToClaimValue(user.Role),
                 UserId = user.Id
@@ -110,6 +115,7 @@ public class AuthService : IAuthService
             {
                 Token = token,
                 Username = user.Username,
+                DisplayNameColor = user.DisplayNameColor,
                 Email = user.Email,
                 Role = RoleToClaimValue(user.Role),
                 UserId = user.Id
@@ -127,9 +133,27 @@ public class AuthService : IAuthService
         {
             Id = user.Id,
             Username = user.Username,
+            DisplayNameColor = user.DisplayNameColor,
             Email = user.Email,
             Role = RoleToClaimValue(user.Role)
         };
+    }
+
+    public async Task<(bool NotFound, bool Forbidden, string? ValidationError, string? DisplayNameColor)> UpdateDisplayNameColorAsync(int userId, string? displayNameColor)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null)
+            return (true, false, null, null);
+        if (!CanCustomizeDisplayNameColor(user.Role))
+            return (false, true, null, user.DisplayNameColor);
+
+        var normalized = NormalizeColor(displayNameColor);
+        if (displayNameColor != null && normalized == null)
+            return (false, false, "Display name color must be a valid hex code like #A1B2C3.", user.DisplayNameColor);
+
+        user.DisplayNameColor = normalized;
+        await _db.SaveChangesAsync();
+        return (false, false, null, user.DisplayNameColor);
     }
 
     public async Task<bool> DeleteProfileAsync(int userId)
@@ -179,8 +203,27 @@ public class AuthService : IAuthService
         {
             UserRole.Admin => "admin",
             UserRole.CustomerRep => "customer_rep",
+            UserRole.Vip => "vip",
             UserRole.EndUser => "end_user",
             _ => throw new ArgumentOutOfRangeException(nameof(role), role, "Unknown user role.")
         };
+    }
+
+    private static bool CanCustomizeDisplayNameColor(UserRole role)
+    {
+        return role is UserRole.Vip or UserRole.CustomerRep or UserRole.Admin;
+    }
+
+    private static string? NormalizeColor(string? color)
+    {
+        if (color == null)
+            return null;
+
+        var trimmed = color.Trim();
+        if (trimmed.Length == 0)
+            return null;
+        if (!HexColorRegex.IsMatch(trimmed))
+            return null;
+        return trimmed.ToUpperInvariant();
     }
 }
