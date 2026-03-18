@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   Box,
   Button,
@@ -43,6 +43,7 @@ const STATUS_OPTIONS = [
   { value: 'closed', label: 'Closed' },
   { value: 'sold', label: 'Sold' },
 ]
+const DEFAULT_STATUS = 'active'
 
 const CONDITION_OPTIONS = ['New', 'Like New', 'Excellent', 'Good', 'Fair', 'Poor']
 const TRANSMISSION_OPTIONS = ['Automatic', 'Manual', 'CVT']
@@ -249,6 +250,10 @@ function DateFilterPicker({
 
 export function SearchBar({ variant = 'full' }: SearchBarProps) {
   const [searchParams, setSearchParams] = useSearchParams()
+  const hasInitializedDefaultStatus = useRef(false)
+  const previousPriceQuery = useRef<{ min: string | null; max: string | null } | null>(null)
+  const previousConditionQuery = useRef<string | null>(null)
+  const previousClosingQuery = useRef<{ after: string | null; before: string | null } | null>(null)
   const [categories, setCategories] = useState<CategoryDto[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [categoriesError, setCategoriesError] = useState<string | null>(null)
@@ -286,6 +291,15 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
   const [closingBefore, setClosingBefore] = useState<string>(() =>
     getDateOnlyValue(searchParams.get('closingBefore'))
   )
+
+  useEffect(() => {
+    if (hasInitializedDefaultStatus.current) return
+    hasInitializedDefaultStatus.current = true
+    if (searchParams.get('status')) return
+    const next = new URLSearchParams(searchParams)
+    next.set('status', DEFAULT_STATUS)
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   useEffect(() => {
     let isMounted = true
@@ -339,10 +353,25 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
   }, [searchParams])
 
   useEffect(() => {
+    const nextMin = searchParams.get('minPrice')
+    const nextMax = searchParams.get('maxPrice')
+    const previous = previousPriceQuery.current
+    previousPriceQuery.current = { min: nextMin, max: nextMax }
+
+    if (previous && previous.min === nextMin && previous.max === nextMax) {
+      return
+    }
     setPriceRange(getPriceRangeFromSearchParams(searchParams))
   }, [searchParams])
 
   useEffect(() => {
+    const nextCondition = searchParams.getAll('condition').join('|')
+    const previous = previousConditionQuery.current
+    previousConditionQuery.current = nextCondition
+
+    if (previous !== null && previous === nextCondition) {
+      return
+    }
     const index = getConditionIndexFromSearchParams(searchParams)
     if (index === null) {
       setConditionSliderIndex(0)
@@ -441,8 +470,16 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
   }, [modelInput, fetchModelSuggestions])
 
   useEffect(() => {
-    setClosingAfter(getDateOnlyValue(searchParams.get('closingAfter')))
-    setClosingBefore(getDateOnlyValue(searchParams.get('closingBefore')))
+    const nextClosingAfter = searchParams.get('closingAfter')
+    const nextClosingBefore = searchParams.get('closingBefore')
+    const previous = previousClosingQuery.current
+    previousClosingQuery.current = { after: nextClosingAfter, before: nextClosingBefore }
+
+    if (previous && previous.after === nextClosingAfter && previous.before === nextClosingBefore) {
+      return
+    }
+    setClosingAfter(getDateOnlyValue(nextClosingAfter))
+    setClosingBefore(getDateOnlyValue(nextClosingBefore))
   }, [searchParams])
 
   function applyFilters(values: Record<string, string | string[] | undefined>) {
@@ -576,6 +613,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
   const resetAllFilters = () => {
     const next = new URLSearchParams()
     next.set('page', '1')
+    next.set('status', DEFAULT_STATUS)
     setSearchParams(next)
     setSelectedRootId('')
     setSelectedCategoryId('')
@@ -846,7 +884,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                     <Text fontSize="xs" color={dark.muted} mb={1}>Status</Text>
                     <select
                       name="status"
-                      defaultValue={searchParams.get('status') ?? ''}
+                      defaultValue={searchParams.get('status') ?? DEFAULT_STATUS}
                       style={{
                         width: '100%',
                         padding: '8px 12px',
@@ -1306,7 +1344,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
               <Text fontSize="sm" color={dark.muted} mb={1}>Status</Text>
               <select
                 name="status"
-                defaultValue={searchParams.get('status') ?? ''}
+                defaultValue={searchParams.get('status') ?? DEFAULT_STATUS}
                 style={{
                   width: '100%',
                   padding: '8px 12px',
