@@ -28,7 +28,7 @@ describe('AuctionListPage', () => {
   })
 
   it('fetches and renders paginated results', async () => {
-    vi.mocked(api.browseAuctions).mockResolvedValueOnce({
+    vi.mocked(api.browseAuctions).mockResolvedValue({
       data: {
         items: [
           {
@@ -61,7 +61,7 @@ describe('AuctionListPage', () => {
   })
 
   it('shows no auctions message when empty', async () => {
-    vi.mocked(api.browseAuctions).mockResolvedValueOnce({
+    vi.mocked(api.browseAuctions).mockResolvedValue({
       data: {
         items: [],
         totalCount: 0,

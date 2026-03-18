@@ -290,17 +290,18 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-16 — Auction search UI redesign
+## PBM-16 — Auction search UI redesign ✅
 
 **Layer:** Frontend
 **Branch:** `PBM-16/auction-search-ui-redesign`
 **PR Title:** `[PBM-16] redesign auction search UI layout, format, and styling`
 
-- Redesign the entire auction search experience (`AuctionListPage` + `SearchBar`) with a new layout and stronger visual hierarchy.
-- Replace current filter/form presentation with a cleaner, more scalable structure (grouped filters, clearer labels, improved spacing, consistent control states).
-- Refresh result card/list formatting and page composition for readability, scanability, and responsive behavior across desktop/tablet/mobile.
-- Standardize component styling and interaction states (default, hover, active, focus, disabled) with shared Chakra theme tokens.
-- Include loading, empty, and error states in the redesign to ensure a complete and consistent user experience.
+- Restructured `AuctionListPage` into a two-part search experience: a top search/category bar plus a dedicated filter sidebar (`SearchBar` `variant="top"` + `variant="filters"`), with responsive desktop/mobile behavior.
+- Implemented top-category quick selectors (including Cars root + subcategories) and preserved relevant filter inputs when switching categories so users do not lose in-progress search criteria.
+- Expanded and polished filter controls in `SearchBar` (grouped sections, improved spacing, quick price presets, date controls, and car-specific filter/sort options such as year/mileage).
+- Updated browse results presentation and pagination composition, and ensured explicit loading/empty/error states remain consistent in the redesigned page flow.
+- Backend search behavior was refined to use wildcard matching for `q` against title/description so the redesigned search UI aligns with expected keyword matching behavior.
+- Standardized horizontal page spacing across app pages via shared `APP_PAGE_PX` layout token, and added/updated `SearchBar` tests covering key redesigned interactions.
 
 ---
 
