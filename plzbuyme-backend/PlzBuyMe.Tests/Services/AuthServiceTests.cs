@@ -169,6 +169,32 @@ public class AuthServiceTests
     }
 
     [Fact]
+    public async Task UpdateDisplayNameColor_WhenVipAndNewAnimatedPreset_PersistsPreset()
+    {
+        using var context = TestDbContextFactory.Create();
+        var user = new User
+        {
+            Username = "vip-new-preset",
+            Email = "vip-new-preset@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.Vip,
+            IsActive = true
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var authService = CreateAuthService(context);
+        var result = await authService.UpdateDisplayNameColorAsync(user.Id, "aurorax");
+
+        result.NotFound.Should().BeFalse();
+        result.Forbidden.Should().BeFalse();
+        result.ValidationError.Should().BeNull();
+        result.DisplayNameColor.Should().Be("AURORAX");
+        var persisted = await context.Users.FindAsync(user.Id);
+        persisted!.DisplayNameColor.Should().Be("AURORAX");
+    }
+
+    [Fact]
     public async Task UpdateDisplayNameColor_WhenEndUser_ReturnsForbidden()
     {
         using var context = TestDbContextFactory.Create();

@@ -19,7 +19,10 @@ public class AuthService : IAuthService
     {
         "RAINBOW",
         "PURPBLU",
-        "RGBFLOW"
+        "RGBFLOW",
+        "SUNGLOW",
+        "AURORAX",
+        "FIREICE"
     };
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
@@ -155,7 +158,7 @@ public class AuthService : IAuthService
 
         var normalized = NormalizeColor(displayNameColor);
         if (displayNameColor != null && normalized == null)
-            return (false, false, "Display name color must be a valid hex code like #A1B2C3 or one of: RAINBOW, PURPBLU, RGBFLOW.", user.DisplayNameColor);
+            return (false, false, "Display name color must be a valid hex code like #A1B2C3 or one of: RAINBOW, PURPBLU, RGBFLOW, SUNGLOW, AURORAX, FIREICE.", user.DisplayNameColor);
 
         user.DisplayNameColor = normalized;
         await _db.SaveChangesAsync();

@@ -26,6 +26,12 @@ function presetGradient(preset: string): string {
       return 'linear-gradient(120deg, #7c3aed, #6366f1, #3b82f6, #22d3ee, #7c3aed)'
     case 'RGBFLOW':
       return 'linear-gradient(90deg, #ff3b30, #22c55e, #3b82f6, #ff3b30)'
+    case 'SUNGLOW':
+      return 'linear-gradient(120deg, #ff4fa3, #ff79c6, #ff9ed8, #ffd0ef, #ff4fa3)'
+    case 'AURORAX':
+      return 'linear-gradient(125deg, #ff2d95, #e879f9, #c084fc, #f472b6, #ff2d95)'
+    case 'FIREICE':
+      return 'linear-gradient(95deg, #ff3d00 0%, #ff8f00 35%, #fff8e1 50%, #7dd3fc 65%, #0ea5e9 100%)'
     default:
       return ''
   }

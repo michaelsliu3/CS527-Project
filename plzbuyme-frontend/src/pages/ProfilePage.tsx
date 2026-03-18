@@ -17,7 +17,6 @@ import { showErrorToast, showSuccessToast } from '../components/ui/toaster'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
 import {
-  DISPLAY_NAME_STYLE_PRESETS,
   normalizeDisplayNameColor,
 } from '../utils/displayNameColor'
 import { DisplayNameText } from '../components/DisplayNameText'
@@ -28,6 +27,43 @@ interface Profile {
   displayNameColor: string | null
   email: string
   role: string
+}
+
+const SOLID_COLOR_OPTIONS = [
+  { label: 'Blue', value: '#60A5FA' },
+  { label: 'Mint', value: '#34D399' },
+  { label: 'Coral', value: '#FB7185' },
+  { label: 'Gold', value: '#F59E0B' },
+  { label: 'Violet', value: '#A78BFA' },
+  { label: 'Rose', value: '#F472B6' },
+] as const
+
+const GRADIENT_PRESET_OPTIONS = [
+  { label: 'Rainbow', value: 'RAINBOW' },
+  { label: 'Purple-Blue Fade', value: 'PURPBLU' },
+  { label: 'RGB Flow', value: 'RGBFLOW' },
+  { label: 'Sun Glow', value: 'SUNGLOW' },
+  { label: 'Aurora X', value: 'AURORAX' },
+  { label: 'Fire Ice', value: 'FIREICE' },
+] as const
+
+function gradientSwatch(preset: string): string {
+  switch (preset) {
+    case 'RAINBOW':
+      return 'linear-gradient(90deg, #ff3b30, #ff9500, #ffcc00, #34c759, #00c7ff, #5e5ce6, #af52de, #ff3b30)'
+    case 'PURPBLU':
+      return 'linear-gradient(120deg, #7c3aed, #6366f1, #3b82f6, #22d3ee, #7c3aed)'
+    case 'RGBFLOW':
+      return 'linear-gradient(90deg, #ff3b30, #22c55e, #3b82f6, #ff3b30)'
+    case 'SUNGLOW':
+      return 'linear-gradient(120deg, #ff4fa3, #ff79c6, #ff9ed8, #ffd0ef, #ff4fa3)'
+    case 'AURORAX':
+      return 'linear-gradient(125deg, #ff2d95, #e879f9, #c084fc, #f472b6, #ff2d95)'
+    case 'FIREICE':
+      return 'linear-gradient(95deg, #ff3d00 0%, #ff8f00 35%, #fff8e1 50%, #7dd3fc 65%, #0ea5e9 100%)'
+    default:
+      return 'transparent'
+  }
 }
 
 export function ProfilePage() {
@@ -117,15 +153,11 @@ export function ProfilePage() {
     displayProfile.role === 'customer_rep' ||
     displayProfile.role === 'admin'
   const normalizedColor = normalizeDisplayNameColor(colorInput)
-  const colorValidationError =
-    colorInput.trim().length > 0 && !normalizedColor
-      ? 'Use a valid hex (#A1B2C3) or preset (RAINBOW, PURPBLU, RGBFLOW).'
-      : null
   const originalColor = displayProfile.displayNameColor ?? ''
   const colorChanged = (normalizedColor ?? '') !== (normalizeDisplayNameColor(originalColor) ?? '')
 
   const handleSaveColor = async () => {
-    if (!canCustomizeColor || colorValidationError || !colorChanged) return
+    if (!canCustomizeColor || !colorChanged) return
     setSavingColor(true)
     try {
       const payloadColor = normalizedColor ?? null
@@ -165,49 +197,58 @@ export function ProfilePage() {
               <Field.Root>
                 <Field.Label color={dark.label}>Display name color</Field.Label>
                 <Box display="flex" flexDirection="column" gap={3}>
-                  <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
-                    <Button
-                      size="xs"
-                      variant={normalizeDisplayNameColor(colorInput) === 'RAINBOW' ? 'solid' : 'outline'}
-                      onClick={() => setColorInput('RAINBOW')}
-                    >
-                      Rainbow
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant={normalizeDisplayNameColor(colorInput) === 'PURPBLU' ? 'solid' : 'outline'}
-                      onClick={() => setColorInput('PURPBLU')}
-                    >
-                      Purple-Blue Fade
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant={normalizeDisplayNameColor(colorInput) === 'RGBFLOW' ? 'solid' : 'outline'}
-                      onClick={() => setColorInput('RGBFLOW')}
-                    >
-                      RGB Flow
-                    </Button>
+                  <Box color={dark.placeholder} fontSize="xs">
+                    Solid
                   </Box>
-                  <Box display="flex" gap={3} alignItems="center" flexWrap="wrap">
-                    <Input
-                      type="color"
-                      aria-label="Pick display name color"
-                      value={normalizedColor?.startsWith('#') ? normalizedColor : '#FFFFFF'}
-                      onChange={(e) => setColorInput(e.target.value)}
-                      w="56px"
-                      p={1}
-                      bg={dark.bg}
-                      borderColor={dark.borderSubtle}
-                    />
-                    <Input
-                      value={colorInput}
-                      onChange={(e) => setColorInput(e.target.value)}
-                      placeholder="#A1B2C3 or RAINBOW"
-                      bg={dark.bg}
-                      borderColor={colorValidationError ? 'red.400' : dark.borderSubtle}
-                      color="white"
-                      maxLength={7}
-                    />
+                  <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
+                    {SOLID_COLOR_OPTIONS.map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        aria-label={`Solid ${option.label}`}
+                        title={option.label}
+                        onClick={() => setColorInput(option.value)}
+                        w="32px"
+                        minW="32px"
+                        h="32px"
+                        p={0}
+                        borderRadius="md"
+                        bg={option.value}
+                        border="none"
+                        boxShadow="none"
+                        _focusVisible={{ outline: 'none', boxShadow: 'none' }}
+                        _hover={{
+                          opacity: 0.9,
+                        }}
+                      />
+                    ))}
+                  </Box>
+                  <Box color={dark.placeholder} fontSize="xs">
+                    Gradient
+                  </Box>
+                  <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
+                    {GRADIENT_PRESET_OPTIONS.map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        aria-label={`Gradient ${option.label}`}
+                        title={option.label}
+                        onClick={() => setColorInput(option.value)}
+                        w="32px"
+                        minW="32px"
+                        h="32px"
+                        p={0}
+                        borderRadius="md"
+                        bgImage={gradientSwatch(option.value)}
+                        bgSize="cover"
+                        bgRepeat="no-repeat"
+                        backgroundPosition="center"
+                        border="none"
+                        boxShadow="none"
+                        _focusVisible={{ outline: 'none', boxShadow: 'none' }}
+                        _hover={{ opacity: 0.9 }}
+                      />
+                    ))}
                   </Box>
                   <Box color={dark.label} fontSize="sm">
                     Preview:{' '}
@@ -219,21 +260,14 @@ export function ProfilePage() {
                       />
                     </Box>
                   </Box>
-                  <Box color={dark.placeholder} fontSize="xs">
-                    Presets: {DISPLAY_NAME_STYLE_PRESETS.join(', ')}
-                  </Box>
-                  {colorValidationError && (
-                    <Box color="red.400" fontSize="sm">
-                      {colorValidationError}
-                    </Box>
-                  )}
                   <Box display="flex" gap={2}>
                     <Button
                       type="button"
+                      size="sm"
                       bg="brand.500"
                       color="white"
                       _hover={{ bg: 'brand.400' }}
-                      disabled={!colorChanged || !!colorValidationError}
+                      disabled={!colorChanged}
                       loading={savingColor}
                       onClick={handleSaveColor}
                     >

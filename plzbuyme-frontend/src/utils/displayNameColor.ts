@@ -1,5 +1,5 @@
 const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/
-const DISPLAY_NAME_PRESETS = ['RAINBOW', 'PURPBLU', 'RGBFLOW'] as const
+const DISPLAY_NAME_PRESETS = ['RAINBOW', 'PURPBLU', 'RGBFLOW', 'SUNGLOW', 'AURORAX', 'FIREICE'] as const
 
 export type DisplayNamePreset = (typeof DISPLAY_NAME_PRESETS)[number]
 export const DISPLAY_NAME_STYLE_PRESETS = [...DISPLAY_NAME_PRESETS]

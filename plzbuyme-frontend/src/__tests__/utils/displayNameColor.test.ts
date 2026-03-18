@@ -19,6 +19,9 @@ describe('displayNameColor utils', () => {
     expect(normalizeDisplayNameColor('rainbow')).toBe('RAINBOW')
     expect(normalizeDisplayNameColor('purpblu')).toBe('PURPBLU')
     expect(normalizeDisplayNameColor('rgbflow')).toBe('RGBFLOW')
+    expect(normalizeDisplayNameColor('sunglow')).toBe('SUNGLOW')
+    expect(normalizeDisplayNameColor('aurorax')).toBe('AURORAX')
+    expect(normalizeDisplayNameColor('fireice')).toBe('FIREICE')
     expect(isDisplayNamePreset('RAINBOW')).toBe(true)
   })
 

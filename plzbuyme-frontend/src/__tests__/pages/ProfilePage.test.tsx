@@ -56,7 +56,8 @@ describe('ProfilePage display name color', () => {
     } as never)
     renderProfile()
     expect(await screen.findByText('Display name color')).toBeInTheDocument()
-
+    expect(screen.getByRole('button', { name: 'Solid Blue' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Gradient Rainbow' })).toBeInTheDocument()
   })
 
   it('hides color controls for end users', async () => {
@@ -76,7 +77,7 @@ describe('ProfilePage display name color', () => {
     expect(screen.queryByText('Display name color')).not.toBeInTheDocument()
   })
 
-  it('submits normalized payload and updates auth color', async () => {
+  it('submits selected hardcoded solid color and updates auth color', async () => {
     const updateDisplayNameColor = vi.fn()
     mockedUseAuth.mockReturnValue({
       user: { id: 1, username: 'alice', displayNameColor: null, email: 'alice@example.com', role: 'vip' },
@@ -90,40 +91,33 @@ describe('ProfilePage display name color', () => {
       data: { id: 1, username: 'alice', displayNameColor: null, email: 'alice@example.com', role: 'vip' },
     } as never)
     vi.mocked(apiClient.patch).mockResolvedValueOnce({
-      data: { displayNameColor: '#AB12CD' },
+      data: { displayNameColor: '#A78BFA' },
     } as never)
 
     const user = userEvent.setup()
     renderProfile()
 
-    const input = await screen.findByPlaceholderText('#A1B2C3 or RAINBOW')
-    await user.clear(input)
-    await user.type(input, '#ab12cd')
+    await screen.findByText('Display name color')
+    await user.click(screen.getByRole('button', { name: 'Solid Violet' }))
     await user.click(screen.getByRole('button', { name: 'Save color' }))
 
     await waitFor(() => {
       expect(apiClient.patch).toHaveBeenCalledWith('auth/profile/display-name-color', {
-        displayNameColor: '#AB12CD',
+        displayNameColor: '#A78BFA',
       })
     })
-    expect(updateDisplayNameColor).toHaveBeenCalledWith('#AB12CD')
+    expect(updateDisplayNameColor).toHaveBeenCalledWith('#A78BFA')
   })
 
-  it('shows validation feedback for invalid manual input', async () => {
+  it('does not render manual color picker inputs', async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({
       data: { id: 1, username: 'alice', displayNameColor: null, email: 'alice@example.com', role: 'vip' },
     } as never)
 
-    const user = userEvent.setup()
     renderProfile()
-    const input = await screen.findByPlaceholderText('#A1B2C3 or RAINBOW')
-    await user.clear(input)
-    await user.type(input, 'blue')
-
-    expect(
-      screen.getByText('Use a valid hex (#A1B2C3) or preset (RAINBOW, PURPBLU, RGBFLOW).')
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save color' })).toBeDisabled()
+    await screen.findByText('Display name color')
+    expect(screen.queryByLabelText('Pick display name color')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('#A1B2C3 or RAINBOW')).not.toBeInTheDocument()
   })
 
   it('submits animated preset payload', async () => {
@@ -146,7 +140,7 @@ describe('ProfilePage display name color', () => {
     const user = userEvent.setup()
     renderProfile()
 
-    await user.click(await screen.findByRole('button', { name: 'Rainbow' }))
+    await user.click(await screen.findByRole('button', { name: 'Gradient Rainbow' }))
     await user.click(screen.getByRole('button', { name: 'Save color' }))
 
     await waitFor(() => {
