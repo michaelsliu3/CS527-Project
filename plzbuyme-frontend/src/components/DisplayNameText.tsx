@@ -1,5 +1,6 @@
 import { Box } from '@chakra-ui/react'
 import { keyframes } from '@emotion/react'
+import type { ComponentProps } from 'react'
 import {
   isDisplayNamePreset,
   normalizeDisplayNameColor,
@@ -10,7 +11,7 @@ interface DisplayNameTextProps {
   name: string
   displayNameColor: string | null | undefined
   fallbackColor: string
-  fontWeight?: string | number
+  fontWeight?: ComponentProps<typeof Box>['fontWeight']
 }
 
 const gradientShift = keyframes`
@@ -55,7 +56,7 @@ export function DisplayNameText({
         backgroundImage={presetGradient(normalized)}
         backgroundSize="260% 260%"
         backgroundClip="text"
-        sx={{ WebkitTextFillColor: 'transparent' }}
+        style={{ WebkitTextFillColor: 'transparent' }}
         animation={`${gradientShift} 5s linear infinite`}
       >
         {name}
