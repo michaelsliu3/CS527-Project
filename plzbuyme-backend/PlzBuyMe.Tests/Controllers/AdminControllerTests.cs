@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Moq;
 using PlzBuyMe.Api.Controllers;
 using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos.Admin;
@@ -37,7 +39,12 @@ public class AdminControllerTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(inMemorySettings)
             .Build();
-        return new AuthService(db, configuration);
+        var mockEnvironment = new Mock<IWebHostEnvironment>();
+        var contentRoot = Path.Combine(Path.GetTempPath(), "plzbuyme-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(contentRoot);
+        mockEnvironment.SetupGet(e => e.ContentRootPath).Returns(contentRoot);
+        mockEnvironment.SetupGet(e => e.WebRootPath).Returns(Path.Combine(contentRoot, "wwwroot"));
+        return new AuthService(db, configuration, mockEnvironment.Object);
     }
 
     [Fact]

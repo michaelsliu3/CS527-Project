@@ -2,6 +2,8 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Text.RegularExpressions;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -15,6 +17,15 @@ namespace PlzBuyMe.Api.Services;
 public class AuthService : IAuthService
 {
     private static readonly Regex HexColorRegex = new("^#[0-9a-fA-F]{6}$", RegexOptions.Compiled);
+    private const long MaxAvatarSizeBytes = 2 * 1024 * 1024;
+    private static readonly HashSet<string> AllowedAvatarExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".png", ".gif", ".webp"
+    };
+    private static readonly HashSet<string> AllowedAvatarContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "image/jpeg", "image/png", "image/gif", "image/webp"
+    };
     private static readonly HashSet<string> AnimatedPresets = new(StringComparer.Ordinal)
     {
         "RAINBOW",
@@ -26,11 +37,13 @@ public class AuthService : IAuthService
     };
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
+    private readonly IWebHostEnvironment _environment;
 
-    public AuthService(AppDbContext db, IConfiguration config)
+    public AuthService(AppDbContext db, IConfiguration config, IWebHostEnvironment environment)
     {
         _db = db;
         _config = config;
+        _environment = environment;
     }
 
     public string HashPassword(string password)
@@ -60,6 +73,8 @@ public class AuthService : IAuthService
         };
         if (!string.IsNullOrWhiteSpace(user.DisplayNameColor))
             claims.Add(new Claim("display_name_color", user.DisplayNameColor));
+        if (!string.IsNullOrWhiteSpace(user.AvatarUrl))
+            claims.Add(new Claim("avatar_url", user.AvatarUrl));
 
         var token = new JwtSecurityToken(
             issuer: jwtSection["Issuer"],
@@ -98,6 +113,7 @@ public class AuthService : IAuthService
             {
                 Token = token,
                 Username = user.Username,
+                AvatarUrl = user.AvatarUrl,
                 DisplayNameColor = user.DisplayNameColor,
                 Email = user.Email,
                 Role = RoleToClaimValue(user.Role),
@@ -124,6 +140,7 @@ public class AuthService : IAuthService
             {
                 Token = token,
                 Username = user.Username,
+                AvatarUrl = user.AvatarUrl,
                 DisplayNameColor = user.DisplayNameColor,
                 Email = user.Email,
                 Role = RoleToClaimValue(user.Role),
@@ -142,6 +159,7 @@ public class AuthService : IAuthService
         {
             Id = user.Id,
             Username = user.Username,
+            AvatarUrl = user.AvatarUrl,
             DisplayNameColor = user.DisplayNameColor,
             Email = user.Email,
             Role = RoleToClaimValue(user.Role)
@@ -163,6 +181,56 @@ public class AuthService : IAuthService
         user.DisplayNameColor = normalized;
         await _db.SaveChangesAsync();
         return (false, false, null, user.DisplayNameColor);
+    }
+
+    public async Task<(bool NotFound, string? ValidationError, string? AvatarUrl)> UploadAvatarAsync(int userId, IFormFile? avatarFile)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null)
+            return (true, null, null);
+
+        if (avatarFile == null || avatarFile.Length == 0)
+            return (false, "Avatar file is required.", user.AvatarUrl);
+        if (avatarFile.Length > MaxAvatarSizeBytes)
+            return (false, "Avatar file must be 2MB or smaller.", user.AvatarUrl);
+
+        var extension = Path.GetExtension(avatarFile.FileName);
+        if (string.IsNullOrWhiteSpace(extension) || !AllowedAvatarExtensions.Contains(extension))
+            return (false, "Avatar file must be one of: .jpg, .jpeg, .png, .gif, .webp.", user.AvatarUrl);
+        if (!AllowedAvatarContentTypes.Contains(avatarFile.ContentType))
+            return (false, "Avatar content type is not supported.", user.AvatarUrl);
+
+        var avatarDirectory = ResolveAvatarDirectoryPath();
+        Directory.CreateDirectory(avatarDirectory);
+
+        var sanitizedExtension = extension.ToLowerInvariant();
+        var fileName = $"user-{userId}-{Guid.NewGuid():N}{sanitizedExtension}";
+        var filePath = Path.Combine(avatarDirectory, fileName);
+        await using (var stream = File.Create(filePath))
+        {
+            await avatarFile.CopyToAsync(stream);
+        }
+
+        var previousAvatarUrl = user.AvatarUrl;
+        user.AvatarUrl = CreateLocalAvatarUrl(fileName);
+        await _db.SaveChangesAsync();
+
+        await DeleteAvatarIfLocalAsync(previousAvatarUrl);
+        return (false, null, user.AvatarUrl);
+    }
+
+    public async Task<(bool NotFound, string? AvatarUrl)> RemoveAvatarAsync(int userId)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null)
+            return (true, null);
+
+        var previousAvatarUrl = user.AvatarUrl;
+        user.AvatarUrl = null;
+        await _db.SaveChangesAsync();
+        await DeleteAvatarIfLocalAsync(previousAvatarUrl);
+
+        return (false, null);
     }
 
     public async Task<bool> DeleteProfileAsync(int userId)
@@ -237,5 +305,36 @@ public class AuthService : IAuthService
         if (!HexColorRegex.IsMatch(trimmed))
             return null;
         return upper;
+    }
+
+    private string ResolveAvatarDirectoryPath()
+    {
+        var webRoot = _environment.WebRootPath;
+        if (string.IsNullOrWhiteSpace(webRoot))
+            webRoot = Path.Combine(_environment.ContentRootPath, "wwwroot");
+        return Path.Combine(webRoot, "uploads", "avatars");
+    }
+
+    private static string CreateLocalAvatarUrl(string fileName)
+    {
+        return $"/uploads/avatars/{fileName}";
+    }
+
+    private async Task DeleteAvatarIfLocalAsync(string? avatarUrl)
+    {
+        if (string.IsNullOrWhiteSpace(avatarUrl))
+            return;
+        if (!avatarUrl.StartsWith("/uploads/avatars/", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var fileName = Path.GetFileName(avatarUrl);
+        if (string.IsNullOrWhiteSpace(fileName))
+            return;
+
+        var filePath = Path.Combine(ResolveAvatarDirectoryPath(), fileName);
+        if (!File.Exists(filePath))
+            return;
+
+        await Task.Run(() => File.Delete(filePath));
     }
 }

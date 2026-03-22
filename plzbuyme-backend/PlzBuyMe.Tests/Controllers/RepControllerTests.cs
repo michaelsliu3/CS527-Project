@@ -1,6 +1,8 @@
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Moq;
 using PlzBuyMe.Api.Controllers;
 using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos;
@@ -34,7 +36,12 @@ public class RepControllerTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(inMemorySettings)
             .Build();
-        return new AuthService(db, configuration);
+        var mockEnvironment = new Mock<IWebHostEnvironment>();
+        var contentRoot = Path.Combine(Path.GetTempPath(), "plzbuyme-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(contentRoot);
+        mockEnvironment.SetupGet(e => e.ContentRootPath).Returns(contentRoot);
+        mockEnvironment.SetupGet(e => e.WebRootPath).Returns(Path.Combine(contentRoot, "wwwroot"));
+        return new AuthService(db, configuration, mockEnvironment.Object);
     }
 
     [Fact]

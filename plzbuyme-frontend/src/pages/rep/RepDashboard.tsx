@@ -33,6 +33,7 @@ import { tableStyles, thBase, tdStyle } from '../../theme/tableStyles'
 import { useAuth } from '../../context/AuthContext'
 import { APP_PAGE_PX } from '../../theme/layout'
 import { DisplayNameText } from '../../components/DisplayNameText'
+import { UserAvatar } from '../../components/UserAvatar'
 
 const PAGE_SIZE = 10
 
@@ -586,14 +587,17 @@ function RepQuestionsTab() {
                   <Badge colorPalette="orange" size="sm">Unanswered</Badge>
                 )}
               </Flex>
-              <Text color={dark.muted} fontSize="sm" mb={2}>
-                <DisplayNameText
-                  name={q.username}
-                  displayNameColor={q.usernameDisplayNameColor}
-                  fallbackColor={dark.muted}
-                />{' '}
-                • {formatRelativeTime(q.createdAt)}
-              </Text>
+              <Flex color={dark.muted} fontSize="sm" mb={2} align="center" gap={2}>
+                <UserAvatar name={q.username} avatarUrl={q.usernameAvatarUrl} size="22px" />
+                <Box>
+                  <DisplayNameText
+                    name={q.username}
+                    displayNameColor={q.usernameDisplayNameColor}
+                    fallbackColor={dark.muted}
+                  />{' '}
+                  • {formatRelativeTime(q.createdAt)}
+                </Box>
+              </Flex>
               <Text color={dark.label} whiteSpace="pre-wrap" mb={3}>
                 {q.body}
               </Text>
@@ -602,6 +606,7 @@ function RepQuestionsTab() {
                   {q.replies.map((reply) => (
                     <Box key={reply.id} pl={3} borderLeftWidth="3px" borderColor="brand.500">
                       <Flex align="center" gap={2} mb={1} wrap="wrap">
+                        <UserAvatar name={reply.replierDisplayName} avatarUrl={reply.replierAvatarUrl} size="20px" />
                         <Text fontSize="xs" color={dark.placeholder}>
                           <DisplayNameText
                             name={reply.replierDisplayName}

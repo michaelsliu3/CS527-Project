@@ -58,6 +58,38 @@ public class AuthController : ControllerBase
     }
 
     [Authorize]
+    [HttpPost("profile/avatar")]
+    public async Task<IActionResult> UploadAvatar([FromForm] IFormFile? avatar)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            return Forbid();
+
+        var result = await _authService.UploadAvatarAsync(userId, avatar);
+        if (result.NotFound)
+            return NotFound();
+        if (result.ValidationError != null)
+            return BadRequest(new AuthErrorDto { Code = "ValidationError", Message = result.ValidationError });
+
+        return Ok(new UpdateAvatarDto { AvatarUrl = result.AvatarUrl });
+    }
+
+    [Authorize]
+    [HttpDelete("profile/avatar")]
+    public async Task<IActionResult> RemoveAvatar()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            return Forbid();
+
+        var result = await _authService.RemoveAvatarAsync(userId);
+        if (result.NotFound)
+            return NotFound();
+
+        return Ok(new UpdateAvatarDto { AvatarUrl = result.AvatarUrl });
+    }
+
+    [Authorize]
     [HttpPatch("profile/display-name-color")]
     public async Task<IActionResult> UpdateDisplayNameColor([FromBody] UpdateDisplayNameColorDto? dto)
     {

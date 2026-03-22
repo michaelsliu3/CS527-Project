@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { listNotifications, markNotificationRead } from '../api/notifications'
 import { showErrorToast, showNotificationToast } from './ui/toaster'
-import { HiOutlineBell, HiOutlineUserCircle } from 'react-icons/hi'
+import { HiOutlineBell } from 'react-icons/hi'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
 import { DisplayNameText } from './DisplayNameText'
+import { UserAvatar } from './UserAvatar'
 
 /** How often to poll for new notifications while the user is logged in (used for badge + real-time toasts). */
 const NOTIFICATION_POLL_INTERVAL_MS = 5_000
@@ -136,7 +137,9 @@ export function Layout() {
                   <Menu.Root>
                     <Menu.Trigger asChild>
                       <Button variant="ghost" size="sm" color={linkColor} _hover={{ color: linkHover, bg: 'whiteAlpha.100' }}>
-                        <HiOutlineUserCircle size={18} style={{ marginRight: 6 }} />
+                        <Box mr={2}>
+                          <UserAvatar name={user.username} avatarUrl={user.avatarUrl} size="24px" />
+                        </Box>
                         <DisplayNameText
                           name={user.username}
                           displayNameColor={user.displayNameColor}

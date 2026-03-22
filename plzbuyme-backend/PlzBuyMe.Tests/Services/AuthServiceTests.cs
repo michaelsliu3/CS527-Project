@@ -1,6 +1,10 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Text;
 using FluentAssertions;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Moq;
 using PlzBuyMe.Api.Dtos.Auth;
 using PlzBuyMe.Api.Models;
 using PlzBuyMe.Api.Services;
@@ -26,7 +30,12 @@ public class AuthServiceTests
 
     private static AuthService CreateAuthService(AppDbContext db, IConfiguration? config = null)
     {
-        return new AuthService(db, config ?? CreateTestJwtConfig());
+        var mockEnvironment = new Mock<IWebHostEnvironment>();
+        var contentRoot = Path.Combine(Path.GetTempPath(), "plzbuyme-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(contentRoot);
+        mockEnvironment.SetupGet(e => e.ContentRootPath).Returns(contentRoot);
+        mockEnvironment.SetupGet(e => e.WebRootPath).Returns(Path.Combine(contentRoot, "wwwroot"));
+        return new AuthService(db, config ?? CreateTestJwtConfig(), mockEnvironment.Object);
     }
 
     [Fact]
@@ -303,5 +312,113 @@ public class AuthServiceTests
 
         result.Success.Should().BeFalse();
         result.FailureReason.Should().Be(LoginFailureReason.UserNotFound);
+    }
+
+    [Fact]
+    public async Task UploadAvatar_WhenValidPng_SavesAndReplacesPreviousLocalFile()
+    {
+        using var context = TestDbContextFactory.Create();
+        var user = new User
+        {
+            Username = "avatar-user",
+            Email = "avatar-user@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            IsActive = true
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var mockEnvironment = new Mock<IWebHostEnvironment>();
+        var contentRoot = Path.Combine(Path.GetTempPath(), "plzbuyme-tests", Guid.NewGuid().ToString("N"));
+        var webRoot = Path.Combine(contentRoot, "wwwroot");
+        Directory.CreateDirectory(webRoot);
+        mockEnvironment.SetupGet(e => e.ContentRootPath).Returns(contentRoot);
+        mockEnvironment.SetupGet(e => e.WebRootPath).Returns(webRoot);
+
+        var authService = new AuthService(context, CreateTestJwtConfig(), mockEnvironment.Object);
+        var oldFileName = $"user-{user.Id}-old.png";
+        var oldDirectory = Path.Combine(webRoot, "uploads", "avatars");
+        Directory.CreateDirectory(oldDirectory);
+        var oldPath = Path.Combine(oldDirectory, oldFileName);
+        await File.WriteAllTextAsync(oldPath, "old");
+        user.AvatarUrl = $"/uploads/avatars/{oldFileName}";
+        await context.SaveChangesAsync();
+
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("fake-png-bytes"));
+        IFormFile file = new FormFile(stream, 0, stream.Length, "avatar", "avatar.png")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "image/png"
+        };
+
+        var result = await authService.UploadAvatarAsync(user.Id, file);
+
+        result.NotFound.Should().BeFalse();
+        result.ValidationError.Should().BeNull();
+        result.AvatarUrl.Should().StartWith("/uploads/avatars/user-");
+        File.Exists(oldPath).Should().BeFalse();
+        var persisted = await context.Users.FindAsync(user.Id);
+        persisted!.AvatarUrl.Should().Be(result.AvatarUrl);
+    }
+
+    [Fact]
+    public async Task UploadAvatar_WhenInvalidType_ReturnsValidationError()
+    {
+        using var context = TestDbContextFactory.Create();
+        var user = new User
+        {
+            Username = "avatar-invalid",
+            Email = "avatar-invalid@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            IsActive = true
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var authService = CreateAuthService(context);
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("not-an-image"));
+        IFormFile file = new FormFile(stream, 0, stream.Length, "avatar", "avatar.txt")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "text/plain"
+        };
+
+        var result = await authService.UploadAvatarAsync(user.Id, file);
+
+        result.NotFound.Should().BeFalse();
+        result.ValidationError.Should().NotBeNullOrWhiteSpace();
+        result.AvatarUrl.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UploadAvatar_WhenTooLarge_ReturnsValidationError()
+    {
+        using var context = TestDbContextFactory.Create();
+        var user = new User
+        {
+            Username = "avatar-large",
+            Email = "avatar-large@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            IsActive = true
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var authService = CreateAuthService(context);
+        await using var stream = new MemoryStream(new byte[(2 * 1024 * 1024) + 1]);
+        IFormFile file = new FormFile(stream, 0, stream.Length, "avatar", "avatar.png")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "image/png"
+        };
+
+        var result = await authService.UploadAvatarAsync(user.Id, file);
+
+        result.NotFound.Should().BeFalse();
+        result.ValidationError.Should().Be("Avatar file must be 2MB or smaller.");
+        result.AvatarUrl.Should().BeNull();
     }
 }

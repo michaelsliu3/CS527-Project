@@ -109,6 +109,7 @@ public class QuestionsService : IQuestionsService
             Id = question.Id,
             UserId = question.UserId,
             Username = question.User.Username,
+            UsernameAvatarUrl = question.User.AvatarUrl,
             UsernameDisplayNameColor = question.User.DisplayNameColor,
             Subject = question.Subject,
             Body = question.Body,
@@ -119,6 +120,7 @@ public class QuestionsService : IQuestionsService
                     Id = r.Id,
                     Body = r.Body,
                     ReplierDisplayName = r.ReplierDisplayName,
+                    ReplierAvatarUrl = r.RepliedByUser?.AvatarUrl,
                     ReplierDisplayNameColor = r.ReplierDisplayNameColor ?? r.RepliedByUser?.DisplayNameColor,
                     ReplierRole = r.ReplierRole ?? (r.RepliedByUser != null ? ToRoleLabel(r.RepliedByUser.Role) : null),
                     CreatedAt = r.CreatedAt

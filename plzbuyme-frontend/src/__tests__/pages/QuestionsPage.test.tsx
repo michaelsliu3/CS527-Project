@@ -69,4 +69,42 @@ describe('QuestionsPage ask question access', () => {
     renderQuestionsPage('customer_rep')
     expect(await screen.findByRole('button', { name: /Ask a Question/i })).toBeInTheDocument()
   })
+
+  it('renders avatar fallbacks in forum threads when avatar URLs are missing', async () => {
+    vi.mocked(questionsApi.listQuestions).mockResolvedValueOnce({
+      data: [
+        {
+          id: 10,
+          userId: 1,
+          username: 'alice',
+          usernameAvatarUrl: null,
+          usernameDisplayNameColor: null,
+          subject: 'Shipping question',
+          body: 'When will this item ship?',
+          createdAt: new Date().toISOString(),
+          replies: [
+            {
+              id: 91,
+              body: 'We shipped it this morning.',
+              replierDisplayName: 'rep1',
+              replierAvatarUrl: null,
+              replierDisplayNameColor: null,
+              replierRole: 'customer_rep',
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as never)
+
+    renderQuestionsPage('end_user')
+
+    expect(await screen.findByText('Shipping question')).toBeInTheDocument()
+    expect(screen.getByText('A')).toBeInTheDocument()
+    expect(screen.getByText('R')).toBeInTheDocument()
+  })
 })

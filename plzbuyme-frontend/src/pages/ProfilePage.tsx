@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Box,
   Button,
@@ -20,10 +20,12 @@ import {
   normalizeDisplayNameColor,
 } from '../utils/displayNameColor'
 import { DisplayNameText } from '../components/DisplayNameText'
+import { UserAvatar } from '../components/UserAvatar'
 
 interface Profile {
   id: number
   username: string
+  avatarUrl: string | null
   displayNameColor: string | null
   email: string
   role: string
@@ -67,15 +69,18 @@ function gradientSwatch(preset: string): string {
 }
 
 export function ProfilePage() {
-  const { user, logout, updateDisplayNameColor } = useAuth()
+  const { user, logout, updateDisplayNameColor, updateAvatarUrl } = useAuth()
   const navigate = useNavigate()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
   const [colorInput, setColorInput] = useState('')
   const [savingColor, setSavingColor] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [removingAvatar, setRemovingAvatar] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const deleteDialog = useDisclosure()
+  const avatarInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -141,6 +146,7 @@ export function ProfilePage() {
       ? {
           id: user.id,
           username: user.username,
+          avatarUrl: user.avatarUrl ?? null,
           displayNameColor: user.displayNameColor ?? null,
           email: user.email,
           role: user.role,
@@ -181,6 +187,39 @@ export function ProfilePage() {
     setColorInput('')
   }
 
+  const handleAvatarSelected = async (file: File | null) => {
+    if (!file) return
+    setUploadingAvatar(true)
+    try {
+      const formData = new FormData()
+      formData.append('avatar', file)
+      const { data } = await apiClient.post<{ avatarUrl: string | null }>('auth/profile/avatar', formData)
+      const nextAvatarUrl = data.avatarUrl ?? null
+      setProfile((prev) => (prev ? { ...prev, avatarUrl: nextAvatarUrl } : prev))
+      updateAvatarUrl(nextAvatarUrl)
+      showSuccessToast('Profile picture updated')
+    } catch {
+      showErrorToast('Error', 'Failed to upload profile picture. Make sure the file is an image under 2MB.')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
+  const handleRemoveAvatar = async () => {
+    setRemovingAvatar(true)
+    try {
+      const { data } = await apiClient.delete<{ avatarUrl: string | null }>('auth/profile/avatar')
+      const nextAvatarUrl = data.avatarUrl ?? null
+      setProfile((prev) => (prev ? { ...prev, avatarUrl: nextAvatarUrl } : prev))
+      updateAvatarUrl(nextAvatarUrl)
+      showSuccessToast('Profile picture removed')
+    } catch {
+      showErrorToast('Error', 'Failed to remove profile picture.')
+    } finally {
+      setRemovingAvatar(false)
+    }
+  }
+
   return (
     <Container maxW="md" px={APP_PAGE_PX}>
       <Card.Root p={6} bg={dark.cardBg} borderColor={dark.borderSubtle} borderWidth="1px">
@@ -189,6 +228,56 @@ export function ProfilePage() {
         </Card.Header>
         <Card.Body>
           <Box as="form" display="flex" flexDirection="column" gap={4}>
+            <Field.Root>
+              <Field.Label color={dark.label}>Profile picture</Field.Label>
+              <Box display="flex" alignItems="center" gap={4} flexWrap="wrap">
+                <UserAvatar
+                  name={displayProfile.username}
+                  avatarUrl={displayProfile.avatarUrl}
+                  size="72px"
+                />
+                <Box display="flex" flexDirection="column" gap={2}>
+                  <Button
+                    size="sm"
+                    bg="brand.500"
+                    color="white"
+                    _hover={{ bg: 'brand.400' }}
+                    loading={uploadingAvatar}
+                    onClick={() => avatarInputRef.current?.click()}
+                  >
+                    Upload / change picture
+                  </Button>
+                  <Input
+                    ref={avatarInputRef}
+                    id="avatar-upload-input"
+                    data-testid="avatar-upload-input"
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.gif,.webp,image/jpeg,image/png,image/gif,image/webp"
+                    display="none"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null
+                      void handleAvatarSelected(file)
+                      e.currentTarget.value = ''
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    borderColor={dark.borderSubtle}
+                    color="white"
+                    _hover={{ bg: 'whiteAlpha.100' }}
+                    onClick={handleRemoveAvatar}
+                    loading={removingAvatar}
+                    disabled={!displayProfile.avatarUrl}
+                  >
+                    Remove picture
+                  </Button>
+                  <Box color={dark.placeholder} fontSize="xs">
+                    Allowed: JPG, PNG, GIF, WEBP (max 2MB)
+                  </Box>
+                </Box>
+              </Box>
+            </Field.Root>
             <Field.Root>
               <Field.Label color={dark.label}>Username</Field.Label>
               <Input value={displayProfile.username} readOnly disabled bg={dark.bg} borderColor={dark.borderSubtle} color="white" />

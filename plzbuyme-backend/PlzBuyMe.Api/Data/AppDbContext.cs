@@ -50,6 +50,7 @@ public class AppDbContext : DbContext
             e.HasIndex(u => u.Username).IsUnique();
             e.HasIndex(u => u.Email).IsUnique();
             e.Property(u => u.Username).HasMaxLength(64);
+            e.Property(u => u.AvatarUrl).HasMaxLength(2048);
             e.Property(u => u.DisplayNameColor).HasMaxLength(7);
             e.Property(u => u.Email).HasMaxLength(128);
             e.Property(u => u.PasswordHash).HasMaxLength(256);

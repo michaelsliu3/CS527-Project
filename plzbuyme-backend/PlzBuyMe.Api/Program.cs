@@ -197,6 +197,7 @@ public class Program
 
         app.UseSerilogRequestLogging();
         app.UseCors("AllowFrontend");
+        app.UseStaticFiles();
         app.UseAuthentication();
         app.UseAuthorization();
 
