@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -22,7 +23,11 @@ public class Program
 
         try
         {
-            var builder = WebApplication.CreateBuilder(args);
+            var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+            {
+                Args = args,
+                WebRootPath = "wwwroot"
+            });
             builder.Host.UseSerilog();
             EnsureStaticFileDirectories(builder);
 
@@ -73,10 +78,11 @@ public class Program
 
     private static void EnsureStaticFileDirectories(WebApplicationBuilder builder)
     {
-        var webRootPath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
+        var webRootPath = builder.Environment.WebRootPath;
+        if (string.IsNullOrEmpty(webRootPath))
+            return;
         var avatarDirectoryPath = Path.Combine(webRootPath, "uploads", "avatars");
         Directory.CreateDirectory(avatarDirectoryPath);
-        builder.WebHost.UseWebRoot("wwwroot");
     }
 
     private static void ConfigureServices(WebApplicationBuilder builder)
