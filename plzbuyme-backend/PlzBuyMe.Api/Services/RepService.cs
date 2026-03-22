@@ -95,7 +95,7 @@ public class RepService : IRepService
                 return (false, true, null);
 
             if (!TryParseRole(roleText, out var parsedRole))
-                return (false, false, "Invalid role. Allowed values: User, Rep, Admin.");
+                return (false, false, "Invalid role. Allowed values: User, VIP, Rep, Admin.");
 
             user.Role = parsedRole;
         }
@@ -178,6 +178,7 @@ public class RepService : IRepService
         {
             UserRole.Admin => "admin",
             UserRole.CustomerRep => "customer_rep",
+            UserRole.Vip => "vip",
             UserRole.EndUser => "end_user",
             _ => "end_user"
         };
@@ -189,6 +190,7 @@ public class RepService : IRepService
         {
             "user" => UserRole.EndUser,
             "end_user" => UserRole.EndUser,
+            "vip" => UserRole.Vip,
             "rep" => UserRole.CustomerRep,
             "customer_rep" => UserRole.CustomerRep,
             "admin" => UserRole.Admin,
@@ -197,6 +199,7 @@ public class RepService : IRepService
 
         return roleText.Equals("user", StringComparison.OrdinalIgnoreCase)
             || roleText.Equals("end_user", StringComparison.OrdinalIgnoreCase)
+            || roleText.Equals("vip", StringComparison.OrdinalIgnoreCase)
             || roleText.Equals("rep", StringComparison.OrdinalIgnoreCase)
             || roleText.Equals("customer_rep", StringComparison.OrdinalIgnoreCase)
             || roleText.Equals("admin", StringComparison.OrdinalIgnoreCase);

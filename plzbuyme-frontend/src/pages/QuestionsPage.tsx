@@ -32,6 +32,7 @@ import { useAuth } from '../context/AuthContext'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
 import { APP_PAGE_PX } from '../theme/layout'
+import { DisplayNameText } from '../components/DisplayNameText'
 
 interface AskQuestionFormValues {
   subject: string
@@ -123,7 +124,11 @@ export function QuestionsPage() {
   }
 
   const isRepOrAdmin = user?.role === 'customer_rep' || user?.role === 'admin'
-  const canAskQuestion = user?.role === 'end_user' || user?.role === 'admin'
+  const canAskQuestion =
+    user?.role === 'end_user' ||
+    user?.role === 'vip' ||
+    user?.role === 'customer_rep' ||
+    user?.role === 'admin'
 
   return (
     <Container maxW="container.lg" px={APP_PAGE_PX}>
@@ -187,7 +192,13 @@ export function QuestionsPage() {
                 {q.subject}
               </Text>
               <Text color={dark.muted} fontSize="sm" mb={2}>
-                {q.username} • {formatRelativeTime(q.createdAt)}
+                <DisplayNameText
+                  name={q.username}
+                  displayNameColor={q.usernameDisplayNameColor}
+                  fallbackColor={dark.muted}
+                  fontWeight="bold"
+                />{' '}
+                • {formatRelativeTime(q.createdAt)}
               </Text>
               <Text color={dark.label} whiteSpace="pre-wrap" mb={3}>
                 {q.body}
@@ -198,7 +209,12 @@ export function QuestionsPage() {
                     <Box key={reply.id} pl={3} borderLeftWidth="3px" borderColor="brand.500">
                       <Flex align="center" gap={2} mb={1} wrap="wrap">
                         <Text fontSize="xs" color={dark.placeholder}>
-                          {reply.replierDisplayName}
+                          <DisplayNameText
+                            name={reply.replierDisplayName}
+                            displayNameColor={reply.replierDisplayNameColor}
+                            fallbackColor={dark.placeholder}
+                            fontWeight="bold"
+                          />
                         </Text>
                         {(() => {
                           const tag = getReplyTagLabel(reply.replierRole, reply.replierDisplayName === q.username)

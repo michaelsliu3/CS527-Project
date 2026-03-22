@@ -284,7 +284,7 @@ public class RepControllerTests
         var result = await controller.EditUser(user.Id, dto);
 
         result.Should().BeOfType<BadRequestObjectResult>();
-        ((BadRequestObjectResult)result).Value.Should().Be("Invalid role. Allowed values: User, Rep, Admin.");
+        ((BadRequestObjectResult)result).Value.Should().Be("Invalid role. Allowed values: User, VIP, Rep, Admin.");
     }
 
     [Fact]
@@ -327,6 +327,46 @@ public class RepControllerTests
         updated!.Username.Should().Be("updated");
         updated.Email.Should().Be("updated@example.com");
         updated.Role.Should().Be(UserRole.CustomerRep);
+    }
+
+    [Fact]
+    public async Task Admin_Can_Edit_User_And_Change_Role_ToVip()
+    {
+        await using var db = CreateDbContext();
+        var authService = CreateAuthService(db);
+        var repService = new RepService(db, authService);
+        var admin = new User
+        {
+            Username = "admin",
+            Email = "admin@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.Admin
+        };
+        var user = new User
+        {
+            Username = "user1",
+            Email = "user1@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        db.Users.AddRange(admin, user);
+        await db.SaveChangesAsync();
+
+        var controller = new RepController(repService);
+        ControllerTestHelpers.SetUser(controller, admin.Id, "admin");
+
+        var dto = new EditUserDto
+        {
+            Username = "updated",
+            Email = "updated@example.com",
+            Role = "VIP"
+        };
+
+        var result = await controller.EditUser(user.Id, dto);
+
+        result.Should().BeOfType<NoContentResult>();
+        var updated = await db.Users.FindAsync(user.Id);
+        updated!.Role.Should().Be(UserRole.Vip);
     }
 
     [Fact]

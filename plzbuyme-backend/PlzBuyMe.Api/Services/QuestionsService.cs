@@ -83,6 +83,7 @@ public class QuestionsService : IQuestionsService
             RepliedByUserId = repliedByUserId,
             Body = dto.Body.Trim(),
             ReplierDisplayName = replier?.Username ?? "Support Team",
+            ReplierDisplayNameColor = replier?.DisplayNameColor,
             ReplierRole = replier != null ? ToRoleLabel(replier.Role) : null,
             CreatedAt = DateTime.UtcNow
         };
@@ -108,6 +109,7 @@ public class QuestionsService : IQuestionsService
             Id = question.Id,
             UserId = question.UserId,
             Username = question.User.Username,
+            UsernameDisplayNameColor = question.User.DisplayNameColor,
             Subject = question.Subject,
             Body = question.Body,
             Replies = question.Replies
@@ -117,6 +119,7 @@ public class QuestionsService : IQuestionsService
                     Id = r.Id,
                     Body = r.Body,
                     ReplierDisplayName = r.ReplierDisplayName,
+                    ReplierDisplayNameColor = r.ReplierDisplayNameColor ?? r.RepliedByUser?.DisplayNameColor,
                     ReplierRole = r.ReplierRole ?? (r.RepliedByUser != null ? ToRoleLabel(r.RepliedByUser.Role) : null),
                     CreatedAt = r.CreatedAt
                 })
@@ -131,6 +134,7 @@ public class QuestionsService : IQuestionsService
         {
             UserRole.CustomerRep => "customer_rep",
             UserRole.Admin => "admin",
+            UserRole.Vip => "vip",
             _ => "end_user"
         };
     }

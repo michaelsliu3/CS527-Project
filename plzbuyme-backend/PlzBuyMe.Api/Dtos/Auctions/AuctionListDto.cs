@@ -9,5 +9,6 @@ public record AuctionListDto
     public string Status { get; init; } = string.Empty;
     public string CategoryName { get; init; } = string.Empty;
     public string SellerUsername { get; init; } = string.Empty;
+    public string? SellerDisplayNameColor { get; init; }
     public int BidCount { get; init; }
 }

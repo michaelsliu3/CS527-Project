@@ -3,6 +3,7 @@ namespace PlzBuyMe.Api.Models;
 public enum UserRole
 {
     EndUser,
+    Vip,
     CustomerRep,
     Admin
 }

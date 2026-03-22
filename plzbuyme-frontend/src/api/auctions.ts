@@ -8,6 +8,7 @@ export interface AuctionListItem {
   status: string
   categoryName: string
   sellerUsername: string
+  sellerDisplayNameColor?: string | null
   bidCount: number
 }
 
@@ -26,6 +27,7 @@ export interface CategoryFieldValueDto {
 export interface BidHistoryItem {
   id?: number
   bidderUsername: string
+  bidderDisplayNameColor?: string | null
   amount: number
   isAuto: boolean
   createdAt: string
@@ -39,6 +41,7 @@ export interface AuctionDetail {
   categoryName: string
   sellerId: number
   sellerUsername: string
+  sellerDisplayNameColor?: string | null
   initialPrice: number
   bidIncrement: number
   currentPrice: number

@@ -9,6 +9,7 @@ public record AuctionDetailDto
     public string CategoryName { get; init; } = string.Empty;
     public int SellerId { get; init; }
     public string SellerUsername { get; init; } = string.Empty;
+    public string? SellerDisplayNameColor { get; init; }
     public decimal InitialPrice { get; init; }
     public decimal BidIncrement { get; init; }
     public decimal CurrentPrice { get; init; }

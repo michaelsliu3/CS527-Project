@@ -32,6 +32,7 @@ import { dark } from '../../theme/colors'
 import { tableStyles, thBase, tdStyle } from '../../theme/tableStyles'
 import { useAuth } from '../../context/AuthContext'
 import { APP_PAGE_PX } from '../../theme/layout'
+import { DisplayNameText } from '../../components/DisplayNameText'
 
 const PAGE_SIZE = 10
 
@@ -69,10 +70,11 @@ function getReplyTagColor(tag: 'OP' | 'Admin' | 'Rep'): 'green' | 'purple' | 'bl
   return 'blue'
 }
 
-function roleToLabel(role?: string | null): 'User' | 'Rep' | 'Admin' {
+function roleToLabelExtended(role?: string | null): 'User' | 'VIP' | 'Rep' | 'Admin' {
   const normalized = (role ?? '').trim().toLowerCase()
   if (normalized === 'admin') return 'Admin'
   if (normalized === 'customer_rep' || normalized === 'rep') return 'Rep'
+  if (normalized === 'vip') return 'VIP'
   return 'User'
 }
 
@@ -187,15 +189,17 @@ function RepUsersTab() {
                       <td style={{ ...cellStyle, textAlign: 'left' }}>
                         <Badge
                           colorPalette={
-                            roleToLabel(u.role) === 'Admin'
+                            roleToLabelExtended(u.role) === 'Admin'
                               ? 'purple'
-                              : roleToLabel(u.role) === 'Rep'
+                              : roleToLabelExtended(u.role) === 'Rep'
                                 ? 'blue'
+                                : roleToLabelExtended(u.role) === 'VIP'
+                                  ? 'yellow'
                                 : 'gray'
                           }
                           size="sm"
                         >
-                          {roleToLabel(u.role)}
+                          {roleToLabelExtended(u.role)}
                         </Badge>
                       </td>
                       <td style={{ ...cellStyle, textAlign: 'left' }}>
@@ -303,7 +307,7 @@ interface EditUserModalProps {
 
 function EditUserModal({ user, isAdmin, onClose, onSuccess, onError }: EditUserModalProps) {
   const { register, handleSubmit, formState } = useForm<EditUserDto>({
-    defaultValues: { username: user.username, email: user.email, role: roleToLabel(user.role) },
+    defaultValues: { username: user.username, email: user.email, role: roleToLabelExtended(user.role) },
   })
 
   const onSubmit = async (data: EditUserDto) => {
@@ -369,6 +373,7 @@ function EditUserModal({ user, isAdmin, onClose, onSuccess, onError }: EditUserM
                         color="white"
                       >
                         <option value="User">User</option>
+                        <option value="VIP">VIP</option>
                         <option value="Rep">Rep</option>
                         <option value="Admin">Admin</option>
                       </NativeSelect.Field>
@@ -582,7 +587,12 @@ function RepQuestionsTab() {
                 )}
               </Flex>
               <Text color={dark.muted} fontSize="sm" mb={2}>
-                {q.username} • {formatRelativeTime(q.createdAt)}
+                <DisplayNameText
+                  name={q.username}
+                  displayNameColor={q.usernameDisplayNameColor}
+                  fallbackColor={dark.muted}
+                />{' '}
+                • {formatRelativeTime(q.createdAt)}
               </Text>
               <Text color={dark.label} whiteSpace="pre-wrap" mb={3}>
                 {q.body}
@@ -593,7 +603,11 @@ function RepQuestionsTab() {
                     <Box key={reply.id} pl={3} borderLeftWidth="3px" borderColor="brand.500">
                       <Flex align="center" gap={2} mb={1} wrap="wrap">
                         <Text fontSize="xs" color={dark.placeholder}>
-                          {reply.replierDisplayName}
+                          <DisplayNameText
+                            name={reply.replierDisplayName}
+                            displayNameColor={reply.replierDisplayNameColor}
+                            fallbackColor={dark.placeholder}
+                          />
                         </Text>
                         {(() => {
                           const tag = getReplyTagLabel(reply.replierRole, reply.replierDisplayName === q.username)
@@ -803,7 +817,13 @@ function RepAuctionsTab() {
                       <td style={{ ...cellStyle, textAlign: 'left' }}>
                         <Badge size="sm">{a.status}</Badge>
                       </td>
-                      <td style={{ ...cellStyle, textAlign: 'left', color: dark.muted }}>{a.sellerUsername}</td>
+                      <td style={{ ...cellStyle, textAlign: 'left', color: dark.muted }}>
+                        <DisplayNameText
+                          name={a.sellerUsername}
+                          displayNameColor={a.sellerDisplayNameColor}
+                          fallbackColor={dark.muted}
+                        />
+                      </td>
                       <td style={{ ...cellStyle, textAlign: 'left' }}>
                         <Flex gap={2}>
                           <Button
@@ -857,7 +877,13 @@ function RepAuctionsTab() {
                         const rowKey = b.id != null ? b.id : `${b.bidderUsername}-${b.createdAt}-${idx}`
                         return (
                           <tr key={rowKey}>
-                            <td style={{ ...cellStyle, textAlign: 'left' }}>{b.bidderUsername}</td>
+                            <td style={{ ...cellStyle, textAlign: 'left' }}>
+                              <DisplayNameText
+                                name={b.bidderUsername}
+                                displayNameColor={b.bidderDisplayNameColor}
+                                fallbackColor="white"
+                              />
+                            </td>
                             <td style={{ ...cellStyle, textAlign: 'right', fontWeight: 500 }}>
                               ${b.amount.toLocaleString()}
                               {b.isAuto && <Badge ml={2} size="sm">Auto</Badge>}

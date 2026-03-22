@@ -50,6 +50,7 @@ public class AppDbContext : DbContext
             e.HasIndex(u => u.Username).IsUnique();
             e.HasIndex(u => u.Email).IsUnique();
             e.Property(u => u.Username).HasMaxLength(64);
+            e.Property(u => u.DisplayNameColor).HasMaxLength(7);
             e.Property(u => u.Email).HasMaxLength(128);
             e.Property(u => u.PasswordHash).HasMaxLength(256);
         });
@@ -188,6 +189,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<QuestionReply>(e =>
         {
             e.Property(qr => qr.ReplierDisplayName).HasMaxLength(128);
+            e.Property(qr => qr.ReplierDisplayNameColor).HasMaxLength(7);
             e.Property(qr => qr.ReplierRole).HasMaxLength(32);
             e.HasOne(qr => qr.Question)
                 .WithMany(q => q.Replies)
