@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ChakraProvider } from '@chakra-ui/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
@@ -51,11 +51,13 @@ describe('SearchBar', () => {
   })
 
   it('has keyword input and Search button and submits without error', async () => {
-    const user = userEvent.setup()
     renderSearchBar('/auctions')
-    await user.type(screen.getByPlaceholderText(/Search title or description/i), 'Toyota')
-    await user.click(screen.getByRole('button', { name: /Search/i }))
-    expect(screen.getByRole('button', { name: /Search/i })).toBeInTheDocument()
+    const input = screen.getByPlaceholderText(/Search title or description/i)
+    fireEvent.change(input, { target: { value: 'Toyota' } })
+    fireEvent.click(screen.getByRole('button', { name: /Search/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Search/i })).toBeInTheDocument()
+    })
   })
 
   it('renders car-specific inputs when Cars subcategory is selected', () => {

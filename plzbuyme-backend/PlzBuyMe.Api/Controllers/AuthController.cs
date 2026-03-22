@@ -10,6 +10,7 @@ namespace PlzBuyMe.Api.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
+    private const long MaxAvatarUploadBytes = 2 * 1024 * 1024;
     private readonly IAuthService _authService;
 
     public AuthController(IAuthService authService)
@@ -55,6 +56,40 @@ public class AuthController : ControllerBase
         if (profile == null)
             return NotFound();
         return Ok(profile);
+    }
+
+    [Authorize]
+    [HttpPost("profile/avatar")]
+    [RequestSizeLimit(MaxAvatarUploadBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxAvatarUploadBytes)]
+    public async Task<IActionResult> UploadAvatar([FromForm] IFormFile? avatar)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            return Forbid();
+
+        var result = await _authService.UploadAvatarAsync(userId, avatar);
+        if (result.NotFound)
+            return NotFound();
+        if (result.ValidationError != null)
+            return BadRequest(new AuthErrorDto { Code = "ValidationError", Message = result.ValidationError });
+
+        return Ok(new UpdateAvatarDto { AvatarUrl = result.AvatarUrl });
+    }
+
+    [Authorize]
+    [HttpDelete("profile/avatar")]
+    public async Task<IActionResult> RemoveAvatar()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            return Forbid();
+
+        var result = await _authService.RemoveAvatarAsync(userId);
+        if (result.NotFound)
+            return NotFound();
+
+        return Ok(new UpdateAvatarDto { AvatarUrl = result.AvatarUrl });
     }
 
     [Authorize]

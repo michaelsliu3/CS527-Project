@@ -3,11 +3,13 @@ import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { listNotifications, markNotificationRead } from '../api/notifications'
+import { apiClient } from '../api/client'
 import { showErrorToast, showNotificationToast } from './ui/toaster'
-import { HiOutlineBell, HiOutlineUserCircle } from 'react-icons/hi'
+import { HiOutlineBell } from 'react-icons/hi'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
 import { DisplayNameText } from './DisplayNameText'
+import { UserAvatar } from './UserAvatar'
 
 /** How often to poll for new notifications while the user is logged in (used for badge + real-time toasts). */
 const NOTIFICATION_POLL_INTERVAL_MS = 5_000
@@ -21,6 +23,7 @@ export function Layout() {
   const { user, loading, logout } = useAuth()
   const navigate = useNavigate()
   const [unreadCount, setUnreadCount] = useState(0)
+  const [navAvatarUrl, setNavAvatarUrl] = useState<string | null>(null)
   const lastKnownUnreadIdsRef = useRef<Set<number>>(new Set())
   const hasInitialFetchRef = useRef(false)
 
@@ -60,10 +63,15 @@ export function Layout() {
   useEffect(() => {
     if (!user) {
       setUnreadCount(0)
+      setNavAvatarUrl(null)
       hasInitialFetchRef.current = false
       lastKnownUnreadIdsRef.current = new Set()
       return
     }
+    apiClient
+      .get<{ avatarUrl?: string | null }>('auth/profile')
+      .then(({ data }) => setNavAvatarUrl(data.avatarUrl ?? null))
+      .catch(() => setNavAvatarUrl(user.avatarUrl ?? null))
     fetchUnreadCount()
   }, [user])
 
@@ -136,7 +144,9 @@ export function Layout() {
                   <Menu.Root>
                     <Menu.Trigger asChild>
                       <Button variant="ghost" size="sm" color={linkColor} _hover={{ color: linkHover, bg: 'whiteAlpha.100' }}>
-                        <HiOutlineUserCircle size={18} style={{ marginRight: 6 }} />
+                        <Box mr={2}>
+                          <UserAvatar name={user.username} avatarUrl={navAvatarUrl ?? user.avatarUrl} size="24px" />
+                        </Box>
                         <DisplayNameText
                           name={user.username}
                           displayNameColor={user.displayNameColor}

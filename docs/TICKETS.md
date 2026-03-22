@@ -320,7 +320,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-18 — User profile pictures + forums identity polish
+## PBM-18 — User profile pictures + forums identity polish ✅
 
 **Layer:** Backend + Frontend
 **Branch:** `PBM-18/profile-pictures-forums`
@@ -413,6 +413,23 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Frontend: render rich content consistently for question bodies and reply bodies while preserving line breaks and safe fallback for malformed input.
 - Security: enforce strict allowlist sanitization for tags/attributes/links and block script/event-handler injection attempts.
 - **Tests:** backend tests for sanitization rules and payload validation; frontend tests for composer submit payload, preview behavior, and safe rendering/fallback for markdown/html content.
+- **Do not implement yet** — ticket placeholder for tracking.
+
+---
+
+## PBM-24 — Local media server for user and item images
+
+**Layer:** Backend + Frontend
+**Branch:** `PBM-24/local-media-server-storage`
+**PR Title:** `[PBM-24] integrate local media server storage for avatars and auction images`
+
+- Replace direct `wwwroot/uploads` writes with a separate local media service (e.g., `plzbuyme-cdn`) used for profile avatars and auction/item images.
+- Backend: add a `MediaStorageService` abstraction and local-service implementation for upload, replace, and delete operations, with simple environment-based configuration (base URL, storage root/path).
+- Backend: support server-side upload flow, content-type and size validation, deterministic path naming, and safe replacement cleanup of old files.
+- Backend: persist media URLs/keys in entities/DTOs and ensure existing avatar endpoints use the new media service without breaking API contracts.
+- Frontend: update image upload codepaths (profile and auction image flows) to use the new backend contract and preserve current preview/fallback UX.
+- Dev setup: document how to run/configure the local media service (`plzbuyme-cdn`) and required env vars in docs/example config.
+- **Tests:** backend tests for media service validation/error handling/replacement behavior; frontend tests for upload success/failure flows with local-media-service responses.
 - **Do not implement yet** — ticket placeholder for tracking.
 
 ---

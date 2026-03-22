@@ -1,5 +1,7 @@
 using System.Security.Claims;
+using System.Text;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using PlzBuyMe.Api.Controllers;
@@ -276,6 +278,66 @@ public class AuthControllerTests
         var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
         var body = badRequest.Value.Should().BeOfType<AuthErrorDto>().Subject;
         body.Code.Should().Be("ValidationError");
+    }
+
+    [Fact]
+    public async Task UploadAvatar_WhenValid_ReturnsOk()
+    {
+        var mock = new Mock<IAuthService>();
+        mock.Setup(s => s.UploadAvatarAsync(11, It.IsAny<IFormFile>()))
+            .ReturnsAsync((false, null, "/uploads/avatars/user-11.png"));
+        var controller = CreateController(mock);
+        SetUser(controller, 11);
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("png"));
+        var avatar = new FormFile(stream, 0, stream.Length, "avatar", "avatar.png")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "image/png"
+        };
+
+        var result = await controller.UploadAvatar(avatar);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeOfType<UpdateAvatarDto>().Subject;
+        body.AvatarUrl.Should().Be("/uploads/avatars/user-11.png");
+    }
+
+    [Fact]
+    public async Task UploadAvatar_WhenValidationFails_ReturnsBadRequest()
+    {
+        var mock = new Mock<IAuthService>();
+        mock.Setup(s => s.UploadAvatarAsync(11, It.IsAny<IFormFile>()))
+            .ReturnsAsync((false, "Avatar file must be 2MB or smaller.", null));
+        var controller = CreateController(mock);
+        SetUser(controller, 11);
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("png"));
+        var avatar = new FormFile(stream, 0, stream.Length, "avatar", "avatar.png")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "image/png"
+        };
+
+        var result = await controller.UploadAvatar(avatar);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        var body = badRequest.Value.Should().BeOfType<AuthErrorDto>().Subject;
+        body.Code.Should().Be("ValidationError");
+    }
+
+    [Fact]
+    public async Task RemoveAvatar_WhenAuthorized_ReturnsOk()
+    {
+        var mock = new Mock<IAuthService>();
+        mock.Setup(s => s.RemoveAvatarAsync(4))
+            .ReturnsAsync((false, null));
+        var controller = CreateController(mock);
+        SetUser(controller, 4);
+
+        var result = await controller.RemoveAvatar();
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeOfType<UpdateAvatarDto>().Subject;
+        body.AvatarUrl.Should().BeNull();
     }
 
     [Fact]

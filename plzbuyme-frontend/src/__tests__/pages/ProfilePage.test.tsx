@@ -11,6 +11,7 @@ import { useAuth } from '../../context/AuthContext'
 vi.mock('../../api/client', () => ({
   apiClient: {
     get: vi.fn(),
+    post: vi.fn(),
     patch: vi.fn(),
     delete: vi.fn(),
   },
@@ -41,18 +42,19 @@ describe('ProfilePage display name color', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockedUseAuth.mockReturnValue({
-      user: { id: 1, username: 'alice', displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      user: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
       loading: false,
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
       updateDisplayNameColor: vi.fn(),
+      updateAvatarUrl: vi.fn(),
     })
   })
 
   it('shows color controls for VIP users', async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { id: 1, username: 'alice', displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      data: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
     } as never)
     renderProfile()
     expect(await screen.findByText('Display name color')).toBeInTheDocument()
@@ -62,15 +64,16 @@ describe('ProfilePage display name color', () => {
 
   it('hides color controls for end users', async () => {
     mockedUseAuth.mockReturnValue({
-      user: { id: 2, username: 'bob', displayNameColor: null, email: 'bob@example.com', role: 'end_user' },
+      user: { id: 2, username: 'bob', avatarUrl: null, displayNameColor: null, email: 'bob@example.com', role: 'end_user' },
       loading: false,
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
       updateDisplayNameColor: vi.fn(),
+      updateAvatarUrl: vi.fn(),
     })
     vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { id: 2, username: 'bob', displayNameColor: null, email: 'bob@example.com', role: 'end_user' },
+      data: { id: 2, username: 'bob', avatarUrl: null, displayNameColor: null, email: 'bob@example.com', role: 'end_user' },
     } as never)
     renderProfile()
     await screen.findByText('Profile')
@@ -80,15 +83,16 @@ describe('ProfilePage display name color', () => {
   it('submits selected hardcoded solid color and updates auth color', async () => {
     const updateDisplayNameColor = vi.fn()
     mockedUseAuth.mockReturnValue({
-      user: { id: 1, username: 'alice', displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      user: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
       loading: false,
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
       updateDisplayNameColor,
+      updateAvatarUrl: vi.fn(),
     })
     vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { id: 1, username: 'alice', displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      data: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
     } as never)
     vi.mocked(apiClient.patch).mockResolvedValueOnce({
       data: { displayNameColor: '#A78BFA' },
@@ -111,7 +115,7 @@ describe('ProfilePage display name color', () => {
 
   it('does not render manual color picker inputs', async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { id: 1, username: 'alice', displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      data: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
     } as never)
 
     renderProfile()
@@ -123,15 +127,16 @@ describe('ProfilePage display name color', () => {
   it('submits animated preset payload', async () => {
     const updateDisplayNameColor = vi.fn()
     mockedUseAuth.mockReturnValue({
-      user: { id: 1, username: 'alice', displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      user: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
       loading: false,
       login: vi.fn(),
       register: vi.fn(),
       logout: vi.fn(),
       updateDisplayNameColor,
+      updateAvatarUrl: vi.fn(),
     })
     vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { id: 1, username: 'alice', displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      data: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
     } as never)
     vi.mocked(apiClient.patch).mockResolvedValueOnce({
       data: { displayNameColor: 'RAINBOW' },
@@ -149,5 +154,80 @@ describe('ProfilePage display name color', () => {
       })
     })
     expect(updateDisplayNameColor).toHaveBeenCalledWith('RAINBOW')
+  })
+
+  it('uploads profile picture and updates auth avatar state', async () => {
+    const updateAvatarUrl = vi.fn()
+    mockedUseAuth.mockReturnValue({
+      user: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      loading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      updateDisplayNameColor: vi.fn(),
+      updateAvatarUrl,
+    })
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+    } as never)
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { avatarUrl: '/uploads/avatars/user-1-new.png' },
+    } as never)
+
+    const user = userEvent.setup()
+    renderProfile()
+
+    const uploadInput = await screen.findByTestId('avatar-upload-input')
+    const file = new File(['img'], 'avatar.png', { type: 'image/png' })
+    await user.upload(uploadInput, file)
+
+    await waitFor(() => {
+      expect(apiClient.post).toHaveBeenCalledWith('auth/profile/avatar', expect.any(FormData))
+    })
+    expect(updateAvatarUrl).toHaveBeenCalledWith('/uploads/avatars/user-1-new.png')
+  })
+
+  it('removes profile picture and falls back to initials', async () => {
+    const updateAvatarUrl = vi.fn()
+    mockedUseAuth.mockReturnValue({
+      user: {
+        id: 1,
+        username: 'alice',
+        avatarUrl: '/uploads/avatars/user-1.png',
+        displayNameColor: null,
+        email: 'alice@example.com',
+        role: 'vip',
+      },
+      loading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      updateDisplayNameColor: vi.fn(),
+      updateAvatarUrl,
+    })
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        id: 1,
+        username: 'alice',
+        avatarUrl: '/uploads/avatars/user-1.png',
+        displayNameColor: null,
+        email: 'alice@example.com',
+        role: 'vip',
+      },
+    } as never)
+    vi.mocked(apiClient.delete).mockResolvedValueOnce({
+      data: { avatarUrl: null },
+    } as never)
+
+    const user = userEvent.setup()
+    renderProfile()
+
+    const removeButton = await screen.findByRole('button', { name: 'Remove picture' })
+    await user.click(removeButton)
+
+    await waitFor(() => {
+      expect(apiClient.delete).toHaveBeenCalledWith('auth/profile/avatar')
+    })
+    expect(updateAvatarUrl).toHaveBeenCalledWith(null)
   })
 })

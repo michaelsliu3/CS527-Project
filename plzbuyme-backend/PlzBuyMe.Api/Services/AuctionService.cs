@@ -502,6 +502,7 @@ public class AuctionService : IAuctionService
             {
                 Id = b.Id,
                 BidderUsername = b.Bidder.Username,
+                BidderAvatarUrl = b.Bidder.AvatarUrl,
                 BidderDisplayNameColor = b.Bidder.DisplayNameColor,
                 Amount = b.Amount,
                 IsAuto = b.IsAuto,
@@ -518,6 +519,7 @@ public class AuctionService : IAuctionService
             CategoryName = item.Category.Name,
             SellerId = item.SellerId,
             SellerUsername = item.Seller.Username,
+            SellerAvatarUrl = item.Seller.AvatarUrl,
             SellerDisplayNameColor = item.Seller.DisplayNameColor,
             InitialPrice = item.InitialPrice,
             BidIncrement = item.BidIncrement,

@@ -27,6 +27,7 @@ export interface CategoryFieldValueDto {
 export interface BidHistoryItem {
   id?: number
   bidderUsername: string
+  bidderAvatarUrl?: string | null
   bidderDisplayNameColor?: string | null
   amount: number
   isAuto: boolean
@@ -41,6 +42,7 @@ export interface AuctionDetail {
   categoryName: string
   sellerId: number
   sellerUsername: string
+  sellerAvatarUrl?: string | null
   sellerDisplayNameColor?: string | null
   initialPrice: number
   bidIncrement: number

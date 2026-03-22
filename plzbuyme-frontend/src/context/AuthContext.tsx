@@ -14,6 +14,7 @@ const TOKEN_KEY = 'token'
 export interface AuthUser {
   id: number
   username: string
+  avatarUrl: string | null
   displayNameColor: string | null
   email: string
   role: string
@@ -32,10 +33,20 @@ interface JwtPayload {
 interface AuthResponse {
   token: string
   username: string
+  avatarUrl?: string | null
   displayNameColor?: string | null
   email: string
   role: string
   userId: number
+}
+
+interface ProfileResponse {
+  id: number
+  username: string
+  avatarUrl?: string | null
+  displayNameColor?: string | null
+  email: string
+  role: string
 }
 
 interface AuthContextValue {
@@ -45,6 +56,7 @@ interface AuthContextValue {
   register: (username: string, email: string, password: string) => Promise<{ username: string }>
   logout: () => void
   updateDisplayNameColor: (displayNameColor: string | null) => void
+  updateAvatarUrl: (avatarUrl: string | null) => void
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -74,9 +86,10 @@ function decodeToken(token: string): AuthUser | null {
       firstString(payload, ['unique_name', 'name', DOTNET_CLAIM_NAME]) ?? ''
     const email = firstString(payload, ['email', DOTNET_CLAIM_EMAIL]) ?? ''
     const role = firstString(payload, ['role', DOTNET_CLAIM_ROLE]) ?? ''
+    const avatarUrl = firstString(payload, ['avatar_url'])
     const displayNameColor = firstString(payload, ['display_name_color'])
     if (!id || !username) return null
-    return { id, username, displayNameColor, email, role }
+    return { id, username, avatarUrl, displayNameColor, email, role }
   } catch {
     return null
   }
@@ -96,6 +109,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const decoded = decodeToken(token)
     if (decoded) {
       setUser(decoded)
+      // Always hydrate latest profile metadata (avatar/color) from backend,
+      // because JWT claims may lag behind profile updates.
+      void apiClient
+        .get<ProfileResponse>('auth/profile')
+        .then(({ data }) => {
+          setUser((prev) => {
+            if (!prev) return prev
+            return {
+              ...prev,
+              username: data.username,
+              avatarUrl: data.avatarUrl ?? null,
+              displayNameColor: data.displayNameColor ?? null,
+              email: data.email,
+              role: data.role,
+            }
+          })
+        })
+        .catch(() => {
+          // Keep decoded token state when profile refresh fails.
+        })
     } else {
       localStorage.removeItem(TOKEN_KEY)
       setUser(null)
@@ -116,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser({
       id: data.userId,
       username: data.username,
+      avatarUrl: data.avatarUrl ?? null,
       displayNameColor: data.displayNameColor ?? null,
       email: data.email,
       role: data.role,
@@ -134,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({
         id: data.userId,
         username: data.username,
+        avatarUrl: data.avatarUrl ?? null,
         displayNameColor: data.displayNameColor ?? null,
         email: data.email,
         role: data.role,
@@ -158,6 +193,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const updateAvatarUrl = useCallback((avatarUrl: string | null) => {
+    setUser((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        avatarUrl,
+      }
+    })
+  }, [])
+
   const value: AuthContextValue = {
     user,
     loading,
@@ -165,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register,
     logout,
     updateDisplayNameColor,
+    updateAvatarUrl,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

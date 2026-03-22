@@ -63,6 +63,7 @@ public class QuestionsControllerTests
         var endUser = new User
         {
             Username = "user1",
+            AvatarUrl = "/uploads/avatars/user1.png",
             Email = "user1@example.com",
             PasswordHash = "hash",
             Role = UserRole.EndUser
@@ -70,6 +71,7 @@ public class QuestionsControllerTests
         var rep = new User
         {
             Username = "rep1",
+            AvatarUrl = "/uploads/avatars/rep1.png",
             Email = "rep1@example.com",
             PasswordHash = "hash",
             Role = UserRole.CustomerRep
@@ -102,7 +104,9 @@ public class QuestionsControllerTests
         response.Replies.Should().HaveCount(1);
         response.Replies[0].Body.Should().Be("Here is an answer");
         response.Replies[0].ReplierDisplayName.Should().Be("rep1");
+        response.Replies[0].ReplierAvatarUrl.Should().Be("/uploads/avatars/rep1.png");
         response.Replies[0].ReplierRole.Should().Be("customer_rep");
+        response.UsernameAvatarUrl.Should().Be("/uploads/avatars/user1.png");
     }
 
     [Fact]
