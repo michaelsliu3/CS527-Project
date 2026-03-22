@@ -10,6 +10,7 @@ import {
   Spinner,
   useDisclosure,
 } from '@chakra-ui/react'
+import { isAxiosError } from 'axios'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { apiClient } from '../api/client'
@@ -198,8 +199,11 @@ export function ProfilePage() {
       setProfile((prev) => (prev ? { ...prev, avatarUrl: nextAvatarUrl } : prev))
       updateAvatarUrl(nextAvatarUrl)
       showSuccessToast('Profile picture updated')
-    } catch {
-      showErrorToast('Error', 'Failed to upload profile picture. Make sure the file is an image under 2MB.')
+    } catch (error) {
+      const message = isAxiosError(error)
+        ? (typeof error.response?.data?.message === 'string' ? error.response.data.message : null)
+        : null
+      showErrorToast('Error', message ?? 'Failed to upload profile picture. Make sure the file is an image under 2MB.')
     } finally {
       setUploadingAvatar(false)
     }

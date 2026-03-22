@@ -10,6 +10,7 @@ import * as client from '../../api/client'
 vi.mock('../../api/client', () => ({
   apiClient: {
     post: vi.fn(),
+    get: vi.fn(),
   },
 }))
 
@@ -44,6 +45,7 @@ describe('AuthContext', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    vi.mocked(client.apiClient.get).mockRejectedValue(new Error('profile fetch not mocked'))
   })
 
   it('login stores JWT and sets user state', async () => {

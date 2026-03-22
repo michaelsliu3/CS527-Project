@@ -40,6 +40,15 @@ interface AuthResponse {
   userId: number
 }
 
+interface ProfileResponse {
+  id: number
+  username: string
+  avatarUrl?: string | null
+  displayNameColor?: string | null
+  email: string
+  role: string
+}
+
 interface AuthContextValue {
   user: AuthUser | null
   loading: boolean
@@ -100,6 +109,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const decoded = decodeToken(token)
     if (decoded) {
       setUser(decoded)
+      // Always hydrate latest profile metadata (avatar/color) from backend,
+      // because JWT claims may lag behind profile updates.
+      void apiClient
+        .get<ProfileResponse>('auth/profile')
+        .then(({ data }) => {
+          setUser((prev) => {
+            if (!prev) return prev
+            return {
+              ...prev,
+              username: data.username,
+              avatarUrl: data.avatarUrl ?? null,
+              displayNameColor: data.displayNameColor ?? null,
+              email: data.email,
+              role: data.role,
+            }
+          })
+        })
+        .catch(() => {
+          // Keep decoded token state when profile refresh fails.
+        })
     } else {
       localStorage.removeItem(TOKEN_KEY)
       setUser(null)

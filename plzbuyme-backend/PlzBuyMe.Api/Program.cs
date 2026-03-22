@@ -24,6 +24,7 @@ public class Program
         {
             var builder = WebApplication.CreateBuilder(args);
             builder.Host.UseSerilog();
+            EnsureStaticFileDirectories(builder);
 
             ConfigureServices(builder);
 
@@ -68,6 +69,14 @@ public class Program
         {
             Log.CloseAndFlush();
         }
+    }
+
+    private static void EnsureStaticFileDirectories(WebApplicationBuilder builder)
+    {
+        var webRootPath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
+        var avatarDirectoryPath = Path.Combine(webRootPath, "uploads", "avatars");
+        Directory.CreateDirectory(avatarDirectoryPath);
+        builder.WebHost.UseWebRoot("wwwroot");
     }
 
     private static void ConfigureServices(WebApplicationBuilder builder)

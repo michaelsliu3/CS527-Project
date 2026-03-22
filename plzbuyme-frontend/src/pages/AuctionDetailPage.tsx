@@ -25,6 +25,7 @@ import {
 import { BidHistory } from '../components/BidHistory'
 import { AuctionCard } from '../components/AuctionCard'
 import { DisplayNameText } from '../components/DisplayNameText'
+import { UserAvatar } from '../components/UserAvatar'
 import { showErrorToast } from '../components/ui/toaster'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
@@ -172,15 +173,16 @@ export function AuctionDetailPage() {
             {auction.status}
           </Badge>
         </Flex>
-        <Text color={dark.muted}>
-          {auction.categoryName} · by{' '}
+        <Flex color={dark.muted} align="center" gap={2}>
+          <Text>{auction.categoryName} · by</Text>
+          <UserAvatar name={auction.sellerUsername} avatarUrl={auction.sellerAvatarUrl} size="22px" />
           <DisplayNameText
             name={auction.sellerUsername}
             displayNameColor={auction.sellerDisplayNameColor}
             fallbackColor={dark.muted}
             fontWeight="bold"
           />
-        </Text>
+        </Flex>
         {auction.status === 'active' && (
           <Text fontSize="sm" color={dark.muted} mt={1}>
             Ends in {countdown}

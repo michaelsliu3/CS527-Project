@@ -24,7 +24,7 @@ public class AuthService : IAuthService
     };
     private static readonly HashSet<string> AllowedAvatarContentTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "image/jpeg", "image/png", "image/gif", "image/webp"
+        "image/jpeg", "image/png", "image/gif", "image/webp", "image/jpg"
     };
     private static readonly HashSet<string> AnimatedPresets = new(StringComparer.Ordinal)
     {
@@ -197,8 +197,17 @@ public class AuthService : IAuthService
         var extension = Path.GetExtension(avatarFile.FileName);
         if (string.IsNullOrWhiteSpace(extension) || !AllowedAvatarExtensions.Contains(extension))
             return (false, "Avatar file must be one of: .jpg, .jpeg, .png, .gif, .webp.", user.AvatarUrl);
-        if (!AllowedAvatarContentTypes.Contains(avatarFile.ContentType))
-            return (false, "Avatar content type is not supported.", user.AvatarUrl);
+        var contentType = avatarFile.ContentType?.Trim();
+        if (!string.IsNullOrWhiteSpace(contentType))
+        {
+            var normalizedContentType = contentType.ToLowerInvariant();
+            var isKnownImageContentType = AllowedAvatarContentTypes.Contains(normalizedContentType)
+                || normalizedContentType.StartsWith("image/", StringComparison.Ordinal);
+            var isGenericBinaryContentType = normalizedContentType == "application/octet-stream";
+
+            if (!isKnownImageContentType && !isGenericBinaryContentType)
+                return (false, "Avatar content type is not supported.", user.AvatarUrl);
+        }
 
         var avatarDirectory = ResolveAvatarDirectoryPath();
         Directory.CreateDirectory(avatarDirectory);
