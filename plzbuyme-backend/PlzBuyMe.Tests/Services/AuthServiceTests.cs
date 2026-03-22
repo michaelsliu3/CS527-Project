@@ -421,4 +421,44 @@ public class AuthServiceTests
         result.ValidationError.Should().Be("Avatar file must be 2MB or smaller.");
         result.AvatarUrl.Should().BeNull();
     }
+
+    [Fact]
+    public async Task DeleteProfile_WhenUserHasLocalAvatar_ClearsAvatarAndDeletesFile()
+    {
+        using var context = TestDbContextFactory.Create();
+        var user = new User
+        {
+            Username = "avatar-delete",
+            Email = "avatar-delete@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            IsActive = true
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var mockEnvironment = new Mock<IWebHostEnvironment>();
+        var contentRoot = Path.Combine(Path.GetTempPath(), "plzbuyme-tests", Guid.NewGuid().ToString("N"));
+        var webRoot = Path.Combine(contentRoot, "wwwroot");
+        var avatarsDirectory = Path.Combine(webRoot, "uploads", "avatars");
+        Directory.CreateDirectory(avatarsDirectory);
+        mockEnvironment.SetupGet(e => e.ContentRootPath).Returns(contentRoot);
+        mockEnvironment.SetupGet(e => e.WebRootPath).Returns(webRoot);
+
+        var avatarFileName = $"user-{user.Id}-to-delete.png";
+        var avatarPath = Path.Combine(avatarsDirectory, avatarFileName);
+        await File.WriteAllTextAsync(avatarPath, "avatar-bytes");
+        user.AvatarUrl = $"/uploads/avatars/{avatarFileName}";
+        await context.SaveChangesAsync();
+
+        var authService = new AuthService(context, CreateTestJwtConfig(), mockEnvironment.Object);
+        var deleted = await authService.DeleteProfileAsync(user.Id);
+
+        deleted.Should().BeTrue();
+        File.Exists(avatarPath).Should().BeFalse();
+        var persisted = await context.Users.FindAsync(user.Id);
+        persisted.Should().NotBeNull();
+        persisted!.IsActive.Should().BeFalse();
+        persisted.AvatarUrl.Should().BeNull();
+    }
 }

@@ -495,12 +495,23 @@ All endpoints return JSON. Protected routes require `Authorization: Bearer <toke
 
 ### Auth — `api/auth`
 
-| Method | Route                     | Description            | Access      |
-|--------|---------------------------|------------------------|-------------|
-| POST   | `api/auth/register`       | Create account         | Public      |
-| POST   | `api/auth/login`          | Authenticate → JWT. Request body: `username` (or email) + `password`; user may log in with either identifier. | Public      |
-| GET    | `api/auth/profile`        | Get own profile        | Logged in   |
-| DELETE | `api/auth/profile`        | Soft-delete account    | Logged in   |
+| Method | Route                       | Description            | Access      |
+|--------|-----------------------------|------------------------|-------------|
+| POST   | `api/auth/register`         | Create account         | Public      |
+| POST   | `api/auth/login`            | Authenticate → JWT. Request body: `username` (or email) + `password`; user may log in with either identifier. | Public      |
+| GET    | `api/auth/profile`          | Get own profile        | Logged in   |
+| POST   | `api/auth/profile/avatar`   | Upload/replace avatar (multipart form field: `avatar`) | Logged in |
+| DELETE | `api/auth/profile/avatar`   | Remove own avatar      | Logged in   |
+| DELETE | `api/auth/profile`          | Soft-delete account    | Logged in   |
+
+- `POST api/auth/register` and `POST api/auth/login` responses include:
+  - `token`, `userId`, `username`, `avatarUrl`, `displayNameColor`, `email`, `role`
+- `GET api/auth/profile` response includes:
+  - `id`, `username`, `avatarUrl`, `displayNameColor`, `email`, `role`
+- `POST api/auth/profile/avatar` response:
+  - `{ "avatarUrl": "/uploads/avatars/..." }` (or CDN URL in future storage mode)
+- `DELETE api/auth/profile/avatar` response:
+  - `{ "avatarUrl": null }`
 
 ### Auctions — `api/auctions`
 
@@ -515,6 +526,11 @@ All endpoints return JSON. Protected routes require `Authorization: Bearer <toke
 | GET    | `api/auctions/view/{id}/similar`            | Similar items                 | Public    |
 | GET    | `api/auctions/history/{userId}`             | Auctions user participated in | Logged in |
 | GET    | `api/auctions/field-values`                | Distinct field values (autocomplete) | Public |
+
+- `GET api/auctions/view/{id}` response includes seller identity fields:
+  - `sellerId`, `sellerUsername`, `sellerAvatarUrl`, `sellerDisplayNameColor`
+- `GET api/auctions/view/{id}` bid history items include bidder identity fields:
+  - `bidderUsername`, `bidderAvatarUrl`, `bidderDisplayNameColor`
 
 ### Categories — `api/categories`
 
@@ -552,9 +568,9 @@ All endpoints return JSON. Protected routes require `Authorization: Bearer <toke
 - `POST api/questions/{id}/reply` request body:
   - `{ "body": "..." }`
 - `GET api/questions` and `POST` responses return each question with:
-  - `id`, `userId`, `username`, `subject`, `body`, `createdAt`
+  - `id`, `userId`, `username`, `usernameAvatarUrl`, `subject`, `body`, `createdAt`
   - `replies[]` ordered oldest-to-newest, where each reply includes:
-    - `id`, `body`, `replierDisplayName`, `replierRole`, `createdAt`
+    - `id`, `body`, `replierDisplayName`, `replierAvatarUrl`, `replierRole`, `createdAt`
 
 ### Customer Rep — `api/rep`
 

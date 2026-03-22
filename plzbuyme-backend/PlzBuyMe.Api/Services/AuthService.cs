@@ -247,8 +247,11 @@ public class AuthService : IAuthService
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
         if (user == null)
             return false;
+        var previousAvatarUrl = user.AvatarUrl;
+        user.AvatarUrl = null;
         user.IsActive = false;
         await _db.SaveChangesAsync();
+        await DeleteAvatarIfLocalAsync(previousAvatarUrl);
         return true;
     }
 

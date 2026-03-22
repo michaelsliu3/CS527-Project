@@ -10,6 +10,7 @@ namespace PlzBuyMe.Api.Controllers;
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
+    private const long MaxAvatarUploadBytes = 2 * 1024 * 1024;
     private readonly IAuthService _authService;
 
     public AuthController(IAuthService authService)
@@ -59,6 +60,8 @@ public class AuthController : ControllerBase
 
     [Authorize]
     [HttpPost("profile/avatar")]
+    [RequestSizeLimit(MaxAvatarUploadBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxAvatarUploadBytes)]
     public async Task<IActionResult> UploadAvatar([FromForm] IFormFile? avatar)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
