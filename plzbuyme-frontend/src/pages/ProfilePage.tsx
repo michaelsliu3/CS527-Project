@@ -14,6 +14,7 @@ import { isAxiosError } from 'axios'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { apiClient } from '../api/client'
+import { uploadFileToCdn } from '../api/cdn'
 import { showErrorToast, showSuccessToast } from '../components/ui/toaster'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
@@ -192,9 +193,10 @@ export function ProfilePage() {
     if (!file) return
     setUploadingAvatar(true)
     try {
-      const formData = new FormData()
-      formData.append('avatar', file)
-      const { data } = await apiClient.post<{ avatarUrl: string | null }>('auth/profile/avatar', formData)
+      const avatarKey = await uploadFileToCdn(file, 'avatars', displayProfile.avatarUrl)
+      const { data } = await apiClient.post<{ avatarUrl: string | null }>('auth/profile/avatar', {
+        avatarKey,
+      })
       const nextAvatarUrl = data.avatarUrl ?? null
       setProfile((prev) => (prev ? { ...prev, avatarUrl: nextAvatarUrl } : prev))
       updateAvatarUrl(nextAvatarUrl)

@@ -51,6 +51,7 @@ public class AppDbContext : DbContext
             e.HasIndex(u => u.Email).IsUnique();
             e.Property(u => u.Username).HasMaxLength(64);
             e.Property(u => u.AvatarUrl).HasMaxLength(2048);
+            e.Property(u => u.AvatarStorageKey).HasMaxLength(1024);
             e.Property(u => u.DisplayNameColor).HasMaxLength(7);
             e.Property(u => u.Email).HasMaxLength(128);
             e.Property(u => u.PasswordHash).HasMaxLength(256);
@@ -80,6 +81,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Item>(e =>
         {
             e.Property(i => i.Title).HasMaxLength(256);
+            e.Property(i => i.ImageUrl).HasMaxLength(2048);
+            e.Property(i => i.ImageStorageKey).HasMaxLength(1024);
             e.Property(i => i.InitialPrice).HasPrecision(12, 2);
             e.Property(i => i.BidIncrement).HasPrecision(12, 2);
             e.Property(i => i.ReservePrice).HasPrecision(12, 2);

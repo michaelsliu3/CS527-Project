@@ -213,6 +213,14 @@ namespace PlzBuyMe.Api.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("longtext");
 
+                    b.Property<string>("ImageStorageKey")
+                        .HasMaxLength(1024)
+                        .HasColumnType("varchar(1024)");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("varchar(2048)");
+
                     b.Property<decimal>("InitialPrice")
                         .HasPrecision(12, 2)
                         .HasColumnType("decimal(12,2)");
@@ -408,6 +416,10 @@ namespace PlzBuyMe.Api.Migrations
                     b.Property<string>("AvatarUrl")
                         .HasMaxLength(2048)
                         .HasColumnType("varchar(2048)");
+
+                    b.Property<string>("AvatarStorageKey")
+                        .HasMaxLength(1024)
+                        .HasColumnType("varchar(1024)");
 
                     b.Property<string>("DisplayNameColor")
                         .HasMaxLength(7)

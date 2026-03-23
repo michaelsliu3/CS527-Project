@@ -509,7 +509,7 @@ All endpoints return JSON. Protected routes require `Authorization: Bearer <toke
 - `GET api/auth/profile` response includes:
   - `id`, `username`, `avatarUrl`, `displayNameColor`, `email`, `role`
 - `POST api/auth/profile/avatar` response:
-  - `{ "avatarUrl": "/uploads/avatars/..." }` (or CDN URL in future storage mode)
+  - `{ "avatarUrl": "avatars/..." }` (backend stores media key/filename; frontend resolves to CDN URL)
 - `DELETE api/auth/profile/avatar` response:
   - `{ "avatarUrl": null }`
 
@@ -1035,6 +1035,23 @@ dotnet ef database update --project PlzBuyMe.Api
 dotnet run --project PlzBuyMe.Api
 # → API starts at http://localhost:5081 (or https, see launchSettings.json)
 # → Swagger UI at http://localhost:5081/swagger
+```
+
+### Local Media CDN Setup (`plzbuyme-cdn`)
+
+```bash
+cd CS527-Project/plzbuyme-cdn
+dotnet run --project PlzBuyMe.Cdn
+# → CDN starts at http://localhost:5090
+# → Media files are served from http://localhost:5090/media/{key}
+```
+
+Backend media config (in `plzbuyme-backend/PlzBuyMe.Api/appsettings.json`):
+
+```json
+"MediaStorage": {
+  "ServiceBaseUrl": "http://localhost:5090"
+}
 ```
 
 ### Frontend Setup

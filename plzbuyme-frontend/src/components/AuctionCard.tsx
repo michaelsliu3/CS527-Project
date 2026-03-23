@@ -1,9 +1,10 @@
-import { Badge, Box, Card, Flex, Heading, Text } from '@chakra-ui/react'
+import { Badge, Box, Card, Flex, Heading, Image, Text } from '@chakra-ui/react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import type { AuctionListItem } from '../api/auctions'
 import { dark } from '../theme/colors'
 import { DisplayNameText } from './DisplayNameText'
+import { resolveMediaUrl } from '../utils/mediaUrl'
 
 function formatCountdown(closeDateTime: string): string {
   const end = new Date(closeDateTime).getTime()
@@ -24,6 +25,7 @@ export interface AuctionCardProps {
 
 export function AuctionCard({ auction }: AuctionCardProps) {
   const [countdown, setCountdown] = useState(() => formatCountdown(auction.closeDateTime))
+  const imageSrc = resolveMediaUrl(auction.imageUrl)
 
   useEffect(() => {
     const t = setInterval(() => setCountdown(formatCountdown(auction.closeDateTime)), 1000)
@@ -43,6 +45,17 @@ export function AuctionCard({ auction }: AuctionCardProps) {
         _hover={{ borderColor: dark.hoverBorder }}
         transition="border-color 0.15s"
       >
+        {imageSrc ? (
+          <Image
+            src={imageSrc}
+            alt={auction.title}
+            w="100%"
+            h="160px"
+            objectFit="cover"
+            borderBottomWidth="1px"
+            borderColor={dark.borderSubtle}
+          />
+        ) : null}
         <Card.Body p={4}>
           <Flex align="flex-start" justify="space-between" gap={2} mb={2}>
             <Box overflow="hidden" textOverflow="ellipsis" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as 'vertical' }}>

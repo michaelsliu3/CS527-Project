@@ -7,6 +7,8 @@ public class Item
     public int CategoryId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public string? ImageUrl { get; set; }
+    public string? ImageStorageKey { get; set; }
     public decimal InitialPrice { get; set; }
     public decimal BidIncrement { get; set; }
     public decimal ReservePrice { get; set; }

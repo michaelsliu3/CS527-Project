@@ -1,5 +1,6 @@
 import { Box, type BoxProps } from '@chakra-ui/react'
 import { useEffect, useMemo, useState } from 'react'
+import { resolveMediaUrl } from '../utils/mediaUrl'
 
 interface UserAvatarProps {
   name: string
@@ -9,19 +10,6 @@ interface UserAvatarProps {
   color?: string
 }
 
-function resolveAvatarSrc(avatarUrl: string | null | undefined): string | null {
-  if (!avatarUrl) return null
-  if (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://') || avatarUrl.startsWith('data:')) {
-    return avatarUrl
-  }
-  if (!avatarUrl.startsWith('/')) return avatarUrl
-
-  const apiBase = import.meta.env.VITE_API_URL as string | undefined
-  if (!apiBase) return avatarUrl
-  const origin = apiBase.replace(/\/api\/?$/, '')
-  return `${origin}${avatarUrl}`
-}
-
 export function UserAvatar({
   name,
   avatarUrl,
@@ -29,7 +17,7 @@ export function UserAvatar({
   bg = 'gray.600',
   color = 'white',
 }: UserAvatarProps) {
-  const resolvedSrc = useMemo(() => resolveAvatarSrc(avatarUrl), [avatarUrl])
+  const resolvedSrc = useMemo(() => resolveMediaUrl(avatarUrl), [avatarUrl])
   const [imageErrored, setImageErrored] = useState(false)
   useEffect(() => {
     setImageErrored(false)

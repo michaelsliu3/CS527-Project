@@ -1,9 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
-using System.Text.RegularExpressions;
 using System.Security.Claims;
 using System.Text;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Hosting;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -17,15 +15,6 @@ namespace PlzBuyMe.Api.Services;
 public class AuthService : IAuthService
 {
     private static readonly Regex HexColorRegex = new("^#[0-9a-fA-F]{6}$", RegexOptions.Compiled);
-    private const long MaxAvatarSizeBytes = 2 * 1024 * 1024;
-    private static readonly HashSet<string> AllowedAvatarExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".jpg", ".jpeg", ".png", ".gif", ".webp"
-    };
-    private static readonly HashSet<string> AllowedAvatarContentTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "image/jpeg", "image/png", "image/gif", "image/webp", "image/jpg"
-    };
     private static readonly HashSet<string> AnimatedPresets = new(StringComparer.Ordinal)
     {
         "RAINBOW",
@@ -37,13 +26,11 @@ public class AuthService : IAuthService
     };
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
-    private readonly IWebHostEnvironment _environment;
 
-    public AuthService(AppDbContext db, IConfiguration config, IWebHostEnvironment environment)
+    public AuthService(AppDbContext db, IConfiguration config)
     {
         _db = db;
         _config = config;
-        _environment = environment;
     }
 
     public string HashPassword(string password)
@@ -73,8 +60,9 @@ public class AuthService : IAuthService
         };
         if (!string.IsNullOrWhiteSpace(user.DisplayNameColor))
             claims.Add(new Claim("display_name_color", user.DisplayNameColor));
-        if (!string.IsNullOrWhiteSpace(user.AvatarUrl))
-            claims.Add(new Claim("avatar_url", user.AvatarUrl));
+        var avatarRef = ResolveAvatarReference(user);
+        if (!string.IsNullOrWhiteSpace(avatarRef))
+            claims.Add(new Claim("avatar_url", avatarRef));
 
         var token = new JwtSecurityToken(
             issuer: jwtSection["Issuer"],
@@ -113,7 +101,7 @@ public class AuthService : IAuthService
             {
                 Token = token,
                 Username = user.Username,
-                AvatarUrl = user.AvatarUrl,
+                AvatarUrl = ResolveAvatarReference(user),
                 DisplayNameColor = user.DisplayNameColor,
                 Email = user.Email,
                 Role = RoleToClaimValue(user.Role),
@@ -140,7 +128,7 @@ public class AuthService : IAuthService
             {
                 Token = token,
                 Username = user.Username,
-                AvatarUrl = user.AvatarUrl,
+                AvatarUrl = ResolveAvatarReference(user),
                 DisplayNameColor = user.DisplayNameColor,
                 Email = user.Email,
                 Role = RoleToClaimValue(user.Role),
@@ -159,7 +147,7 @@ public class AuthService : IAuthService
         {
             Id = user.Id,
             Username = user.Username,
-            AvatarUrl = user.AvatarUrl,
+            AvatarUrl = ResolveAvatarReference(user),
             DisplayNameColor = user.DisplayNameColor,
             Email = user.Email,
             Role = RoleToClaimValue(user.Role)
@@ -183,49 +171,22 @@ public class AuthService : IAuthService
         return (false, false, null, user.DisplayNameColor);
     }
 
-    public async Task<(bool NotFound, string? ValidationError, string? AvatarUrl)> UploadAvatarAsync(int userId, IFormFile? avatarFile)
+    public async Task<(bool NotFound, string? ValidationError, string? AvatarUrl)> UploadAvatarAsync(int userId, string? avatarKey)
     {
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
         if (user == null)
             return (true, null, null);
 
-        if (avatarFile == null || avatarFile.Length == 0)
-            return (false, "Avatar file is required.", user.AvatarUrl);
-        if (avatarFile.Length > MaxAvatarSizeBytes)
-            return (false, "Avatar file must be 2MB or smaller.", user.AvatarUrl);
+        if (string.IsNullOrWhiteSpace(avatarKey))
+            return (false, "Avatar file is required.", ResolveAvatarReference(user));
+        var normalizedAvatarKey = avatarKey.Trim();
+        if (!IsValidAssetKey(normalizedAvatarKey))
+            return (false, "Avatar key is invalid.", ResolveAvatarReference(user));
 
-        var extension = Path.GetExtension(avatarFile.FileName);
-        if (string.IsNullOrWhiteSpace(extension) || !AllowedAvatarExtensions.Contains(extension))
-            return (false, "Avatar file must be one of: .jpg, .jpeg, .png, .gif, .webp.", user.AvatarUrl);
-        var contentType = avatarFile.ContentType?.Trim();
-        if (!string.IsNullOrWhiteSpace(contentType))
-        {
-            var normalizedContentType = contentType.ToLowerInvariant();
-            var isKnownImageContentType = AllowedAvatarContentTypes.Contains(normalizedContentType)
-                || normalizedContentType.StartsWith("image/", StringComparison.Ordinal);
-            var isGenericBinaryContentType = normalizedContentType == "application/octet-stream";
-
-            if (!isKnownImageContentType && !isGenericBinaryContentType)
-                return (false, "Avatar content type is not supported.", user.AvatarUrl);
-        }
-
-        var avatarDirectory = ResolveAvatarDirectoryPath();
-        Directory.CreateDirectory(avatarDirectory);
-
-        var sanitizedExtension = extension.ToLowerInvariant();
-        var fileName = $"user-{userId}-{Guid.NewGuid():N}{sanitizedExtension}";
-        var filePath = Path.Combine(avatarDirectory, fileName);
-        await using (var stream = File.Create(filePath))
-        {
-            await avatarFile.CopyToAsync(stream);
-        }
-
-        var previousAvatarUrl = user.AvatarUrl;
-        user.AvatarUrl = CreateLocalAvatarUrl(fileName);
+        user.AvatarUrl = normalizedAvatarKey;
+        user.AvatarStorageKey = normalizedAvatarKey;
         await _db.SaveChangesAsync();
-
-        await DeleteAvatarIfLocalAsync(previousAvatarUrl);
-        return (false, null, user.AvatarUrl);
+        return (false, null, ResolveAvatarReference(user));
     }
 
     public async Task<(bool NotFound, string? AvatarUrl)> RemoveAvatarAsync(int userId)
@@ -234,10 +195,9 @@ public class AuthService : IAuthService
         if (user == null)
             return (true, null);
 
-        var previousAvatarUrl = user.AvatarUrl;
         user.AvatarUrl = null;
+        user.AvatarStorageKey = null;
         await _db.SaveChangesAsync();
-        await DeleteAvatarIfLocalAsync(previousAvatarUrl);
 
         return (false, null);
     }
@@ -247,11 +207,10 @@ public class AuthService : IAuthService
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
         if (user == null)
             return false;
-        var previousAvatarUrl = user.AvatarUrl;
         user.AvatarUrl = null;
+        user.AvatarStorageKey = null;
         user.IsActive = false;
         await _db.SaveChangesAsync();
-        await DeleteAvatarIfLocalAsync(previousAvatarUrl);
         return true;
     }
 
@@ -319,34 +278,22 @@ public class AuthService : IAuthService
         return upper;
     }
 
-    private string ResolveAvatarDirectoryPath()
+    private string? ResolveAvatarStorageKey(User user)
     {
-        var webRoot = _environment.WebRootPath;
-        if (string.IsNullOrWhiteSpace(webRoot))
-            webRoot = Path.Combine(_environment.ContentRootPath, "wwwroot");
-        return Path.Combine(webRoot, "uploads", "avatars");
+        if (!string.IsNullOrWhiteSpace(user.AvatarStorageKey))
+            return user.AvatarStorageKey;
+        return string.IsNullOrWhiteSpace(user.AvatarUrl) ? null : user.AvatarUrl;
     }
 
-    private static string CreateLocalAvatarUrl(string fileName)
+    private string? ResolveAvatarReference(User user)
     {
-        return $"/uploads/avatars/{fileName}";
+        return ResolveAvatarStorageKey(user);
     }
 
-    private async Task DeleteAvatarIfLocalAsync(string? avatarUrl)
+    private static bool IsValidAssetKey(string key)
     {
-        if (string.IsNullOrWhiteSpace(avatarUrl))
-            return;
-        if (!avatarUrl.StartsWith("/uploads/avatars/", StringComparison.OrdinalIgnoreCase))
-            return;
-
-        var fileName = Path.GetFileName(avatarUrl);
-        if (string.IsNullOrWhiteSpace(fileName))
-            return;
-
-        var filePath = Path.Combine(ResolveAvatarDirectoryPath(), fileName);
-        if (!File.Exists(filePath))
-            return;
-
-        await Task.Run(() => File.Delete(filePath));
+        if (key.Length > 1024)
+            return false;
+        return Regex.IsMatch(key, @"^[a-zA-Z0-9/_\.-]+$");
     }
 }

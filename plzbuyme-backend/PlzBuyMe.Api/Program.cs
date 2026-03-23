@@ -26,10 +26,10 @@ public class Program
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions
             {
                 Args = args,
-                WebRootPath = "wwwroot"
+                // Keep web root away from repo-level static folders; backend does not serve local media.
+                WebRootPath = Path.GetTempPath()
             });
             builder.Host.UseSerilog();
-            EnsureStaticFileDirectories(builder);
 
             ConfigureServices(builder);
 
@@ -74,15 +74,6 @@ public class Program
         {
             Log.CloseAndFlush();
         }
-    }
-
-    private static void EnsureStaticFileDirectories(WebApplicationBuilder builder)
-    {
-        var webRootPath = builder.Environment.WebRootPath;
-        if (string.IsNullOrEmpty(webRootPath))
-            return;
-        var avatarDirectoryPath = Path.Combine(webRootPath, "uploads", "avatars");
-        Directory.CreateDirectory(avatarDirectoryPath);
     }
 
     private static void ConfigureServices(WebApplicationBuilder builder)
@@ -212,7 +203,6 @@ public class Program
 
         app.UseSerilogRequestLogging();
         app.UseCors("AllowFrontend");
-        app.UseStaticFiles();
         app.UseAuthentication();
         app.UseAuthorization();
 
