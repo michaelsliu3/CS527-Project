@@ -417,7 +417,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-24 — Local media server for user and item images
+## PBM-24 — Local media server for user and item images ✅
 
 **Layer:** Backend + Frontend
 **Branch:** `PBM-24/local-media-server-storage`
