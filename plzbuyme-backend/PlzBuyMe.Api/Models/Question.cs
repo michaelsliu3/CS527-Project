@@ -10,4 +10,5 @@ public class Question
 
     public User User { get; set; } = null!;
     public ICollection<QuestionReply> Replies { get; set; } = new List<QuestionReply>();
+    public ICollection<QuestionVote> Votes { get; set; } = new List<QuestionVote>();
 }

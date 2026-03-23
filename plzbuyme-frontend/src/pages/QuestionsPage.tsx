@@ -15,17 +15,23 @@ import {
   Container,
   Dialog,
   Flex,
+  IconButton,
   Input,
+  NativeSelect,
   Text,
   Textarea,
   useDisclosure,
 } from '@chakra-ui/react'
+import { LuArrowBigDown, LuArrowBigUp, LuMessageSquareReply } from 'react-icons/lu'
 import { showErrorToast, showSuccessToast } from '../components/ui/toaster'
 import { useForm } from 'react-hook-form'
 import {
   listQuestions,
   createQuestion,
   replyToQuestion,
+  voteQuestion,
+  voteReply,
+  type QuestionReply,
   type QuestionResponse,
 } from '../api/questions'
 import { useAuth } from '../context/AuthContext'
@@ -83,6 +89,8 @@ export function QuestionsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [replyingId, setReplyingId] = useState<number | null>(null)
+  const [replyParentId, setReplyParentId] = useState<number | null>(null)
+  const [sortMode, setSortMode] = useState<'top' | 'newest' | 'oldest'>('top')
   const askDialog = useDisclosure()
 
   const debouncedKeyword = useDebounce(keyword, KEYWORD_DEBOUNCE_MS)
@@ -94,7 +102,7 @@ export function QuestionsPage() {
   const fetchQuestions = () => {
     setLoading(true)
     setError(null)
-    listQuestions(debouncedKeyword || undefined)
+    listQuestions(debouncedKeyword || undefined, sortMode)
       .then((res) => setQuestions(res.data))
       .catch(() => {
         setError('Failed to load questions.')
@@ -105,7 +113,25 @@ export function QuestionsPage() {
 
   useEffect(() => {
     fetchQuestions()
-  }, [debouncedKeyword])
+  }, [debouncedKeyword, sortMode])
+
+  const handleVoteQuestion = async (questionId: number, value: 1 | -1) => {
+    try {
+      const res = await voteQuestion(questionId, { value })
+      setQuestions((prev) => prev.map((q) => (q.id === questionId ? res.data : q)))
+    } catch {
+      showErrorToast('Error', 'Failed to update vote.')
+    }
+  }
+
+  const handleVoteReply = async (replyId: number, value: 1 | -1) => {
+    try {
+      const res = await voteReply(replyId, { value })
+      setQuestions((prev) => prev.map((q) => (q.id === res.data.id ? res.data : q)))
+    } catch {
+      showErrorToast('Error', 'Failed to update vote.')
+    }
+  }
 
   const onSubmitAsk = async (data: AskQuestionFormValues) => {
     try {
@@ -138,6 +164,23 @@ export function QuestionsPage() {
           Q&A
         </Text>
         <Flex gap={2} align="center">
+          <NativeSelect.Root size="sm" width="120px">
+            <NativeSelect.Field
+              value={sortMode}
+              onChange={(e) => {
+                const next = e.target.value
+                if (next === 'top' || next === 'newest' || next === 'oldest') setSortMode(next)
+              }}
+              bg={dark.inputBg}
+              borderColor={dark.borderSubtle}
+              color="white"
+            >
+              <option value="top">Top</option>
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+            </NativeSelect.Field>
+            <NativeSelect.Indicator />
+          </NativeSelect.Root>
           <Input
             placeholder="Search by keyword..."
             value={keyword}
@@ -207,36 +250,33 @@ export function QuestionsPage() {
               <Text color={dark.label} whiteSpace="pre-wrap" mb={3}>
                 {q.body}
               </Text>
+              <ActionRow
+                score={q.score}
+                currentUserVote={q.currentUserVote}
+                canReply={isRepOrAdmin}
+                onUpvote={() => void handleVoteQuestion(q.id, 1)}
+                onDownvote={() => void handleVoteQuestion(q.id, -1)}
+                onReply={() => {
+                  setReplyingId(q.id)
+                  setReplyParentId(null)
+                }}
+              />
               {q.replies.length > 0 ? (
                 <Flex direction="column" gap={3} mb={3}>
                   {q.replies.map((reply) => (
-                    <Box key={reply.id} pl={3} borderLeftWidth="3px" borderColor="brand.500">
-                      <Flex align="center" gap={2} mb={1} wrap="wrap">
-                        <UserAvatar name={reply.replierDisplayName} avatarUrl={reply.replierAvatarUrl} size="20px" />
-                        <Text fontSize="xs" color={dark.placeholder}>
-                          <DisplayNameText
-                            name={reply.replierDisplayName}
-                            displayNameColor={reply.replierDisplayNameColor}
-                            fallbackColor={dark.placeholder}
-                            fontWeight="bold"
-                          />
-                        </Text>
-                        {(() => {
-                          const tag = getReplyTagLabel(reply.replierRole, reply.replierDisplayName === q.username)
-                          return tag ? (
-                            <Badge size="sm" colorPalette={getReplyTagColor(tag)}>
-                              {tag}
-                            </Badge>
-                          ) : null
-                        })()}
-                        <Text fontSize="xs" color={dark.placeholder}>
-                          • {formatRelativeTime(reply.createdAt)}
-                        </Text>
-                      </Flex>
-                      <Text color={dark.muted} whiteSpace="pre-wrap">
-                        {reply.body}
-                      </Text>
-                    </Box>
+                    <ReplyThread
+                      key={reply.id}
+                      questionId={q.id}
+                      questionUsername={q.username}
+                      reply={reply}
+                      depth={0}
+                      canReply={isRepOrAdmin}
+                      onVote={handleVoteReply}
+                      onReply={(parentReplyId) => {
+                        setReplyingId(q.id)
+                        setReplyParentId(parentReplyId)
+                      }}
+                    />
                   ))}
                 </Flex>
               ) : null}
@@ -245,8 +285,11 @@ export function QuestionsPage() {
                   questionId={q.id}
                   replyingId={replyingId}
                   setReplyingId={setReplyingId}
+                  parentReplyId={replyParentId}
+                  clearParentReplyId={() => setReplyParentId(null)}
                   onSuccess={() => {
                     setReplyingId(null)
+                    setReplyParentId(null)
                     fetchQuestions()
                   }}
                   onError={(msg) => showErrorToast('Error', msg)}
@@ -336,12 +379,16 @@ function ReplyForm({
   questionId,
   replyingId,
   setReplyingId,
+  parentReplyId,
+  clearParentReplyId,
   onSuccess,
   onError,
 }: {
   questionId: number
   replyingId: number | null
   setReplyingId: (id: number | null) => void
+  parentReplyId: number | null
+  clearParentReplyId: () => void
   onSuccess: () => void
   onError: (msg: string) => void
 }) {
@@ -354,9 +401,10 @@ function ReplyForm({
     if (!replyBody.trim()) return
     setSubmitting(true)
     try {
-      await replyToQuestion(questionId, { body: replyBody.trim() })
+      await replyToQuestion(questionId, { body: replyBody.trim(), parentReplyId: parentReplyId ?? undefined })
       setReplyBody('')
       setReplyingId(null)
+      clearParentReplyId()
       onSuccess()
     } catch (err) {
       if (isAxiosError(err) && err.response?.data) {
@@ -404,7 +452,10 @@ function ReplyForm({
           borderColor={dark.borderSubtle}
           color="white"
           _hover={{ bg: 'whiteAlpha.100' }}
-          onClick={() => setReplyingId(null)}
+          onClick={() => {
+            setReplyingId(null)
+            clearParentReplyId()
+          }}
         >
           Cancel
         </Button>
@@ -420,6 +471,124 @@ function ReplyForm({
           Submit reply
         </Button>
       </Flex>
+    </Box>
+  )
+}
+
+function ActionRow({
+  score,
+  currentUserVote,
+  canReply,
+  onUpvote,
+  onDownvote,
+  onReply,
+}: {
+  score: number
+  currentUserVote: number
+  canReply: boolean
+  onUpvote: () => void
+  onDownvote: () => void
+  onReply: () => void
+}) {
+  return (
+    <Flex align="center" gap={1} mb={3}>
+      <IconButton
+        aria-label="Upvote"
+        size="xs"
+        variant={currentUserVote === 1 ? 'solid' : 'ghost'}
+        colorPalette={currentUserVote === 1 ? 'green' : undefined}
+        onClick={onUpvote}
+      >
+        <LuArrowBigUp />
+      </IconButton>
+      <Text fontSize="sm" color={dark.muted} minW="20px" textAlign="center">
+        {score}
+      </Text>
+      <IconButton
+        aria-label="Downvote"
+        size="xs"
+        variant={currentUserVote === -1 ? 'solid' : 'ghost'}
+        colorPalette={currentUserVote === -1 ? 'red' : undefined}
+        onClick={onDownvote}
+      >
+        <LuArrowBigDown />
+      </IconButton>
+      {canReply ? (
+        <Button size="xs" variant="ghost" color={dark.placeholder} onClick={onReply}>
+          <LuMessageSquareReply />
+          Reply
+        </Button>
+      ) : null}
+    </Flex>
+  )
+}
+
+function ReplyThread({
+  questionId,
+  questionUsername,
+  reply,
+  depth,
+  canReply,
+  onVote,
+  onReply,
+}: {
+  questionId: number
+  questionUsername: string
+  reply: QuestionReply
+  depth: number
+  canReply: boolean
+  onVote: (replyId: number, value: 1 | -1) => Promise<void>
+  onReply: (parentReplyId: number) => void
+}) {
+  const tag = getReplyTagLabel(reply.replierRole, reply.replierDisplayName === questionUsername)
+  return (
+    <Box pl={Math.min(depth + 1, 5) * 3} borderLeftWidth="2px" borderColor={depth === 0 ? 'brand.500' : 'whiteAlpha.300'}>
+      <Flex align="center" gap={2} mb={1} wrap="wrap">
+        <UserAvatar name={reply.replierDisplayName} avatarUrl={reply.replierAvatarUrl} size="20px" />
+        <Text fontSize="xs" color={dark.placeholder}>
+          <DisplayNameText
+            name={reply.replierDisplayName}
+            displayNameColor={reply.replierDisplayNameColor}
+            fallbackColor={dark.placeholder}
+            fontWeight="bold"
+          />
+        </Text>
+        {tag ? (
+          <Badge size="sm" colorPalette={getReplyTagColor(tag)}>
+            {tag}
+          </Badge>
+        ) : null}
+        <Text fontSize="xs" color={dark.placeholder}>
+          • {formatRelativeTime(reply.createdAt)}
+        </Text>
+      </Flex>
+      <Text color={dark.muted} whiteSpace="pre-wrap" mb={2}>
+        {reply.body}
+      </Text>
+      <ActionRow
+        score={reply.score}
+        currentUserVote={reply.currentUserVote}
+        canReply={canReply}
+        onUpvote={() => void onVote(reply.id, 1)}
+        onDownvote={() => void onVote(reply.id, -1)}
+        onReply={() => onReply(reply.id)}
+      />
+      {reply.replies.length > 0 ? (
+        <Flex direction="column" gap={2} mb={2}>
+          {reply.replies.map((childReply) => (
+            <ReplyThread
+              key={childReply.id}
+              questionId={questionId}
+              questionUsername={questionUsername}
+              reply={childReply}
+              depth={depth + 1}
+              canReply={canReply}
+              onVote={onVote}
+              onReply={onReply}
+            />
+          ))}
+        </Flex>
+      ) : null}
     </Box>
   )
 }

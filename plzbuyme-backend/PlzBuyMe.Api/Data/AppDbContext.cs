@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Question> Questions => Set<Question>();
     public DbSet<QuestionReply> QuestionReplies => Set<QuestionReply>();
+    public DbSet<QuestionVote> QuestionVotes => Set<QuestionVote>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -203,7 +204,30 @@ public class AppDbContext : DbContext
                 .WithMany(u => u.QuestionReplies)
                 .HasForeignKey(qr => qr.RepliedByUserId)
                 .OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(qr => qr.ParentReply)
+                .WithMany(qr => qr.ChildReplies)
+                .HasForeignKey(qr => qr.ParentReplyId)
+                .OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(qr => new { qr.QuestionId, qr.CreatedAt });
+        });
+
+        modelBuilder.Entity<QuestionVote>(e =>
+        {
+            e.Property(v => v.Value).IsRequired();
+            e.HasOne(v => v.User)
+                .WithMany(u => u.QuestionVotes)
+                .HasForeignKey(v => v.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(v => v.Question)
+                .WithMany(q => q.Votes)
+                .HasForeignKey(v => v.QuestionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(v => v.QuestionReply)
+                .WithMany(r => r.Votes)
+                .HasForeignKey(v => v.QuestionReplyId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(v => new { v.UserId, v.QuestionId }).IsUnique();
+            e.HasIndex(v => new { v.UserId, v.QuestionReplyId }).IsUnique();
         });
     }
 

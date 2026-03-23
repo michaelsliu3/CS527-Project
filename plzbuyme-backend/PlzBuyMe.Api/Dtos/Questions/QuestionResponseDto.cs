@@ -9,6 +9,8 @@ public record QuestionResponseDto
     public string? UsernameDisplayNameColor { get; init; }
     public string Subject { get; init; } = string.Empty;
     public string Body { get; init; } = string.Empty;
+    public int Score { get; init; }
+    public int CurrentUserVote { get; init; }
     public IReadOnlyList<QuestionReplyDto> Replies { get; init; } = [];
     public DateTime CreatedAt { get; init; }
 }

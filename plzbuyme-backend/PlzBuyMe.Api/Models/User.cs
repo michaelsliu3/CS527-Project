@@ -21,4 +21,5 @@ public class User
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public ICollection<Question> QuestionsAsked { get; set; } = new List<Question>();
     public ICollection<QuestionReply> QuestionReplies { get; set; } = new List<QuestionReply>();
+    public ICollection<QuestionVote> QuestionVotes { get; set; } = new List<QuestionVote>();
 }

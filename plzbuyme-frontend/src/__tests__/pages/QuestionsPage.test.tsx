@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ChakraProvider } from '@chakra-ui/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AuthProvider } from '../../context/AuthContext'
@@ -81,15 +81,21 @@ describe('QuestionsPage ask question access', () => {
           usernameDisplayNameColor: null,
           subject: 'Shipping question',
           body: 'When will this item ship?',
+          score: 0,
+          currentUserVote: 0,
           createdAt: new Date().toISOString(),
           replies: [
             {
               id: 91,
+              parentReplyId: null,
               body: 'We shipped it this morning.',
               replierDisplayName: 'rep1',
               replierAvatarUrl: null,
               replierDisplayNameColor: null,
               replierRole: 'customer_rep',
+              score: 0,
+              currentUserVote: 0,
+              replies: [],
               createdAt: new Date().toISOString(),
             },
           ],
@@ -106,5 +112,16 @@ describe('QuestionsPage ask question access', () => {
     expect(await screen.findByText('Shipping question')).toBeInTheDocument()
     expect(screen.getByText('A')).toBeInTheDocument()
     expect(screen.getByText('R')).toBeInTheDocument()
+  })
+
+  it('changes sort mode and refetches questions', async () => {
+    renderQuestionsPage('end_user')
+
+    const select = await screen.findByRole('combobox')
+    fireEvent.change(select, { target: { value: 'oldest' } })
+
+    await waitFor(() =>
+      expect(questionsApi.listQuestions).toHaveBeenLastCalledWith(undefined, 'oldest'),
+    )
   })
 })
