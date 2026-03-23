@@ -14,7 +14,10 @@ public class AuctionService : IAuctionService
     private readonly IAlertService _alertService;
     private readonly ILogger<AuctionService> _logger;
 
-    public AuctionService(AppDbContext db, IAlertService alertService, ILogger<AuctionService> logger)
+    public AuctionService(
+        AppDbContext db,
+        IAlertService alertService,
+        ILogger<AuctionService> logger)
     {
         _db = db;
         _alertService = alertService;
@@ -35,6 +38,8 @@ public class AuctionService : IAuctionService
             CategoryId = dto.CategoryId,
             Title = dto.Title.Trim(),
             Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim(),
+            ImageUrl = NormalizeMediaKey(dto.ImageStorageKey, dto.ImageUrl),
+            ImageStorageKey = NormalizeMediaKey(dto.ImageStorageKey, dto.ImageUrl),
             InitialPrice = dto.InitialPrice,
             BidIncrement = dto.BidIncrement,
             ReservePrice = dto.ReservePrice,
@@ -58,6 +63,15 @@ public class AuctionService : IAuctionService
 
         await _alertService.CheckAlertsForNewItemAsync(item);
         return await GetByIdAsync(item.Id);
+    }
+
+    private static string? NormalizeMediaKey(string? explicitKey, string? fallbackValue)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitKey))
+            return explicitKey.Trim();
+        if (!string.IsNullOrWhiteSpace(fallbackValue))
+            return fallbackValue.Trim();
+        return null;
     }
 
     public async Task PlaceBidAsync(int itemId, int bidderId, decimal amount)
@@ -311,6 +325,7 @@ public class AuctionService : IAuctionService
                 {
                     Id = i.Id,
                     Title = i.Title,
+                    ImageUrl = i.ImageUrl,
                     CurrentPrice = i.CurrentPrice,
                     CloseDateTime = i.CloseDateTime,
                     Status = i.Status.ToString().ToLowerInvariant(),
@@ -333,6 +348,7 @@ public class AuctionService : IAuctionService
                 {
                     Id = i.Id,
                     Title = i.Title,
+                    ImageUrl = i.ImageUrl,
                     CurrentPrice = i.CurrentPrice,
                     CloseDateTime = i.CloseDateTime,
                     Status = i.Status.ToString().ToLowerInvariant(),
@@ -515,6 +531,7 @@ public class AuctionService : IAuctionService
             Id = item.Id,
             Title = item.Title,
             Description = item.Description,
+            ImageUrl = item.ImageUrl,
             CategoryId = item.CategoryId,
             CategoryName = item.Category.Name,
             SellerId = item.SellerId,
@@ -549,6 +566,7 @@ public class AuctionService : IAuctionService
             {
                 Id = i.Id,
                 Title = i.Title,
+                ImageUrl = i.ImageUrl,
                 CurrentPrice = i.CurrentPrice,
                 CloseDateTime = i.CloseDateTime,
                 Status = i.Status.ToString().ToLowerInvariant(),
@@ -587,6 +605,7 @@ public class AuctionService : IAuctionService
             {
                 Id = x.Item.Id,
                 Title = x.Item.Title,
+                ImageUrl = x.Item.ImageUrl,
                 CurrentPrice = x.Item.CurrentPrice,
                 CloseDateTime = x.Item.CloseDateTime,
                 Status = x.Item.Status.ToString().ToLowerInvariant(),
@@ -617,6 +636,7 @@ public class AuctionService : IAuctionService
             {
                 Id = i.Id,
                 Title = i.Title,
+                ImageUrl = i.ImageUrl,
                 CurrentPrice = i.CurrentPrice,
                 CloseDateTime = i.CloseDateTime,
                 Status = i.Status.ToString().ToLowerInvariant(),

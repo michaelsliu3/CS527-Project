@@ -171,7 +171,10 @@ describe('ProfilePage display name color', () => {
       data: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
     } as never)
     vi.mocked(apiClient.post).mockResolvedValueOnce({
-      data: { avatarUrl: '/uploads/avatars/user-1-new.png' },
+      data: { key: 'avatars/user-1-new.png', url: 'http://localhost:5090/media/avatars/user-1-new.png' },
+    } as never)
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { avatarUrl: 'avatars/user-1-new.png' },
     } as never)
 
     const user = userEvent.setup()
@@ -182,9 +185,11 @@ describe('ProfilePage display name color', () => {
     await user.upload(uploadInput, file)
 
     await waitFor(() => {
-      expect(apiClient.post).toHaveBeenCalledWith('auth/profile/avatar', expect.any(FormData))
+      expect(apiClient.post).toHaveBeenCalledWith('auth/profile/avatar', {
+        avatarKey: 'avatars/user-1-new.png',
+      })
     })
-    expect(updateAvatarUrl).toHaveBeenCalledWith('/uploads/avatars/user-1-new.png')
+    expect(updateAvatarUrl).toHaveBeenCalledWith('avatars/user-1-new.png')
   })
 
   it('removes profile picture and falls back to initials', async () => {
@@ -193,7 +198,7 @@ describe('ProfilePage display name color', () => {
       user: {
         id: 1,
         username: 'alice',
-        avatarUrl: '/uploads/avatars/user-1.png',
+        avatarUrl: 'avatars/user-1.png',
         displayNameColor: null,
         email: 'alice@example.com',
         role: 'vip',
@@ -209,7 +214,7 @@ describe('ProfilePage display name color', () => {
       data: {
         id: 1,
         username: 'alice',
-        avatarUrl: '/uploads/avatars/user-1.png',
+        avatarUrl: 'avatars/user-1.png',
         displayNameColor: null,
         email: 'alice@example.com',
         role: 'vip',

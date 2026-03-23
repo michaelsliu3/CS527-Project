@@ -423,7 +423,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 **Branch:** `PBM-24/local-media-server-storage`
 **PR Title:** `[PBM-24] integrate local media server storage for avatars and auction images`
 
-- Replace direct `wwwroot/uploads` writes with a separate local media service (e.g., `plzbuyme-cdn`) used for profile avatars and auction/item images.
+- Replace direct local upload-disk writes with a separate local media service (e.g., `plzbuyme-cdn`) used for profile avatars and auction/item images.
 - Backend: add a `MediaStorageService` abstraction and local-service implementation for upload, replace, and delete operations, with simple environment-based configuration (base URL, storage root/path).
 - Backend: support server-side upload flow, content-type and size validation, deterministic path naming, and safe replacement cleanup of old files.
 - Backend: persist media URLs/keys in entities/DTOs and ensure existing avatar endpoints use the new media service without breaking API contracts.

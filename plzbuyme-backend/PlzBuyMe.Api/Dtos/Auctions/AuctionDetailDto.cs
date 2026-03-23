@@ -5,6 +5,7 @@ public record AuctionDetailDto
     public int Id { get; init; }
     public string Title { get; init; } = string.Empty;
     public string? Description { get; init; }
+    public string? ImageUrl { get; init; }
     public int CategoryId { get; init; }
     public string CategoryName { get; init; } = string.Empty;
     public int SellerId { get; init; }

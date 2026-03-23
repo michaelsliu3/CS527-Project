@@ -30,6 +30,7 @@ import { showErrorToast } from '../components/ui/toaster'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
 import { APP_PAGE_PX } from '../theme/layout'
+import { resolveMediaUrl } from '../utils/mediaUrl'
 
 function formatCountdown(closeDateTime: string): string {
   const end = new Date(closeDateTime).getTime()
@@ -161,6 +162,7 @@ export function AuctionDetailPage() {
 
   const statusColor =
     auction.status === 'active' ? 'green' : auction.status === 'sold' ? 'blue' : 'gray'
+  const imageSrc = resolveMediaUrl(auction.imageUrl)
 
   return (
     <Container maxW="container.lg" px={APP_PAGE_PX}>
@@ -197,9 +199,13 @@ export function AuctionDetailPage() {
             borderWidth="1px"
             borderColor={dark.borderSubtle}
             borderRadius="md"
-            p={4}
+            overflow="hidden"
             mb={4}
           >
+            {imageSrc ? (
+              <Box as="img" src={imageSrc} alt={auction.title} w="100%" h={{ base: '220px', md: '320px' }} objectFit="cover" />
+            ) : null}
+            <Box p={4}>
             <Text fontSize="2xl" fontWeight="bold" color="brand.400">
               ${auction.currentPrice.toLocaleString()}
             </Text>
@@ -227,6 +233,7 @@ export function AuctionDetailPage() {
                 </SimpleGrid>
               </Box>
             )}
+            </Box>
           </Box>
 
           {canBid && (

@@ -2,12 +2,14 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CDN_DIR="$ROOT_DIR/plzbuyme-cdn"
 BACKEND_DIR="$ROOT_DIR/plzbuyme-backend"
 FRONTEND_DIR="$ROOT_DIR/plzbuyme-frontend"
 
 cleanup() {
     echo ""
     echo "Shutting down..."
+    kill $CDN_PID 2>/dev/null || true
     kill $BACKEND_PID 2>/dev/null || true
     kill $FRONTEND_PID 2>/dev/null || true
     wait 2>/dev/null
@@ -25,6 +27,12 @@ if ! command -v dotnet &>/dev/null; then
         exit 1
     fi
 fi
+
+# ── CDN ─────────────────────────────────────────────────────────────
+echo "==> Starting media CDN (plzbuyme-cdn)..."
+cd "$CDN_DIR"
+dotnet run --project PlzBuyMe.Cdn.csproj &
+CDN_PID=$!
 
 # ── Backend ─────────────────────────────────────────────────────────
 echo "==> Starting backend (ASP.NET Core)..."
@@ -44,6 +52,7 @@ else
 fi
 
 echo ""
+echo "==> CDN:      http://localhost:5090  (media: http://localhost:5090/media/...)"
 echo "==> Backend:  http://localhost:5081  (Swagger: http://localhost:5081/swagger)"
 echo "==> Frontend: http://localhost:5173"
 echo "==> Press Ctrl+C to stop all services."

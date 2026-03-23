@@ -1,7 +1,5 @@
 using System.Security.Claims;
-using System.Text;
 using FluentAssertions;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using PlzBuyMe.Api.Controllers;
@@ -284,40 +282,28 @@ public class AuthControllerTests
     public async Task UploadAvatar_WhenValid_ReturnsOk()
     {
         var mock = new Mock<IAuthService>();
-        mock.Setup(s => s.UploadAvatarAsync(11, It.IsAny<IFormFile>()))
-            .ReturnsAsync((false, null, "/uploads/avatars/user-11.png"));
+        mock.Setup(s => s.UploadAvatarAsync(11, "avatars/user-11.png"))
+            .ReturnsAsync((false, null, "avatars/user-11.png"));
         var controller = CreateController(mock);
         SetUser(controller, 11);
-        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("png"));
-        var avatar = new FormFile(stream, 0, stream.Length, "avatar", "avatar.png")
-        {
-            Headers = new HeaderDictionary(),
-            ContentType = "image/png"
-        };
 
-        var result = await controller.UploadAvatar(avatar);
+        var result = await controller.UploadAvatar(new SetAvatarDto { AvatarKey = "avatars/user-11.png" });
 
         var ok = result.Should().BeOfType<OkObjectResult>().Subject;
         var body = ok.Value.Should().BeOfType<UpdateAvatarDto>().Subject;
-        body.AvatarUrl.Should().Be("/uploads/avatars/user-11.png");
+        body.AvatarUrl.Should().Be("avatars/user-11.png");
     }
 
     [Fact]
     public async Task UploadAvatar_WhenValidationFails_ReturnsBadRequest()
     {
         var mock = new Mock<IAuthService>();
-        mock.Setup(s => s.UploadAvatarAsync(11, It.IsAny<IFormFile>()))
-            .ReturnsAsync((false, "Avatar file must be 2MB or smaller.", null));
+        mock.Setup(s => s.UploadAvatarAsync(11, "bad key"))
+            .ReturnsAsync((false, "Avatar key is invalid.", null));
         var controller = CreateController(mock);
         SetUser(controller, 11);
-        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("png"));
-        var avatar = new FormFile(stream, 0, stream.Length, "avatar", "avatar.png")
-        {
-            Headers = new HeaderDictionary(),
-            ContentType = "image/png"
-        };
 
-        var result = await controller.UploadAvatar(avatar);
+        var result = await controller.UploadAvatar(new SetAvatarDto { AvatarKey = "bad key" });
 
         var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
         var body = badRequest.Value.Should().BeOfType<AuthErrorDto>().Subject;

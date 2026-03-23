@@ -3,6 +3,7 @@ import { apiClient } from './client'
 export interface AuctionListItem {
   id: number
   title: string
+  imageUrl?: string | null
   currentPrice: number
   closeDateTime: string
   status: string
@@ -38,6 +39,7 @@ export interface AuctionDetail {
   id: number
   title: string
   description: string | null
+  imageUrl?: string | null
   categoryId: number
   categoryName: string
   sellerId: number
@@ -58,6 +60,8 @@ export interface AuctionDetail {
 export interface CreateAuctionDto {
   title: string
   description?: string
+  imageUrl?: string
+  imageStorageKey?: string
   categoryId: number
   initialPrice: number
   bidIncrement: number

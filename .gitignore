@@ -1,7 +1,7 @@
 # === Project-specific ===
 .cursor/
 .docs/
-plzbuyme-backend/PlzBuyMe.Api/wwwroot/uploads/
+plzbuyme-cdn/storage/
 
 # === .NET / C# ===
 bin/

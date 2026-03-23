@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../context/AuthContext'
 import { createAuction, type CreateAuctionDto } from '../api/auctions'
+import { uploadFileToCdn } from '../api/cdn'
 import {
   fetchCategories,
   fetchCategoryFields,
@@ -45,6 +46,7 @@ export function CreateAuctionPage() {
   const [categoryId, setCategoryId] = useState<number | ''>('')
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
 
   const [fieldDefs, setFieldDefs] = useState<CategoryFieldDto[]>([])
   const [fieldsLoading, setFieldsLoading] = useState(false)
@@ -178,6 +180,10 @@ export function CreateAuctionPage() {
     }
 
     try {
+      if (selectedImageFile) {
+        const imageKey = await uploadFileToCdn(selectedImageFile, 'items')
+        dto.imageStorageKey = imageKey
+      }
       const res = await createAuction(dto)
       navigate(`/auctions/${res.data.id}`)
     } catch (err) {
@@ -249,6 +255,22 @@ export function CreateAuctionPage() {
             placeholder="Description"
             rows={4}
             {...register('description')}
+          />
+        </Box>
+        <Box mb={4}>
+          <Text fontSize="sm" color={dark.muted} mb={1}>
+            Item image
+          </Text>
+          <Input
+            type="file"
+            accept="image/*"
+            bg={dark.inputBg}
+            borderColor={dark.borderSubtle}
+            color={dark.muted}
+            onChange={(event) => {
+              const nextFile = event.target.files?.[0] ?? null
+              setSelectedImageFile(nextFile)
+            }}
           />
         </Box>
         <Box mb={4}>
