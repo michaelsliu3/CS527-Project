@@ -24,7 +24,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ## PBM-2 — Frontend Scaffold ✅
 
-**Layer:** Frontend
+**Layer:** Frontend + Backend + CDN
 **Branch:** `PBM-2/frontend-scaffold`
 **PR Title:** `[PBM-2] scaffold React + Chakra UI frontend`
 
@@ -379,11 +379,15 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 - Redesign auction result cards (`AuctionCard`) with a stronger visual hierarchy and modern card layout optimized for desktop and mobile.
 - Add item image support in cards (thumbnail + fallback placeholder when no image exists), including consistent image aspect ratio, object-fit behavior, and lazy-loading.
+- Hybrid image strategy for defaults: use CDN GT7 resolver once when an auction is created/updated without an uploaded image, then persist the resolved image URL in DB for future reads.
+- Backend: store image provenance and match quality metadata for deterministic rendering (`uploaded` / `gt7-default` / `placeholder`; `exact` / `partial` / `make-only` / `none`).
+- Backend/API contract: auction list/detail payloads should return persisted image URL directly so frontend does not re-run GT7 matching per render.
 - Replace the current timer presentation with a clearer real-time countdown component (days/hours/minutes/seconds), urgency color states, and expired/closed formatting.
 - Improve text formatting for title/price/status/meta data (seller, category, bids, close time) with better typography, spacing, truncation, and alignment for scanability.
 - Add optional highlight badges/tags for high-signal states (e.g., `Ending soon`, `Reserve met`, `No reserve`, `Newly listed`) when data is available.
 - Ensure accessible semantics and keyboard focus states for the full card click target and internal actions.
 - **Tests:** add/extend frontend tests for image fallback rendering, countdown state transitions (active/ending-soon/expired), and card text truncation/metadata display.
+- **Tests:** add backend tests to verify one-time default image resolution, persisted image reuse on subsequent reads, and uploaded-image priority over GT7 defaults.
 
 ---
 
@@ -435,9 +439,9 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-25 — GT7 car thumbnail manifest (remote URLs)
+## PBM-25 — GT7 car thumbnail manifest + CDN resolver/mirror ✅
 
-**Layer:** Data + Manifest Tooling  
+**Layer:** Data + Manifest Tooling + CDN  
 **Branch:** `PBM-25/gt7-car-thumbnail-manifest`  
 **PR Title:** `[PBM-25] generate GT7 car thumbnail manifest with labels`
 
@@ -447,9 +451,28 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
   - `make`, parsed `model`, parsed `year`,
   - placeholder `color` (`Unknown`) plus curation tags for unresolved metadata.
 - Include source attribution and extraction metadata (carlist page URL, bundle URL, metadata chunk URLs, timestamp).
-- Keep the manifest as the canonical input for frontend/backend image lookup; app loads remote `sourceUrl` directly.
-- Document optional future mirror strategy (local CDN caching) as non-blocking fallback, not part of default PBM-25 flow.
-- **Validation:** regenerate manifest, confirm entry count and schema integrity, and verify sample URLs resolve from GT CDN.
+- Keep the manifest as the canonical GT thumbnail catalog and lookup source for downstream services.
+- Add CDN support for:
+  - GT7 thumbnail resolve endpoint (`exact` -> `partial` -> `make-only` -> `none`) that returns a CDN URL + match metadata.
+  - On-demand mirror/caching middleware for `/media/gt7/car{id}.png` and `/media/cars/gt7/car{id}.png` to fetch from GT CDN on cache miss.
+- Establish PBM-21 handoff contract: resolve once (via CDN), then persist resolved URL in DB so auction cards do not re-run matching per render.
+- **Validation:** regenerate manifest, confirm schema/count integrity, verify resolver match tiers, and verify mirrored CDN routes return GT assets (or 404 for unknown IDs).
+
+---
+
+## PBM-26 — Merge Sell flow into reusable popup modal
+
+**Layer:** Frontend  
+**Branch:** `PBM-26/sell-flow-popup-modal`  
+**PR Title:** `[PBM-26] replace standalone sell page with reusable sell item modal`
+
+- Remove the separate dedicated Sell route/page and consolidate selling into a reusable `Sell Item` modal flow.
+- Make the modal launchable from both `My Auctions` and main `Auctions` surfaces via clear CTA entry points.
+- Reuse existing sell form fields/validation while adapting layout for modal UX (responsive sizing, scroll handling, focus trap, keyboard close).
+- Preserve current create-auction behavior and API payload contract so backend integration remains unchanged.
+- Define deterministic post-submit behavior (success toast, modal close/reset, list refresh/navigation behavior from each launch context).
+- Ensure role/permission checks remain consistent with current app rules for users who can create auctions.
+- **Tests:** add/extend frontend tests for modal open/close triggers from both pages, form validation/submit in modal context, and state reset when reopening.
 
 ---
 
