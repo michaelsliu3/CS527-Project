@@ -100,6 +100,7 @@ export function QuestionsPage() {
   const [questions, setQuestions] = useState<QuestionResponse[]>([])
   const [keyword, setKeyword] = useState('')
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [replyingId, setReplyingId] = useState<number | null>(null)
   const [replyParentId, setReplyParentId] = useState<number | null>(null)
@@ -112,8 +113,13 @@ export function QuestionsPage() {
     defaultValues: { subject: '', body: '' },
   })
 
-  const fetchQuestions = () => {
-    setLoading(true)
+  const fetchQuestions = (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true)
+      setRefreshing(false)
+    } else {
+      setRefreshing(true)
+    }
     setError(null)
     listQuestions(debouncedKeyword || undefined, sortMode)
       .then((res) => setQuestions(res.data))
@@ -121,7 +127,13 @@ export function QuestionsPage() {
         setError('Failed to load questions.')
         showErrorToast('Error', 'Failed to load questions.')
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (showLoading) {
+          setLoading(false)
+        } else {
+          setRefreshing(false)
+        }
+      })
   }
 
   useEffect(() => {
@@ -255,6 +267,11 @@ export function QuestionsPage() {
                 {error}
               </Text>
             )}
+            {refreshing && !loading && (
+              <Text color={dark.muted} fontSize="sm" mb={3}>
+                Refreshing...
+              </Text>
+            )}
             {loading ? (
               <Text color={dark.muted} py={8} textAlign="center">
                 Loading...
@@ -308,7 +325,7 @@ export function QuestionsPage() {
                         onSuccess={() => {
                           setReplyingId(null)
                           setReplyParentId(null)
-                          fetchQuestions()
+                          fetchQuestions(false)
                         }}
                         onError={(msg) => showErrorToast('Error', msg)}
                       />
@@ -348,7 +365,7 @@ export function QuestionsPage() {
                             onReplySuccess={() => {
                               setReplyingId(null)
                               setReplyParentId(null)
-                              fetchQuestions()
+                              fetchQuestions(false)
                             }}
                             onReplyError={(msg) => showErrorToast('Error', msg)}
                           />
@@ -368,6 +385,11 @@ export function QuestionsPage() {
           {error && (
             <Text color="red.400" mb={4}>
               {error}
+            </Text>
+          )}
+          {refreshing && !loading && (
+            <Text color={dark.muted} fontSize="sm" mb={3}>
+              Refreshing...
             </Text>
           )}
           {loading ? (
@@ -451,7 +473,7 @@ export function QuestionsPage() {
                       onSuccess={() => {
                         setReplyingId(null)
                         setReplyParentId(null)
-                        fetchQuestions()
+                        fetchQuestions(false)
                       }}
                       onError={(msg) => showErrorToast('Error', msg)}
                     />
@@ -480,7 +502,7 @@ export function QuestionsPage() {
                           onReplySuccess={() => {
                             setReplyingId(null)
                             setReplyParentId(null)
-                            fetchQuestions()
+                            fetchQuestions(false)
                           }}
                           onReplyError={(msg) => showErrorToast('Error', msg)}
                         />
