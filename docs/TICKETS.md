@@ -335,7 +335,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-19 — Forums advanced comments/replies UX
+## PBM-19 — Forums advanced comments/replies UX ✅
 
 **Layer:** Backend + Frontend
 **Branch:** `PBM-19/forums-advanced-comments-replies`
@@ -348,7 +348,10 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Backend: add persistence and APIs for vote state/counts and reply parent relationships; enforce one vote per user per target with toggle/update behavior.
 - Frontend: update forums components to render vote/comment controls, nested thread UI, and sorting controls with responsive behavior and accessible interaction targets.
 - **Tests:** backend tests for vote constraints, score aggregation, and thread retrieval/sorting; frontend tests for icon action behavior, nested rendering, and sort mode changes.
-- **Do not implement yet** — ticket placeholder for tracking.
+- **Implemented in this branch (UX hardening):**
+  - Added forum detail-route behavior improvements so opening `/questions/:questionId` resets scroll position to top.
+  - Fixed accidental forum-card navigation when interacting with nested controls in list view (vote/reply clicks, SVG icon click targets, and keyboard events such as `Space` in reply textarea and `Enter` on nested action buttons).
+  - Expanded `QuestionsPage` frontend regression tests to cover detail-view navigation, scroll reset, and nested interaction safety.
 
 ---
 
@@ -413,7 +416,6 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Frontend: render rich content consistently for question bodies and reply bodies while preserving line breaks and safe fallback for malformed input.
 - Security: enforce strict allowlist sanitization for tags/attributes/links and block script/event-handler injection attempts.
 - **Tests:** backend tests for sanitization rules and payload validation; frontend tests for composer submit payload, preview behavior, and safe rendering/fallback for markdown/html content.
-- **Do not implement yet** — ticket placeholder for tracking.
 
 ---
 
@@ -430,7 +432,6 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Frontend: update image upload codepaths (profile and auction image flows) to use the new backend contract and preserve current preview/fallback UX.
 - Dev setup: document how to run/configure the local media service (`plzbuyme-cdn`) and required env vars in docs/example config.
 - **Tests:** backend tests for media service validation/error handling/replacement behavior; frontend tests for upload success/failure flows with local-media-service responses.
-- **Do not implement yet** — ticket placeholder for tracking.
 
 ---
 
@@ -445,7 +446,6 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Bug:** Refreshing the page at any route clears login state; user is logged out and must sign in again.
 - **Expected:** JWT (or equivalent auth token) should be restored from storage on app load so the user remains logged in after refresh.
 - **Likely cause:** Auth context is not hydrating from `localStorage` on mount, or the token key/lifecycle is incorrect. Verify `AuthContext` reads the stored token on init and restores user state; ensure the API client attaches the token to requests after hydration.
-- **Do not implement yet** — ticket for tracking only.
 
 ---
 
@@ -486,4 +486,3 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Goals:** Prioritize user-facing and data-integrity issues first; group fixes by severity and include clear reproduction steps.
 - **Deliverables:** Bugfix patches with a tracked checklist of issues addressed, plus regression tests for high-impact fixes.
 - **Validation:** Run unit/integration tests for touched areas and perform smoke testing on critical flows (login, browse/search, bid, create auction, notifications).
-- **Do not implement yet** — ticket for tracking only.

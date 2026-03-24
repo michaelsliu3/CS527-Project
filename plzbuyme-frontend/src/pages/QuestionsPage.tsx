@@ -52,7 +52,7 @@ const CARD_INTERACTIVE_SELECTOR =
   'a,button,input,textarea,select,option,[role="button"],[role="link"],[data-prevent-card-click="true"]'
 
 function isFromNestedInteractiveElement(target: EventTarget | null, currentTarget: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
+  if (!(target instanceof Element) || !(currentTarget instanceof Element)) {
     return false
   }
   const closestInteractive = target.closest(CARD_INTERACTIVE_SELECTOR)
@@ -175,6 +175,13 @@ export function QuestionsPage() {
   const singleQuestionMode = selectedQuestionId !== null
   const visibleQuestions =
     selectedQuestionId === null ? questions : questions.filter((question) => question.id === selectedQuestionId)
+
+  useEffect(() => {
+    if (!singleQuestionMode) {
+      return
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' })
+  }, [singleQuestionMode, selectedQuestionId])
 
   return (
     <Container maxW="container.lg" px={APP_PAGE_PX}>
@@ -392,7 +399,11 @@ export function QuestionsPage() {
                     navigate(`/questions/${q.id}`)
                   }}
                   onKeyDown={(e) => {
-                    if (singleQuestionMode || (e.key !== 'Enter' && e.key !== ' ')) {
+                    if (
+                      singleQuestionMode ||
+                      isFromNestedInteractiveElement(e.target, e.currentTarget) ||
+                      (e.key !== 'Enter' && e.key !== ' ')
+                    ) {
                       return
                     }
                     e.preventDefault()
