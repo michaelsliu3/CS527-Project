@@ -1,5 +1,6 @@
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
+using PlzBuyMe.Cdn.Middleware;
 using PlzBuyMe.Cdn.Options;
 using PlzBuyMe.Cdn.Services;
 
@@ -19,7 +20,9 @@ public sealed class Program
                       .AllowAnyMethod());
         });
         builder.Services.Configure<MediaStorageOptions>(builder.Configuration.GetSection("MediaStorage"));
+        builder.Services.AddHttpClient();
         builder.Services.AddScoped<IMediaStorageService, LocalMediaStorageService>();
+        builder.Services.AddSingleton<IGt7ThumbnailResolver, Gt7ThumbnailResolver>();
 
         var app = builder.Build();
         app.UseCors("AllowFrontend");
@@ -27,6 +30,8 @@ public sealed class Program
         var mediaStorageOptions = app.Services.GetRequiredService<IOptions<MediaStorageOptions>>().Value;
         var storageRoot = MediaStorageOptionsResolver.ResolveStorageRoot(mediaStorageOptions, app.Environment.ContentRootPath);
         Directory.CreateDirectory(storageRoot);
+
+        app.UseMiddleware<Gt7ThumbnailMirrorMiddleware>();
 
         app.UseStaticFiles(new StaticFileOptions
         {
