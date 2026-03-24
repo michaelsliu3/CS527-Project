@@ -9,6 +9,8 @@ public class Item
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
     public string? ImageStorageKey { get; set; }
+    public string? ImageSource { get; set; }
+    public string? ImageMatchLevel { get; set; }
     public decimal InitialPrice { get; set; }
     public decimal BidIncrement { get; set; }
     public decimal ReservePrice { get; set; }

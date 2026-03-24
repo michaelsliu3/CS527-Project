@@ -10,17 +10,24 @@ namespace PlzBuyMe.Api.Services;
 
 public class AuctionService : IAuctionService
 {
+    private const string UploadedImageSource = "uploaded";
+    private const string Gt7DefaultImageSource = "gt7-default";
+    private const string PlaceholderImageSource = "placeholder";
+
     private readonly AppDbContext _db;
     private readonly IAlertService _alertService;
+    private readonly ICdnGt7ThumbnailResolver _cdnGt7ThumbnailResolver;
     private readonly ILogger<AuctionService> _logger;
 
     public AuctionService(
         AppDbContext db,
         IAlertService alertService,
+        ICdnGt7ThumbnailResolver cdnGt7ThumbnailResolver,
         ILogger<AuctionService> logger)
     {
         _db = db;
         _alertService = alertService;
+        _cdnGt7ThumbnailResolver = cdnGt7ThumbnailResolver;
         _logger = logger;
     }
 
@@ -32,14 +39,42 @@ public class AuctionService : IAuctionService
         if (category == null)
             return null;
 
+        var uploadedImageValue = NormalizeMediaKey(dto.ImageStorageKey, dto.ImageUrl);
+        var hasUploadedImage = !string.IsNullOrWhiteSpace(uploadedImageValue);
+        var imageUrl = uploadedImageValue;
+        var imageStorageKey = hasUploadedImage ? uploadedImageValue : null;
+        var imageSource = hasUploadedImage ? UploadedImageSource : null;
+        string? imageMatchLevel = null;
+
+        if (!hasUploadedImage)
+        {
+            var defaultResolution = await ResolveDefaultImageForCreateAsync(category, dto.FieldValues);
+            if (defaultResolution.Found && !string.IsNullOrWhiteSpace(defaultResolution.Url))
+            {
+                imageUrl = defaultResolution.Url;
+                imageStorageKey = null;
+                imageSource = Gt7DefaultImageSource;
+                imageMatchLevel = defaultResolution.MatchLevel;
+            }
+            else
+            {
+                imageUrl = null;
+                imageStorageKey = null;
+                imageSource = PlaceholderImageSource;
+                imageMatchLevel = "none";
+            }
+        }
+
         var item = new Item
         {
             SellerId = sellerId,
             CategoryId = dto.CategoryId,
             Title = dto.Title.Trim(),
             Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim(),
-            ImageUrl = NormalizeMediaKey(dto.ImageStorageKey, dto.ImageUrl),
-            ImageStorageKey = NormalizeMediaKey(dto.ImageStorageKey, dto.ImageUrl),
+            ImageUrl = imageUrl,
+            ImageStorageKey = imageStorageKey,
+            ImageSource = imageSource,
+            ImageMatchLevel = imageMatchLevel,
             InitialPrice = dto.InitialPrice,
             BidIncrement = dto.BidIncrement,
             ReservePrice = dto.ReservePrice,
@@ -72,6 +107,26 @@ public class AuctionService : IAuctionService
         if (!string.IsNullOrWhiteSpace(fallbackValue))
             return fallbackValue.Trim();
         return null;
+    }
+
+    private async Task<CdnGt7ThumbnailResolveResult> ResolveDefaultImageForCreateAsync(Category category, List<FieldValueDto>? fieldValues)
+    {
+        var map = (fieldValues ?? new List<FieldValueDto>())
+            .GroupBy(v => v.FieldId)
+            .ToDictionary(g => g.Key, g => g.First().Value?.Trim() ?? string.Empty);
+        if (map.Count == 0)
+            return new CdnGt7ThumbnailResolveResult(false, "none", null);
+
+        var makeFieldId = category.CategoryFields.FirstOrDefault(f => f.FieldName == "Make")?.Id;
+        var modelFieldId = category.CategoryFields.FirstOrDefault(f => f.FieldName == "Model")?.Id;
+        var yearFieldId = category.CategoryFields.FirstOrDefault(f => f.FieldName == "Year")?.Id;
+
+        map.TryGetValue(makeFieldId ?? -1, out var make);
+        map.TryGetValue(modelFieldId ?? -1, out var model);
+        map.TryGetValue(yearFieldId ?? -1, out var yearRaw);
+        int? year = int.TryParse(yearRaw, out var parsedYear) ? parsedYear : null;
+
+        return await _cdnGt7ThumbnailResolver.ResolveAsync(make, model, year);
     }
 
     public async Task PlaceBidAsync(int itemId, int bidderId, decimal amount)
@@ -326,6 +381,8 @@ public class AuctionService : IAuctionService
                     Id = i.Id,
                     Title = i.Title,
                     ImageUrl = i.ImageUrl,
+                    ImageSource = i.ImageSource,
+                    ImageMatchLevel = i.ImageMatchLevel,
                     CurrentPrice = i.CurrentPrice,
                     CloseDateTime = i.CloseDateTime,
                     Status = i.Status.ToString().ToLowerInvariant(),
@@ -349,6 +406,8 @@ public class AuctionService : IAuctionService
                     Id = i.Id,
                     Title = i.Title,
                     ImageUrl = i.ImageUrl,
+                    ImageSource = i.ImageSource,
+                    ImageMatchLevel = i.ImageMatchLevel,
                     CurrentPrice = i.CurrentPrice,
                     CloseDateTime = i.CloseDateTime,
                     Status = i.Status.ToString().ToLowerInvariant(),
@@ -532,6 +591,8 @@ public class AuctionService : IAuctionService
             Title = item.Title,
             Description = item.Description,
             ImageUrl = item.ImageUrl,
+            ImageSource = item.ImageSource,
+            ImageMatchLevel = item.ImageMatchLevel,
             CategoryId = item.CategoryId,
             CategoryName = item.Category.Name,
             SellerId = item.SellerId,
@@ -567,6 +628,8 @@ public class AuctionService : IAuctionService
                 Id = i.Id,
                 Title = i.Title,
                 ImageUrl = i.ImageUrl,
+                ImageSource = i.ImageSource,
+                ImageMatchLevel = i.ImageMatchLevel,
                 CurrentPrice = i.CurrentPrice,
                 CloseDateTime = i.CloseDateTime,
                 Status = i.Status.ToString().ToLowerInvariant(),
@@ -606,6 +669,8 @@ public class AuctionService : IAuctionService
                 Id = x.Item.Id,
                 Title = x.Item.Title,
                 ImageUrl = x.Item.ImageUrl,
+                ImageSource = x.Item.ImageSource,
+                ImageMatchLevel = x.Item.ImageMatchLevel,
                 CurrentPrice = x.Item.CurrentPrice,
                 CloseDateTime = x.Item.CloseDateTime,
                 Status = x.Item.Status.ToString().ToLowerInvariant(),
@@ -637,6 +702,8 @@ public class AuctionService : IAuctionService
                 Id = i.Id,
                 Title = i.Title,
                 ImageUrl = i.ImageUrl,
+                ImageSource = i.ImageSource,
+                ImageMatchLevel = i.ImageMatchLevel,
                 CurrentPrice = i.CurrentPrice,
                 CloseDateTime = i.CloseDateTime,
                 Status = i.Status.ToString().ToLowerInvariant(),

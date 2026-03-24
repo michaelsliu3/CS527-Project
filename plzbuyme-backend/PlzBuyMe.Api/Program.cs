@@ -138,9 +138,11 @@ public class Program
         builder.Services.AddScoped<IAlertService, AlertService>();
         builder.Services.AddScoped<INotificationService, NotificationService>();
         builder.Services.AddScoped<IAuctionService, AuctionService>();
+        builder.Services.AddScoped<ICdnGt7ThumbnailResolver, CdnGt7ThumbnailResolver>();
         builder.Services.AddScoped<IQuestionsService, QuestionsService>();
         builder.Services.AddScoped<IRepService, RepService>();
         builder.Services.AddScoped<IReportService, ReportService>();
+        builder.Services.AddHttpClient();
         builder.Services.AddHostedService<AuctionCloseService>();
 
         // ── CORS ────────────────────────────────────────────────────

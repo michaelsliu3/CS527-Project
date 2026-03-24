@@ -21,11 +21,20 @@ public class AuctionServiceTests
         return (db, sedan.Id, makeField.Id, seller.Id);
     }
 
-    private static AuctionService CreateService(AppDbContext db, IAlertService? alertService = null)
+    private static ICdnGt7ThumbnailResolver CreateResolverMock(string? url = "http://localhost:5090/media/cars/gt7/car137.png", string matchLevel = "exact")
+    {
+        var mock = new Mock<ICdnGt7ThumbnailResolver>();
+        mock.Setup(r => r.ResolveAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CdnGt7ThumbnailResolveResult(!string.IsNullOrWhiteSpace(url), matchLevel, url));
+        return mock.Object;
+    }
+
+    private static AuctionService CreateService(AppDbContext db, IAlertService? alertService = null, ICdnGt7ThumbnailResolver? resolver = null)
     {
         return new AuctionService(
             db,
             alertService ?? new AlertService(db),
+            resolver ?? CreateResolverMock(),
             new Mock<ILogger<AuctionService>>().Object);
     }
 
@@ -52,6 +61,95 @@ public class AuctionServiceTests
         item.CurrentPrice.Should().Be(1000m);
         var fv = db.ItemFieldValues.Single(iv => iv.ItemId == item.Id && iv.FieldId == makeFieldId);
         fv.Value.Should().Be("Toyota");
+    }
+
+    [Fact]
+    public async Task CreateAuction_WithoutUploadedImage_ResolvesAndPersistsGt7Default()
+    {
+        var (db, categoryId, _, sellerId) = CreateSeededContext();
+        var sedanFields = db.CategoryFields.Where(f => f.CategoryId == categoryId).ToList();
+        var makeFieldId = sedanFields.First(f => f.FieldName == "Make").Id;
+        var modelFieldId = sedanFields.First(f => f.FieldName == "Model").Id;
+        var yearFieldId = sedanFields.First(f => f.FieldName == "Year").Id;
+
+        var resolverMock = new Mock<ICdnGt7ThumbnailResolver>();
+        resolverMock.Setup(r => r.ResolveAsync("Honda", "Beat", 1991, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CdnGt7ThumbnailResolveResult(true, "exact", "http://localhost:5090/media/cars/gt7/car137.png"));
+        var service = CreateService(db, resolver: resolverMock.Object);
+
+        var dto = new CreateAuctionDto
+        {
+            Title = "1991 Honda Beat",
+            CategoryId = categoryId,
+            InitialPrice = 12000m,
+            BidIncrement = 250m,
+            ReservePrice = 15000m,
+            CloseDateTime = DateTime.UtcNow.AddDays(2),
+            FieldValues =
+            [
+                new FieldValueDto(makeFieldId, "Honda"),
+                new FieldValueDto(modelFieldId, "Beat"),
+                new FieldValueDto(yearFieldId, "1991")
+            ]
+        };
+
+        var created = await service.CreateAuctionAsync(dto, sellerId);
+
+        created.Should().NotBeNull();
+        created!.ImageUrl.Should().Be("http://localhost:5090/media/cars/gt7/car137.png");
+        created.ImageSource.Should().Be("gt7-default");
+        created.ImageMatchLevel.Should().Be("exact");
+        resolverMock.Verify(r => r.ResolveAsync("Honda", "Beat", 1991, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateAuction_WithoutMatch_PersistsPlaceholderMetadata()
+    {
+        var (db, categoryId, _, sellerId) = CreateSeededContext();
+        var resolver = CreateResolverMock(url: null, matchLevel: "none");
+        var service = CreateService(db, resolver: resolver);
+        var dto = new CreateAuctionDto
+        {
+            Title = "Unknown car",
+            CategoryId = categoryId,
+            InitialPrice = 1000m,
+            BidIncrement = 100m,
+            ReservePrice = 1200m,
+            CloseDateTime = DateTime.UtcNow.AddDays(1)
+        };
+
+        var created = await service.CreateAuctionAsync(dto, sellerId);
+
+        created.Should().NotBeNull();
+        created!.ImageUrl.Should().BeNull();
+        created.ImageSource.Should().Be("placeholder");
+        created.ImageMatchLevel.Should().Be("none");
+    }
+
+    [Fact]
+    public async Task CreateAuction_WithUploadedImage_DoesNotResolveAndKeepsUploadedImage()
+    {
+        var (db, categoryId, _, sellerId) = CreateSeededContext();
+        var resolverMock = new Mock<ICdnGt7ThumbnailResolver>();
+        var service = CreateService(db, resolver: resolverMock.Object);
+        var dto = new CreateAuctionDto
+        {
+            Title = "User uploaded image car",
+            CategoryId = categoryId,
+            ImageStorageKey = "items/2026/03/uploaded-file.png",
+            InitialPrice = 9000m,
+            BidIncrement = 200m,
+            ReservePrice = 11000m,
+            CloseDateTime = DateTime.UtcNow.AddDays(1)
+        };
+
+        var created = await service.CreateAuctionAsync(dto, sellerId);
+
+        created.Should().NotBeNull();
+        created!.ImageUrl.Should().Be("items/2026/03/uploaded-file.png");
+        created.ImageSource.Should().Be("uploaded");
+        created.ImageMatchLevel.Should().BeNull();
+        resolverMock.Verify(r => r.ResolveAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
