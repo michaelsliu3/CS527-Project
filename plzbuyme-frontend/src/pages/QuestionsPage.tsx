@@ -491,30 +491,51 @@ function ActionRow({
   onReply: () => void
 }) {
   return (
-    <Flex align="center" gap={1} mb={3}>
+    <Flex align="center" gap={1} mb={3} wrap="wrap">
       <IconButton
-        aria-label="Upvote"
         size="xs"
-        variant={currentUserVote === 1 ? 'solid' : 'ghost'}
-        colorPalette={currentUserVote === 1 ? 'green' : undefined}
+        variant="ghost"
+        color={currentUserVote === 1 ? 'green.300' : dark.placeholder}
+        _hover={{ bg: 'whiteAlpha.100' }}
+        minW="auto"
+        h="auto"
+        px={1.5}
+        py={1}
         onClick={onUpvote}
+        aria-label="Upvote"
       >
         <LuArrowBigUp />
       </IconButton>
-      <Text fontSize="sm" color={dark.muted} minW="20px" textAlign="center">
+      <Text fontSize="sm" color={dark.muted} minW="auto" px={1} textAlign="center">
         {score}
       </Text>
       <IconButton
-        aria-label="Downvote"
         size="xs"
-        variant={currentUserVote === -1 ? 'solid' : 'ghost'}
-        colorPalette={currentUserVote === -1 ? 'red' : undefined}
+        variant="ghost"
+        color={currentUserVote === -1 ? 'red.300' : dark.placeholder}
+        _hover={{ bg: 'whiteAlpha.100' }}
+        minW="auto"
+        h="auto"
+        px={1.5}
+        py={1}
         onClick={onDownvote}
+        aria-label="Downvote"
       >
         <LuArrowBigDown />
       </IconButton>
       {canReply ? (
-        <Button size="xs" variant="ghost" color={dark.placeholder} onClick={onReply}>
+        <Button
+          size="xs"
+          variant="ghost"
+          color={dark.placeholder}
+          _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+          minW="auto"
+          h="auto"
+          px={1.5}
+          py={1}
+          ml={1}
+          onClick={onReply}
+        >
           <LuMessageSquareReply />
           Reply
         </Button>
