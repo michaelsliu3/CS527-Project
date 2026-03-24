@@ -22,7 +22,7 @@ import {
   Textarea,
   useDisclosure,
 } from '@chakra-ui/react'
-import { LuArrowBigDown, LuArrowBigUp, LuMessageSquareReply } from 'react-icons/lu'
+import { LuArrowBigDown, LuArrowBigUp, LuArrowLeft, LuMessageSquareReply } from 'react-icons/lu'
 import { showErrorToast, showSuccessToast } from '../components/ui/toaster'
 import { useForm } from 'react-hook-form'
 import {
@@ -40,6 +40,7 @@ import { isAxiosError } from 'axios'
 import { APP_PAGE_PX } from '../theme/layout'
 import { DisplayNameText } from '../components/DisplayNameText'
 import { UserAvatar } from '../components/UserAvatar'
+import { useNavigate, useParams } from 'react-router-dom'
 
 interface AskQuestionFormValues {
   subject: string
@@ -47,6 +48,16 @@ interface AskQuestionFormValues {
 }
 
 const KEYWORD_DEBOUNCE_MS = 350
+const CARD_INTERACTIVE_SELECTOR =
+  'a,button,input,textarea,select,option,[role="button"],[role="link"],[data-prevent-card-click="true"]'
+
+function isFromNestedInteractiveElement(target: EventTarget | null, currentTarget: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+  const closestInteractive = target.closest(CARD_INTERACTIVE_SELECTOR)
+  return Boolean(closestInteractive && closestInteractive !== currentTarget)
+}
 
 function formatRelativeTime(dateInput: string): string {
   const postedAt = new Date(dateInput).getTime()
@@ -84,6 +95,8 @@ function getReplyTagColor(tag: 'OP' | 'Admin' | 'Rep'): 'green' | 'purple' | 'bl
 
 export function QuestionsPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
+  const { questionId } = useParams<{ questionId?: string }>()
   const [questions, setQuestions] = useState<QuestionResponse[]>([])
   const [keyword, setKeyword] = useState('')
   const [loading, setLoading] = useState(true)
@@ -156,162 +169,318 @@ export function QuestionsPage() {
     user?.role === 'vip' ||
     user?.role === 'customer_rep' ||
     user?.role === 'admin'
+  const parsedQuestionId = questionId ? Number(questionId) : null
+  const selectedQuestionId =
+    parsedQuestionId !== null && Number.isInteger(parsedQuestionId) && parsedQuestionId > 0 ? parsedQuestionId : null
+  const singleQuestionMode = selectedQuestionId !== null
+  const visibleQuestions =
+    selectedQuestionId === null ? questions : questions.filter((question) => question.id === selectedQuestionId)
 
   return (
     <Container maxW="container.lg" px={APP_PAGE_PX}>
-      <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={4}>
-        <Text fontSize="2xl" fontWeight="bold" color="white">
-          Q&A
-        </Text>
-        <Flex gap={2} align="center">
-          <NativeSelect.Root size="sm" width="120px">
-            <NativeSelect.Field
-              value={sortMode}
-              onChange={(e) => {
-                const next = e.target.value
-                if (next === 'top' || next === 'newest' || next === 'oldest') setSortMode(next)
-              }}
+      {!singleQuestionMode ? (
+        <Flex justify="space-between" align="center" mb={6} flexWrap="wrap" gap={4}>
+          <Text fontSize="2xl" fontWeight="bold" color="white">
+            Q&A
+          </Text>
+          <Flex gap={2} align="center">
+            <NativeSelect.Root size="sm" width="120px">
+              <NativeSelect.Field
+                value={sortMode}
+                onChange={(e) => {
+                  const next = e.target.value
+                  if (next === 'top' || next === 'newest' || next === 'oldest') setSortMode(next)
+                }}
+                bg={dark.inputBg}
+                borderColor={dark.borderSubtle}
+                color="white"
+              >
+                <option value="top">Top</option>
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+              </NativeSelect.Field>
+              <NativeSelect.Indicator />
+            </NativeSelect.Root>
+            <Input
+              placeholder="Search by keyword..."
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
               bg={dark.inputBg}
               borderColor={dark.borderSubtle}
               color="white"
-            >
-              <option value="top">Top</option>
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-            </NativeSelect.Field>
-            <NativeSelect.Indicator />
-          </NativeSelect.Root>
-          <Input
-            placeholder="Search by keyword..."
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            bg={dark.inputBg}
-            borderColor={dark.borderSubtle}
-            color="white"
-            _placeholder={{ color: dark.placeholder }}
-            size="sm"
-            w={{ base: '100%', sm: '200px' }}
-          />
-          {canAskQuestion && (
-            <Button
+              _placeholder={{ color: dark.placeholder }}
               size="sm"
-              variant="outline"
-              borderColor={dark.borderSubtle}
-              color="white"
-              _hover={{ bg: 'whiteAlpha.100' }}
-              onClick={askDialog.onOpen}
-            >
-              Ask a Question
-            </Button>
-          )}
+              w={{ base: '100%', sm: '200px' }}
+            />
+            {canAskQuestion && (
+              <Button
+                size="sm"
+                variant="outline"
+                borderColor={dark.borderSubtle}
+                color="white"
+                _hover={{ bg: 'whiteAlpha.100' }}
+                onClick={askDialog.onOpen}
+              >
+                Ask a Question
+              </Button>
+            )}
+          </Flex>
         </Flex>
-      </Flex>
+      ) : null}
 
-      {error && (
-        <Text color="red.400" mb={4}>
-          {error}
-        </Text>
-      )}
-
-      {loading ? (
-        <Text color={dark.muted} py={8} textAlign="center">
-          Loading...
-        </Text>
-      ) : questions.length === 0 ? (
-        <Text color={dark.muted} py={8} textAlign="center">
-          No questions found.
-        </Text>
-      ) : (
-        <Flex direction="column" gap={4}>
-          {questions.map((q) => (
-            <Box
-              key={q.id}
-              p={4}
-              bg={dark.cardBg}
-              borderRadius="md"
-              borderWidth="1px"
-              borderColor={dark.borderSubtle}
-            >
-              <Text fontWeight="semibold" color="white" mb={1}>
-                {q.subject}
+      {singleQuestionMode ? (
+        <Flex align="flex-start" gap={{ base: 2, md: 4 }}>
+          <IconButton
+            size="sm"
+            variant="ghost"
+            color={dark.muted}
+            aria-label="Back to all posts"
+            onClick={() => navigate('/questions')}
+            _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+            mt={1}
+            flexShrink={0}
+          >
+            <LuArrowLeft />
+          </IconButton>
+          <Box flex="1">
+            {error && (
+              <Text color="red.400" mb={4}>
+                {error}
               </Text>
-              <Flex color={dark.muted} fontSize="sm" mb={2} align="center" gap={2}>
-                <UserAvatar name={q.username} avatarUrl={q.usernameAvatarUrl} size="22px" />
-                <Box>
-                  <DisplayNameText
-                    name={q.username}
-                    displayNameColor={q.usernameDisplayNameColor}
-                    fallbackColor={dark.muted}
-                    fontWeight="bold"
-                  />{' '}
-                  • {formatRelativeTime(q.createdAt)}
-                </Box>
-              </Flex>
-              <Text color={dark.label} whiteSpace="pre-wrap" mb={3}>
-                {q.body}
+            )}
+            {loading ? (
+              <Text color={dark.muted} py={8} textAlign="center">
+                Loading...
               </Text>
-              <ActionRow
-                score={q.score}
-                currentUserVote={q.currentUserVote}
-                canReply={isRepOrAdmin}
-                onUpvote={() => void handleVoteQuestion(q.id, 1)}
-                onDownvote={() => void handleVoteQuestion(q.id, -1)}
-                onReply={() => {
-                  setReplyingId(q.id)
-                  setReplyParentId(null)
-                }}
-              />
-              {isRepOrAdmin ? (
-                <ReplyForm
-                  questionId={q.id}
-                  parentReplyId={null}
-                  isActive={replyingId === q.id && replyParentId === null}
-                  onCancel={() => {
-                    setReplyingId(null)
-                    setReplyParentId(null)
-                  }}
-                  onSuccess={() => {
-                    setReplyingId(null)
-                    setReplyParentId(null)
-                    fetchQuestions()
-                  }}
-                  onError={(msg) => showErrorToast('Error', msg)}
-                />
-              ) : null}
-              {q.replies.length > 0 ? (
-                <Flex direction="column" gap={3} mb={3}>
-                  {q.replies.map((reply) => (
-                    <ReplyThread
-                      key={reply.id}
-                      questionId={q.id}
-                      questionUsername={q.username}
-                      reply={reply}
-                      depth={0}
+            ) : visibleQuestions.length === 0 ? (
+              <Text color={dark.muted} py={8} textAlign="center">
+                Post not found.
+              </Text>
+            ) : (
+              <Flex direction="column" gap={4}>
+                {visibleQuestions.map((q) => (
+                  <Box key={q.id}>
+                    <Text fontWeight="bold" fontSize={{ base: 'xl', md: '2xl' }} color="white" mb={2}>
+                      {q.subject}
+                    </Text>
+                    <Flex color={dark.muted} fontSize="sm" mb={3} align="center" gap={2}>
+                      <UserAvatar name={q.username} avatarUrl={q.usernameAvatarUrl} size="22px" />
+                      <Box>
+                        <DisplayNameText
+                          name={q.username}
+                          displayNameColor={q.usernameDisplayNameColor}
+                          fallbackColor={dark.muted}
+                          fontWeight="bold"
+                        />{' '}
+                        • {formatRelativeTime(q.createdAt)}
+                      </Box>
+                    </Flex>
+                    <Text color={dark.label} whiteSpace="pre-wrap" mb={3}>
+                      {q.body}
+                    </Text>
+                    <ActionRow
+                      score={q.score}
+                      currentUserVote={q.currentUserVote}
                       canReply={isRepOrAdmin}
-                      onVote={handleVoteReply}
-                      replyingId={replyingId}
-                      replyParentId={replyParentId}
-                      onReply={(parentReplyId) => {
+                      onUpvote={() => void handleVoteQuestion(q.id, 1)}
+                      onDownvote={() => void handleVoteQuestion(q.id, -1)}
+                      onReply={() => {
                         setReplyingId(q.id)
-                        setReplyParentId(parentReplyId)
+                        setReplyParentId(null)
                       }}
-                      onCancelReply={() => {
+                    />
+                    {isRepOrAdmin ? (
+                      <ReplyForm
+                        questionId={q.id}
+                        parentReplyId={null}
+                        isActive={replyingId === q.id && replyParentId === null}
+                        onCancel={() => {
+                          setReplyingId(null)
+                          setReplyParentId(null)
+                        }}
+                        onSuccess={() => {
+                          setReplyingId(null)
+                          setReplyParentId(null)
+                          fetchQuestions()
+                        }}
+                        onError={(msg) => showErrorToast('Error', msg)}
+                      />
+                    ) : null}
+                  </Box>
+                ))}
+
+                {visibleQuestions.map((q) => (
+                  <Box key={`comments-${q.id}`}>
+                    <Flex align="center" gap={3} mb={6}>
+                      <Text color="white" fontWeight="bold" fontSize="lg" flexShrink={0}>
+                        Comments ({q.replies.length})
+                      </Text>
+                      <Box flex="1" borderTopWidth="1px" borderColor="whiteAlpha.300" />
+                    </Flex>
+                    {q.replies.length > 0 ? (
+                      <Flex direction="column" gap={3}>
+                        {q.replies.map((reply) => (
+                          <ReplyThread
+                            key={reply.id}
+                            questionId={q.id}
+                            questionUsername={q.username}
+                            reply={reply}
+                            depth={0}
+                            canReply={isRepOrAdmin}
+                            onVote={handleVoteReply}
+                            replyingId={replyingId}
+                            replyParentId={replyParentId}
+                            onReply={(parentReplyId) => {
+                              setReplyingId(q.id)
+                              setReplyParentId(parentReplyId)
+                            }}
+                            onCancelReply={() => {
+                              setReplyingId(null)
+                              setReplyParentId(null)
+                            }}
+                            onReplySuccess={() => {
+                              setReplyingId(null)
+                              setReplyParentId(null)
+                              fetchQuestions()
+                            }}
+                            onReplyError={(msg) => showErrorToast('Error', msg)}
+                          />
+                        ))}
+                      </Flex>
+                    ) : (
+                      <Text color={dark.muted}>No comments yet.</Text>
+                    )}
+                  </Box>
+                ))}
+              </Flex>
+            )}
+          </Box>
+        </Flex>
+      ) : (
+        <>
+          {error && (
+            <Text color="red.400" mb={4}>
+              {error}
+            </Text>
+          )}
+          {loading ? (
+            <Text color={dark.muted} py={8} textAlign="center">
+              Loading...
+            </Text>
+          ) : visibleQuestions.length === 0 ? (
+            <Text color={dark.muted} py={8} textAlign="center">
+              No questions found.
+            </Text>
+          ) : (
+            <Flex direction="column" gap={4}>
+              {visibleQuestions.map((q) => (
+                <Box
+                  key={q.id}
+                  p={4}
+                  bg={dark.cardBg}
+                  borderRadius="md"
+                  borderWidth="1px"
+                  borderColor={dark.borderSubtle}
+                  role="button"
+                  tabIndex={0}
+                  cursor="pointer"
+                  _hover={{ borderColor: 'whiteAlpha.500' }}
+                  onClick={(e) => {
+                    if (singleQuestionMode || isFromNestedInteractiveElement(e.target, e.currentTarget)) {
+                      return
+                    }
+                    navigate(`/questions/${q.id}`)
+                  }}
+                  onKeyDown={(e) => {
+                    if (singleQuestionMode || (e.key !== 'Enter' && e.key !== ' ')) {
+                      return
+                    }
+                    e.preventDefault()
+                    navigate(`/questions/${q.id}`)
+                  }}
+                >
+                  <Text fontWeight="semibold" color="white" mb={1}>
+                    {q.subject}
+                  </Text>
+                  <Flex color={dark.muted} fontSize="sm" mb={2} align="center" gap={2}>
+                    <UserAvatar name={q.username} avatarUrl={q.usernameAvatarUrl} size="22px" />
+                    <Box>
+                      <DisplayNameText
+                        name={q.username}
+                        displayNameColor={q.usernameDisplayNameColor}
+                        fallbackColor={dark.muted}
+                        fontWeight="bold"
+                      />{' '}
+                      • {formatRelativeTime(q.createdAt)}
+                    </Box>
+                  </Flex>
+                  <Text color={dark.label} whiteSpace="pre-wrap" mb={3}>
+                    {q.body}
+                  </Text>
+                  <ActionRow
+                    score={q.score}
+                    currentUserVote={q.currentUserVote}
+                    canReply={isRepOrAdmin}
+                    onUpvote={() => void handleVoteQuestion(q.id, 1)}
+                    onDownvote={() => void handleVoteQuestion(q.id, -1)}
+                    onReply={() => {
+                      setReplyingId(q.id)
+                      setReplyParentId(null)
+                    }}
+                  />
+                  {isRepOrAdmin ? (
+                    <ReplyForm
+                      questionId={q.id}
+                      parentReplyId={null}
+                      isActive={replyingId === q.id && replyParentId === null}
+                      onCancel={() => {
                         setReplyingId(null)
                         setReplyParentId(null)
                       }}
-                      onReplySuccess={() => {
+                      onSuccess={() => {
                         setReplyingId(null)
                         setReplyParentId(null)
                         fetchQuestions()
                       }}
-                      onReplyError={(msg) => showErrorToast('Error', msg)}
+                      onError={(msg) => showErrorToast('Error', msg)}
                     />
-                  ))}
-                </Flex>
-              ) : null}
-            </Box>
-          ))}
-        </Flex>
+                  ) : null}
+                  {q.replies.length > 0 ? (
+                    <Flex direction="column" gap={3} mb={3}>
+                      {q.replies.map((reply) => (
+                        <ReplyThread
+                          key={reply.id}
+                          questionId={q.id}
+                          questionUsername={q.username}
+                          reply={reply}
+                          depth={0}
+                          canReply={isRepOrAdmin}
+                          onVote={handleVoteReply}
+                          replyingId={replyingId}
+                          replyParentId={replyParentId}
+                          onReply={(parentReplyId) => {
+                            setReplyingId(q.id)
+                            setReplyParentId(parentReplyId)
+                          }}
+                          onCancelReply={() => {
+                            setReplyingId(null)
+                            setReplyParentId(null)
+                          }}
+                          onReplySuccess={() => {
+                            setReplyingId(null)
+                            setReplyParentId(null)
+                            fetchQuestions()
+                          }}
+                          onReplyError={(msg) => showErrorToast('Error', msg)}
+                        />
+                      ))}
+                    </Flex>
+                  ) : null}
+                </Box>
+              ))}
+            </Flex>
+          )}
+        </>
       )}
 
       <Dialog.Root open={askDialog.open} onOpenChange={({ open: isOpen }) => { if (!isOpen) askDialog.onClose() }} size="md">
@@ -431,7 +600,7 @@ function ReplyForm({
   }
 
   return (
-    <Box as="form" onSubmit={handleSubmit} mt={2}>
+    <Box as="form" onSubmit={handleSubmit} mt={2} data-prevent-card-click="true">
       <Textarea
         value={replyBody}
         onChange={(e) => setReplyBody(e.target.value)}

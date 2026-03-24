@@ -74,6 +74,14 @@ function App() {
           }
         />
         <Route
+          path="/questions/:questionId"
+          element={
+            <ProtectedRoute>
+              <QuestionsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/profile"
           element={
             <ProtectedRoute>
