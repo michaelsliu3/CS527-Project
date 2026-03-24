@@ -1,5 +1,5 @@
 import { Badge, Box, Card, Flex, Heading, Image, Text } from '@chakra-ui/react'
-import { Link as RouterLink } from 'react-router-dom'
+import { Link as RouterLink, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import type { AuctionListItem } from '../api/auctions'
 import { dark } from '../theme/colors'
@@ -24,19 +24,29 @@ export interface AuctionCardProps {
 }
 
 export function AuctionCard({ auction }: AuctionCardProps) {
+  const location = useLocation()
   const [countdown, setCountdown] = useState(() => formatCountdown(auction.closeDateTime))
   const imageSrc = resolveMediaUrl(auction.imageUrl)
+  const preferredCardImageSrc =
+    imageSrc && /\/media\/(?:cars\/)?gt7\/car\d{3,5}\.png$/i.test(imageSrc)
+      ? imageSrc.replace(/\/car(\d{3,5})\.png$/i, '/card/car$1.jpg')
+      : imageSrc
+  const [cardImageSrc, setCardImageSrc] = useState<string | null>(preferredCardImageSrc)
 
   useEffect(() => {
     const t = setInterval(() => setCountdown(formatCountdown(auction.closeDateTime)), 1000)
     return () => clearInterval(t)
   }, [auction.closeDateTime])
 
+  useEffect(() => {
+    setCardImageSrc(preferredCardImageSrc)
+  }, [preferredCardImageSrc])
+
   const statusColor =
     auction.status === 'active' ? 'green' : auction.status === 'sold' ? 'blue' : 'gray'
 
   return (
-    <RouterLink to={`/auctions/${auction.id}`}>
+    <RouterLink to={`/auctions/${auction.id}`} state={{ backgroundLocation: location }}>
       <Card.Root
         bg={dark.cardBg}
         borderWidth="1px"
@@ -45,15 +55,20 @@ export function AuctionCard({ auction }: AuctionCardProps) {
         _hover={{ borderColor: dark.hoverBorder }}
         transition="border-color 0.15s"
       >
-        {imageSrc ? (
+        {cardImageSrc ? (
           <Image
-            src={imageSrc}
+            src={cardImageSrc}
             alt={auction.title}
             w="100%"
             h="160px"
             objectFit="cover"
             borderBottomWidth="1px"
             borderColor={dark.borderSubtle}
+            onError={() => {
+              if (cardImageSrc !== imageSrc) {
+                setCardImageSrc(imageSrc)
+              }
+            }}
           />
         ) : null}
         <Card.Body p={4}>

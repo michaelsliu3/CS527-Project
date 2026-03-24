@@ -1,17 +1,6 @@
 import { useEffect, useState } from 'react'
-import {
-  Box,
-  Badge,
-  Button,
-  Container,
-  Flex,
-  Heading,
-  Input,
-  SimpleGrid,
-  Spinner,
-  Text,
-} from '@chakra-ui/react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { Box, Badge, Button, Container, Flex, Heading, IconButton, Image, Input, Spinner, Text } from '@chakra-ui/react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -53,7 +42,17 @@ interface BidFormValues {
 export function AuctionDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
+  const isModal = Boolean(location.state && (location.state as { backgroundLocation?: unknown }).backgroundLocation)
+  const handleClose = () => {
+    if (isModal) {
+      navigate(-1)
+      return
+    }
+    navigate('/auctions')
+  }
+
   const [auction, setAuction] = useState<AuctionDetail | null>(null)
   const [similar, setSimilar] = useState<AuctionListItem[]>([])
   const [countdown, setCountdown] = useState('')
@@ -153,7 +152,7 @@ export function AuctionDetailPage() {
     return (
       <Container maxW="container.md" px={APP_PAGE_PX}>
         <Text color="red.400">{error ?? 'Not found.'}</Text>
-        <Button mt={4} variant="outline" onClick={() => navigate('/auctions')}>
+        <Button mt={4} variant="outline" onClick={handleClose}>
           Back to listings
         </Button>
       </Container>
@@ -164,16 +163,43 @@ export function AuctionDetailPage() {
     auction.status === 'active' ? 'green' : auction.status === 'sold' ? 'blue' : 'gray'
   const imageSrc = resolveMediaUrl(auction.detailImageUrl ?? auction.imageUrl)
 
-  return (
-    <Container maxW="container.lg" px={APP_PAGE_PX}>
+  const content = (
+    <Container maxW="container.xl" px={APP_PAGE_PX} py={{ base: 4, md: 6 }}>
+      <Box
+        maxW="920px"
+        mx="auto"
+        bg={dark.cardBg}
+        borderWidth="1px"
+        borderColor={dark.borderSubtle}
+        borderRadius="xl"
+        p={{ base: 4, md: 6 }}
+        boxShadow="0 18px 48px rgba(0,0,0,0.45)"
+        position="relative"
+        onClick={isModal ? (event) => event.stopPropagation() : undefined}
+      >
       <Box mb={6}>
-        <Flex align="center" gap={2} mb={2}>
-          <Heading size="lg" color="white" fontWeight="extrabold">
-            {auction.title}
-          </Heading>
-          <Badge colorPalette={statusColor} size="sm">
-            {auction.status}
-          </Badge>
+        <Flex align="center" justify="space-between" gap={2} mb={2}>
+          <Flex align="center" gap={2} minW={0}>
+            <Heading size="lg" color="white" fontWeight="extrabold" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+              {auction.title}
+            </Heading>
+            <Badge colorPalette={statusColor} size="sm" flexShrink={0}>
+              {auction.status}
+            </Badge>
+          </Flex>
+          {isModal && (
+            <IconButton
+              aria-label="Close auction details"
+              size="sm"
+              variant="ghost"
+              color={dark.muted}
+              _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+              onClick={handleClose}
+              flexShrink={0}
+            >
+              ×
+            </IconButton>
+          )}
         </Flex>
         <Flex color={dark.muted} align="center" gap={2}>
           <Text>{auction.categoryName} · by</Text>
@@ -192,20 +218,20 @@ export function AuctionDetailPage() {
         )}
       </Box>
 
-      <SimpleGrid columns={{ base: 1, lg: 2 }} gap={6}>
-        <Box>
-          <Box
-            bg={dark.cardBg}
-            borderWidth="1px"
-            borderColor={dark.borderSubtle}
-            borderRadius="md"
-            overflow="hidden"
-            mb={4}
-          >
-            {imageSrc ? (
-              <Box as="img" src={imageSrc} alt={auction.title} w="100%" h={{ base: '220px', md: '320px' }} objectFit="cover" />
-            ) : null}
-            <Box p={4}>
+      <Box>
+        <Box mb={4}>
+          {imageSrc ? (
+            <Box
+              w={{ base: 'calc(100% + 2rem)', md: 'calc(100% + 3rem)' }}
+              mx={{ base: '-1rem', md: '-1.5rem' }}
+              aspectRatio={16 / 9}
+              overflow="hidden"
+              bg="black"
+            >
+              <Image src={imageSrc} alt={auction.title} w="100%" h="100%" objectFit="cover" />
+            </Box>
+          ) : null}
+          <Box mt={4}>
             <Text fontSize="2xl" fontWeight="bold" color="brand.400">
               ${auction.currentPrice.toLocaleString()}
             </Text>
@@ -223,19 +249,20 @@ export function AuctionDetailPage() {
                 <Text fontSize="sm" fontWeight="medium" color={dark.muted} mb={2}>
                   Details
                 </Text>
-                <SimpleGrid columns={2} gap={2}>
+                <Flex gap={4} wrap="wrap">
                   {auction.fieldValues.map((fv, i) => (
-                    <Flex key={i} gap={2}>
+                    <Flex key={i} gap={2} minW={{ base: '100%', md: 'calc(50% - 8px)' }}>
                       <Text color={dark.muted}>{fv.fieldName}:</Text>
                       <Text color="white">{fv.value}</Text>
                     </Flex>
                   ))}
-                </SimpleGrid>
+                </Flex>
               </Box>
             )}
-            </Box>
           </Box>
+        </Box>
 
+        <Flex direction={{ base: 'column', lg: 'row' }} gap={4} mb={4}>
           {canBid && (
             <Box
               bg={dark.cardBg}
@@ -243,7 +270,7 @@ export function AuctionDetailPage() {
               borderColor={dark.borderSubtle}
               borderRadius="md"
               p={4}
-              mb={4}
+              flex={1}
             >
               <Heading size="sm" mb={3} color="white">
                 Place bid
@@ -312,27 +339,51 @@ export function AuctionDetailPage() {
             borderColor={dark.borderSubtle}
             borderRadius="md"
             p={4}
+            flex={1}
           >
             <Heading size="sm" mb={3} color="white">
               Bid history
             </Heading>
             <BidHistory bids={auction.bidHistory} />
           </Box>
-        </Box>
+        </Flex>
 
-        {similar.length > 0 && (
-          <Box>
-            <Heading size="sm" mb={3} color="white">
-              Similar items
-            </Heading>
-            <SimpleGrid columns={1} gap={3}>
-              {similar.map((item) => (
-                <AuctionCard key={item.id} auction={item} />
-              ))}
-            </SimpleGrid>
-          </Box>
-        )}
-      </SimpleGrid>
+      </Box>
+      </Box>
+
+      {similar.length > 0 && (
+        <Box maxW="1100px" mx="auto" mt={8}>
+          <Heading size="sm" mb={3} color="white">
+            Similar items
+          </Heading>
+          <Flex direction={{ base: 'column', md: 'row' }} gap={3} wrap="wrap">
+            {similar.map((item) => (
+              <Box key={item.id} w={{ base: '100%', md: 'calc(50% - 6px)', xl: 'calc(33.333% - 8px)' }}>
+                <AuctionCard auction={item} />
+              </Box>
+            ))}
+          </Flex>
+        </Box>
+      )}
     </Container>
   )
+
+  if (isModal) {
+    return (
+      <Box
+        position="fixed"
+        inset={0}
+        bg="blackAlpha.700"
+        backdropFilter="blur(2px)"
+        zIndex={1400}
+        overflowY="auto"
+        py={{ base: 4, md: 8 }}
+        onClick={handleClose}
+      >
+        {content}
+      </Box>
+    )
+  }
+
+  return content
 }
