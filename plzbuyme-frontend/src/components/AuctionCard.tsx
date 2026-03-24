@@ -1,5 +1,5 @@
 import { Badge, Box, Card, Flex, Heading, Image, Text } from '@chakra-ui/react'
-import { Link as RouterLink, useLocation } from 'react-router-dom'
+import { Link as RouterLink, useLocation, type Location } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import type { AuctionListItem } from '../api/auctions'
 import { dark } from '../theme/colors'
@@ -25,6 +25,8 @@ export interface AuctionCardProps {
 
 export function AuctionCard({ auction }: AuctionCardProps) {
   const location = useLocation()
+  const state = location.state as { backgroundLocation?: Location } | null
+  const backgroundLocation = state?.backgroundLocation ?? location
   const [countdown, setCountdown] = useState(() => formatCountdown(auction.closeDateTime))
   const imageSrc = resolveMediaUrl(auction.imageUrl)
   const preferredCardImageSrc =
@@ -46,14 +48,19 @@ export function AuctionCard({ auction }: AuctionCardProps) {
     auction.status === 'active' ? 'green' : auction.status === 'sold' ? 'blue' : 'gray'
 
   return (
-    <RouterLink to={`/auctions/${auction.id}`} state={{ backgroundLocation: location }}>
+    <RouterLink to={`/auctions/${auction.id}`} state={{ backgroundLocation }}>
       <Card.Root
+        role="group"
         bg={dark.cardBg}
         borderWidth="1px"
         borderColor={dark.borderSubtle}
         overflow="hidden"
-        _hover={{ borderColor: dark.hoverBorder }}
-        transition="border-color 0.15s"
+        _hover={{
+          borderColor: dark.hoverBorder,
+          transform: 'scale(1.015)',
+          boxShadow: '0 14px 30px rgba(0,0,0,0.45)',
+        }}
+        transition="transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease"
       >
         {cardImageSrc ? (
           <Image
@@ -64,6 +71,8 @@ export function AuctionCard({ auction }: AuctionCardProps) {
             objectFit="cover"
             borderBottomWidth="1px"
             borderColor={dark.borderSubtle}
+            transition="transform 0.25s ease"
+            _groupHover={{ transform: 'scale(1.04)' }}
             onError={() => {
               if (cardImageSrc !== imageSrc) {
                 setCardImageSrc(imageSrc)

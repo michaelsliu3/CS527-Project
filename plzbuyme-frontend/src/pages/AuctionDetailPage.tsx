@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Box, Badge, Button, Container, Flex, Heading, IconButton, Image, Input, Spinner, Text } from '@chakra-ui/react'
+import { keyframes } from '@emotion/react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../context/AuthContext'
@@ -39,15 +40,62 @@ interface BidFormValues {
   autoLimit: string
 }
 
+const overlayFadeIn = keyframes`
+  from { opacity: 0; backdrop-filter: blur(0px); }
+  to { opacity: 1; backdrop-filter: blur(2px); }
+`
+
+const overlayFadeOut = keyframes`
+  from { opacity: 1; backdrop-filter: blur(2px); }
+  to { opacity: 0; backdrop-filter: blur(0px); }
+`
+
+const panelScaleIn = keyframes`
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+`
+
+const panelScaleOut = keyframes`
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(8px) scale(0.985); }
+`
+
 export function AuctionDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
   const isModal = Boolean(location.state && (location.state as { backgroundLocation?: unknown }).backgroundLocation)
+  const [isClosing, setIsClosing] = useState(false)
+  const closeTimeoutRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current !== null) {
+        window.clearTimeout(closeTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (closeTimeoutRef.current !== null) {
+      window.clearTimeout(closeTimeoutRef.current)
+      closeTimeoutRef.current = null
+    }
+    setIsClosing(false)
+  }, [id, location.key])
+
   const handleClose = () => {
+    if (isClosing) {
+      return
+    }
+
     if (isModal) {
-      navigate(-1)
+      setIsClosing(true)
+      closeTimeoutRef.current = window.setTimeout(() => {
+        closeTimeoutRef.current = null
+        navigate(-1)
+      }, 180)
       return
     }
     navigate('/auctions')
@@ -175,6 +223,7 @@ export function AuctionDetailPage() {
         p={{ base: 4, md: 6 }}
         boxShadow="0 18px 48px rgba(0,0,0,0.45)"
         position="relative"
+        animation={isModal ? `${isClosing ? panelScaleOut : panelScaleIn} 0.18s ease-out forwards` : undefined}
         onClick={isModal ? (event) => event.stopPropagation() : undefined}
       >
       <Box mb={6}>
@@ -352,7 +401,12 @@ export function AuctionDetailPage() {
       </Box>
 
       {similar.length > 0 && (
-        <Box maxW="1100px" mx="auto" mt={8}>
+        <Box
+          maxW="1100px"
+          mx="auto"
+          mt={8}
+          onClick={isModal ? (event) => event.stopPropagation() : undefined}
+        >
           <Heading size="sm" mb={3} color="white">
             Similar items
           </Heading>
@@ -374,10 +428,11 @@ export function AuctionDetailPage() {
         position="fixed"
         inset={0}
         bg="blackAlpha.700"
-        backdropFilter="blur(2px)"
+        backdropFilter={isClosing ? 'blur(0px)' : 'blur(2px)'}
         zIndex={1400}
         overflowY="auto"
         py={{ base: 4, md: 8 }}
+        animation={`${isClosing ? overlayFadeOut : overlayFadeIn} 0.18s ease-out forwards`}
         onClick={handleClose}
       >
         {content}
