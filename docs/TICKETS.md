@@ -435,6 +435,21 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
+## PBM-25 — Seed CDN with car catalog image assets
+
+**Layer:** Data + CDN Tooling  
+**Branch:** `PBM-25/cdn-car-assets-ingestion`  
+**PR Title:** `[PBM-25] ingest and normalize car image assets into local CDN`
+
+- Build a repeatable ingestion workflow to populate `plzbuyme-cdn` with car reference images covering Makes/Models used in the auction category hierarchy.
+- Create a source list and scraping/import script that can pull candidate images from approved public pages (for example: GT7 car list pages and game wiki pages such as Forza Horizon) with per-asset source URL attribution.
+- Define and enforce ingestion rules: allowed formats (`jpg`, `png`, `webp`), minimum resolution, max file size, deduplication by hash/perceptual similarity, and deterministic CDN key naming (e.g., `cars/{make}/{model}/{slug}.webp`).
+- Add a review/curation step so low-quality, duplicate, broken, or incorrectly matched images are rejected before publish; keep an index/manifest (`json`) of accepted assets with make/model/year tags.
+- Expose/verify final CDN URL patterns consumed by frontend auction cards/detail pages and document fallback behavior when an asset is missing.
+- **Validation:** run ingestion on a sample batch (at least 50 assets), verify files are accessible from `plzbuyme-cdn`, verify manifest integrity, and document rerun/update workflow for future asset refreshes.
+
+---
+
 ## Bugs
 
 ### PBM-BUG-1 — Login state lost on page refresh ✅
