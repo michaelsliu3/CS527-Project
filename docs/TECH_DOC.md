@@ -1057,6 +1057,27 @@ Backend media config (in `plzbuyme-backend/PlzBuyMe.Api/appsettings.json`):
 }
 ```
 
+### GT7 Car Thumbnail Manifest (PBM-25)
+
+PBM-25 uses a **manifest-only** approach for reference car thumbnails:
+
+- A scraper script generates one JSON manifest with GT thumbnail `sourceUrl` values.
+- The app can use these remote GT CDN URLs directly (no local image ingestion required).
+- Metadata fields are included for auction display/filtering (`make`, parsed `model`, parsed `year`, `color` placeholder).
+
+Generate/refresh manifest:
+
+```bash
+cd CS527-Project/plzbuyme-cdn/tools/car-assets
+node generate-gt7-source-list.mjs
+# → writes manifests/gt7-car-thumbnails.manifest.json
+```
+
+Notes:
+
+- `color` defaults to `Unknown` because GT7 metadata does not provide a reliable color attribute per thumbnail.
+- Entries tagged `needs-curation` / `needs-color-curation` should be reviewed manually.
+
 ### Frontend Setup
 
 ```bash

@@ -435,18 +435,21 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-25 — Seed CDN with car catalog image assets
+## PBM-25 — GT7 car thumbnail manifest (remote URLs)
 
-**Layer:** Data + CDN Tooling  
-**Branch:** `PBM-25/cdn-car-assets-ingestion`  
-**PR Title:** `[PBM-25] ingest and normalize car image assets into local CDN`
+**Layer:** Data + Manifest Tooling  
+**Branch:** `PBM-25/gt7-car-thumbnail-manifest`  
+**PR Title:** `[PBM-25] generate GT7 car thumbnail manifest with labels`
 
-- Build a repeatable ingestion workflow to populate `plzbuyme-cdn` with car reference images covering Makes/Models used in the auction category hierarchy.
-- Create a source list and scraping/import script that can pull candidate images from approved public pages (for example: GT7 car list pages and game wiki pages such as Forza Horizon) with per-asset source URL attribution.
-- Define and enforce ingestion rules: allowed formats (`jpg`, `png`, `webp`), minimum resolution, max file size, deduplication by hash/perceptual similarity, and deterministic CDN key naming (e.g., `cars/{make}/{model}/{slug}.webp`).
-- Add a review/curation step so low-quality, duplicate, broken, or incorrectly matched images are rejected before publish; keep an index/manifest (`json`) of accepted assets with make/model/year tags.
-- Expose/verify final CDN URL patterns consumed by frontend auction cards/detail pages and document fallback behavior when an asset is missing.
-- **Validation:** run ingestion on a sample batch (at least 50 assets), verify files are accessible from `plzbuyme-cdn`, verify manifest integrity, and document rerun/update workflow for future asset refreshes.
+- Build a repeatable scraping workflow that outputs a **single manifest JSON** (no local image downloads required) for GT7 car thumbnails.
+- Use GT7 car list data to generate per-asset entries with:
+  - `sourceUrl` (direct GT CDN thumbnail URL),
+  - `make`, parsed `model`, parsed `year`,
+  - placeholder `color` (`Unknown`) plus curation tags for unresolved metadata.
+- Include source attribution and extraction metadata (carlist page URL, bundle URL, metadata chunk URLs, timestamp).
+- Keep the manifest as the canonical input for frontend/backend image lookup; app loads remote `sourceUrl` directly.
+- Document optional future mirror strategy (local CDN caching) as non-blocking fallback, not part of default PBM-25 flow.
+- **Validation:** regenerate manifest, confirm entry count and schema integrity, and verify sample URLs resolve from GT CDN.
 
 ---
 
