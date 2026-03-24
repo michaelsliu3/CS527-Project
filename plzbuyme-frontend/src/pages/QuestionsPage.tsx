@@ -261,6 +261,23 @@ export function QuestionsPage() {
                   setReplyParentId(null)
                 }}
               />
+              {isRepOrAdmin ? (
+                <ReplyForm
+                  questionId={q.id}
+                  parentReplyId={null}
+                  isActive={replyingId === q.id && replyParentId === null}
+                  onCancel={() => {
+                    setReplyingId(null)
+                    setReplyParentId(null)
+                  }}
+                  onSuccess={() => {
+                    setReplyingId(null)
+                    setReplyParentId(null)
+                    fetchQuestions()
+                  }}
+                  onError={(msg) => showErrorToast('Error', msg)}
+                />
+              ) : null}
               {q.replies.length > 0 ? (
                 <Flex direction="column" gap={3} mb={3}>
                   {q.replies.map((reply) => (
@@ -272,28 +289,25 @@ export function QuestionsPage() {
                       depth={0}
                       canReply={isRepOrAdmin}
                       onVote={handleVoteReply}
+                      replyingId={replyingId}
+                      replyParentId={replyParentId}
                       onReply={(parentReplyId) => {
                         setReplyingId(q.id)
                         setReplyParentId(parentReplyId)
                       }}
+                      onCancelReply={() => {
+                        setReplyingId(null)
+                        setReplyParentId(null)
+                      }}
+                      onReplySuccess={() => {
+                        setReplyingId(null)
+                        setReplyParentId(null)
+                        fetchQuestions()
+                      }}
+                      onReplyError={(msg) => showErrorToast('Error', msg)}
                     />
                   ))}
                 </Flex>
-              ) : null}
-              {isRepOrAdmin ? (
-                <ReplyForm
-                  questionId={q.id}
-                  replyingId={replyingId}
-                  setReplyingId={setReplyingId}
-                  parentReplyId={replyParentId}
-                  clearParentReplyId={() => setReplyParentId(null)}
-                  onSuccess={() => {
-                    setReplyingId(null)
-                    setReplyParentId(null)
-                    fetchQuestions()
-                  }}
-                  onError={(msg) => showErrorToast('Error', msg)}
-                />
               ) : null}
             </Box>
           ))}
@@ -377,24 +391,21 @@ export function QuestionsPage() {
 
 function ReplyForm({
   questionId,
-  replyingId,
-  setReplyingId,
   parentReplyId,
-  clearParentReplyId,
+  isActive,
+  onCancel,
   onSuccess,
   onError,
 }: {
   questionId: number
-  replyingId: number | null
-  setReplyingId: (id: number | null) => void
   parentReplyId: number | null
-  clearParentReplyId: () => void
+  isActive: boolean
+  onCancel: () => void
   onSuccess: () => void
   onError: (msg: string) => void
 }) {
   const [replyBody, setReplyBody] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const isActive = replyingId === questionId
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -403,8 +414,6 @@ function ReplyForm({
     try {
       await replyToQuestion(questionId, { body: replyBody.trim(), parentReplyId: parentReplyId ?? undefined })
       setReplyBody('')
-      setReplyingId(null)
-      clearParentReplyId()
       onSuccess()
     } catch (err) {
       if (isAxiosError(err) && err.response?.data) {
@@ -418,18 +427,7 @@ function ReplyForm({
   }
 
   if (!isActive) {
-    return (
-      <Button
-        size="sm"
-        variant="outline"
-        borderColor={dark.borderSubtle}
-        color="white"
-        _hover={{ bg: 'whiteAlpha.100' }}
-        onClick={() => setReplyingId(questionId)}
-      >
-        Reply
-      </Button>
-    )
+    return null
   }
 
   return (
@@ -445,17 +443,14 @@ function ReplyForm({
         rows={3}
         mb={2}
       />
-      <Flex gap={2}>
+      <Flex gap={2} mb={5}>
         <Button
           size="sm"
           variant="outline"
           borderColor={dark.borderSubtle}
           color="white"
           _hover={{ bg: 'whiteAlpha.100' }}
-          onClick={() => {
-            setReplyingId(null)
-            clearParentReplyId()
-          }}
+          onClick={onCancel}
         >
           Cancel
         </Button>
@@ -551,7 +546,12 @@ function ReplyThread({
   depth,
   canReply,
   onVote,
+  replyingId,
+  replyParentId,
   onReply,
+  onCancelReply,
+  onReplySuccess,
+  onReplyError,
 }: {
   questionId: number
   questionUsername: string
@@ -559,7 +559,12 @@ function ReplyThread({
   depth: number
   canReply: boolean
   onVote: (replyId: number, value: 1 | -1) => Promise<void>
+  replyingId: number | null
+  replyParentId: number | null
   onReply: (parentReplyId: number) => void
+  onCancelReply: () => void
+  onReplySuccess: () => void
+  onReplyError: (msg: string) => void
 }) {
   const tag = getReplyTagLabel(reply.replierRole, reply.replierDisplayName === questionUsername)
   return (
@@ -594,6 +599,16 @@ function ReplyThread({
         onDownvote={() => void onVote(reply.id, -1)}
         onReply={() => onReply(reply.id)}
       />
+      {canReply ? (
+        <ReplyForm
+          questionId={questionId}
+          parentReplyId={reply.id}
+          isActive={replyingId === questionId && replyParentId === reply.id}
+          onCancel={onCancelReply}
+          onSuccess={onReplySuccess}
+          onError={onReplyError}
+        />
+      ) : null}
       {reply.replies.length > 0 ? (
         <Flex direction="column" gap={2} mb={2}>
           {reply.replies.map((childReply) => (
@@ -605,7 +620,12 @@ function ReplyThread({
               depth={depth + 1}
               canReply={canReply}
               onVote={onVote}
+              replyingId={replyingId}
+              replyParentId={replyParentId}
               onReply={onReply}
+              onCancelReply={onCancelReply}
+              onReplySuccess={onReplySuccess}
+              onReplyError={onReplyError}
             />
           ))}
         </Flex>
