@@ -52,7 +52,7 @@ public class AuctionService : IAuctionService
             if (defaultResolution.Found && !string.IsNullOrWhiteSpace(defaultResolution.Url))
             {
                 imageUrl = defaultResolution.Url;
-                imageStorageKey = null;
+                imageStorageKey = defaultResolution.ExternalId;
                 imageSource = Gt7DefaultImageSource;
                 imageMatchLevel = defaultResolution.MatchLevel;
             }
@@ -115,7 +115,7 @@ public class AuctionService : IAuctionService
             .GroupBy(v => v.FieldId)
             .ToDictionary(g => g.Key, g => g.First().Value?.Trim() ?? string.Empty);
         if (map.Count == 0)
-            return new CdnGt7ThumbnailResolveResult(false, "none", null);
+            return new CdnGt7ThumbnailResolveResult(false, "none", null, null, null);
 
         var makeFieldId = category.CategoryFields.FirstOrDefault(f => f.FieldName == "Make")?.Id;
         var modelFieldId = category.CategoryFields.FirstOrDefault(f => f.FieldName == "Model")?.Id;
@@ -585,12 +585,23 @@ public class AuctionService : IAuctionService
             })
             .ToList();
 
+        var detailImageUrl = item.ImageUrl;
+        if (item.ImageSource == Gt7DefaultImageSource && !string.IsNullOrWhiteSpace(item.ImageStorageKey))
+        {
+            var resolved = await _cdnGt7ThumbnailResolver.ResolveByExternalIdAsync(item.ImageStorageKey);
+            if (resolved.Found && !string.IsNullOrWhiteSpace(resolved.DetailUrl))
+            {
+                detailImageUrl = resolved.DetailUrl;
+            }
+        }
+
         return new AuctionDetailDto
         {
             Id = item.Id,
             Title = item.Title,
             Description = item.Description,
             ImageUrl = item.ImageUrl,
+            DetailImageUrl = detailImageUrl,
             ImageSource = item.ImageSource,
             ImageMatchLevel = item.ImageMatchLevel,
             CategoryId = item.CategoryId,

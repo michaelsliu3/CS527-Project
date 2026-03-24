@@ -25,7 +25,9 @@ public class AuctionServiceTests
     {
         var mock = new Mock<ICdnGt7ThumbnailResolver>();
         mock.Setup(r => r.ResolveAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CdnGt7ThumbnailResolveResult(!string.IsNullOrWhiteSpace(url), matchLevel, url));
+            .ReturnsAsync(new CdnGt7ThumbnailResolveResult(!string.IsNullOrWhiteSpace(url), matchLevel, url, url, "137"));
+        mock.Setup(r => r.ResolveByExternalIdAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CdnGt7ThumbnailResolveResult(!string.IsNullOrWhiteSpace(url), "external-id", url, url, "137"));
         return mock.Object;
     }
 
@@ -74,7 +76,19 @@ public class AuctionServiceTests
 
         var resolverMock = new Mock<ICdnGt7ThumbnailResolver>();
         resolverMock.Setup(r => r.ResolveAsync("Honda", "Beat", 1991, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CdnGt7ThumbnailResolveResult(true, "exact", "http://localhost:5090/media/cars/gt7/car137.png"));
+            .ReturnsAsync(new CdnGt7ThumbnailResolveResult(
+                true,
+                "exact",
+                "http://localhost:5090/media/cars/gt7/car137.png",
+                "https://www.gran-turismo.com/common/dist/gt7/carlist/assets/car137_2_01-BjWLpWuk.jpg",
+                "137"));
+        resolverMock.Setup(r => r.ResolveByExternalIdAsync("137", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CdnGt7ThumbnailResolveResult(
+                true,
+                "external-id",
+                "http://localhost:5090/media/cars/gt7/car137.png",
+                "https://www.gran-turismo.com/common/dist/gt7/carlist/assets/car137_2_01-BjWLpWuk.jpg",
+                "137"));
         var service = CreateService(db, resolver: resolverMock.Object);
 
         var dto = new CreateAuctionDto
@@ -97,9 +111,13 @@ public class AuctionServiceTests
 
         created.Should().NotBeNull();
         created!.ImageUrl.Should().Be("http://localhost:5090/media/cars/gt7/car137.png");
+        created.DetailImageUrl.Should().Be("https://www.gran-turismo.com/common/dist/gt7/carlist/assets/car137_2_01-BjWLpWuk.jpg");
         created.ImageSource.Should().Be("gt7-default");
         created.ImageMatchLevel.Should().Be("exact");
+        var item = db.Items.Single(i => i.Id == created.Id);
+        item.ImageStorageKey.Should().Be("137");
         resolverMock.Verify(r => r.ResolveAsync("Honda", "Beat", 1991, It.IsAny<CancellationToken>()), Times.Once);
+        resolverMock.Verify(r => r.ResolveByExternalIdAsync("137", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

@@ -30,7 +30,7 @@ public sealed class Gt7ThumbnailResolver : IGt7ThumbnailResolver
         var index = _index.Value;
         if (index.Entries.Count == 0)
         {
-            return new Gt7ThumbnailResolutionResult(false, "none", null, null, null, null, null, null);
+            return new Gt7ThumbnailResolutionResult(false, "none", null, null, null, null, null, null, null);
         }
 
         var normalizedMake = NormalizeText(make);
@@ -59,16 +59,37 @@ public sealed class Gt7ThumbnailResolver : IGt7ThumbnailResolver
             return CreateResult(makeOnly, "make-only");
         }
 
-        return new Gt7ThumbnailResolutionResult(false, "none", null, null, null, null, null, null);
+        return new Gt7ThumbnailResolutionResult(false, "none", null, null, null, null, null, null, null);
+    }
+
+    public Gt7ThumbnailResolutionResult ResolveByExternalId(string? externalId)
+    {
+        var index = _index.Value;
+        if (index.Entries.Count == 0 || string.IsNullOrWhiteSpace(externalId))
+        {
+            return new Gt7ThumbnailResolutionResult(false, "none", null, null, null, null, null, null, null);
+        }
+
+        var key = externalId.Trim();
+        if (!index.ByExternalId.TryGetValue(key, out var entry))
+        {
+            return new Gt7ThumbnailResolutionResult(false, "none", null, null, null, null, null, null, null);
+        }
+
+        return CreateResult(entry, "external-id");
     }
 
     private Gt7ThumbnailResolutionResult CreateResult(Gt7AssetEntry entry, string matchLevel)
     {
         var url = $"{_publicBaseUrl}/media/cars/gt7/car{entry.ExternalId}.png";
+        var detailUrl = string.IsNullOrWhiteSpace(entry.DetailSourceUrl)
+            ? url
+            : $"{_publicBaseUrl}/media/cars/gt7/detail/car{entry.ExternalId}.jpg";
         return new Gt7ThumbnailResolutionResult(
             true,
             matchLevel,
             url,
+            detailUrl,
             entry.ExternalId,
             entry.Make,
             entry.Model,
@@ -97,15 +118,22 @@ public sealed class Gt7ThumbnailResolver : IGt7ThumbnailResolver
                     asset.Make!.Trim(),
                     (asset.Model ?? string.Empty).Trim(),
                     asset.Year,
-                    (asset.Title ?? string.Empty).Trim()))
+                    (asset.Title ?? string.Empty).Trim(),
+                    asset.DetailSourceUrl))
                 .ToList();
 
             var byMakeModelYear = new Dictionary<string, Gt7AssetEntry>(StringComparer.Ordinal);
             var byMakeModel = new Dictionary<string, Gt7AssetEntry>(StringComparer.Ordinal);
             var byMake = new Dictionary<string, Gt7AssetEntry>(StringComparer.Ordinal);
+            var byExternalId = new Dictionary<string, Gt7AssetEntry>(StringComparer.Ordinal);
 
             foreach (var entry in entries.OrderByDescending(e => e.Year ?? 0))
             {
+                if (!byExternalId.ContainsKey(entry.ExternalId))
+                {
+                    byExternalId[entry.ExternalId] = entry;
+                }
+
                 var normalizedMake = NormalizeText(entry.Make);
                 if (string.IsNullOrWhiteSpace(normalizedMake))
                     continue;
@@ -140,7 +168,7 @@ public sealed class Gt7ThumbnailResolver : IGt7ThumbnailResolver
                 entries.Count,
                 byMake.Count);
 
-            return new Gt7ResolverIndex(entries, byMakeModelYear, byMakeModel, byMake);
+            return new Gt7ResolverIndex(entries, byMakeModelYear, byMakeModel, byMake, byExternalId);
         }
         catch (Exception ex)
         {
@@ -169,12 +197,13 @@ public sealed class Gt7ThumbnailResolver : IGt7ThumbnailResolver
         IReadOnlyList<Gt7AssetEntry> Entries,
         IReadOnlyDictionary<string, Gt7AssetEntry> ByMakeModelYear,
         IReadOnlyDictionary<string, Gt7AssetEntry> ByMakeModel,
-        IReadOnlyDictionary<string, Gt7AssetEntry> ByMake)
+        IReadOnlyDictionary<string, Gt7AssetEntry> ByMake,
+        IReadOnlyDictionary<string, Gt7AssetEntry> ByExternalId)
     {
-        public static readonly Gt7ResolverIndex Empty = new([], new Dictionary<string, Gt7AssetEntry>(), new Dictionary<string, Gt7AssetEntry>(), new Dictionary<string, Gt7AssetEntry>());
+        public static readonly Gt7ResolverIndex Empty = new([], new Dictionary<string, Gt7AssetEntry>(), new Dictionary<string, Gt7AssetEntry>(), new Dictionary<string, Gt7AssetEntry>(), new Dictionary<string, Gt7AssetEntry>());
     }
 
-    private sealed record Gt7AssetEntry(string ExternalId, string Make, string Model, int? Year, string Title);
+    private sealed record Gt7AssetEntry(string ExternalId, string Make, string Model, int? Year, string Title, string? DetailSourceUrl);
 
     private sealed record Gt7ManifestDocument
     {
@@ -198,5 +227,8 @@ public sealed class Gt7ThumbnailResolver : IGt7ThumbnailResolver
 
         [JsonPropertyName("title")]
         public string? Title { get; init; }
+
+        [JsonPropertyName("detailSourceUrl")]
+        public string? DetailSourceUrl { get; init; }
     }
 }

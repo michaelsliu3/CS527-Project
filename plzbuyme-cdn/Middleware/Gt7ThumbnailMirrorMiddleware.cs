@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Headers;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using PlzBuyMe.Cdn.Options;
@@ -9,8 +10,12 @@ namespace PlzBuyMe.Cdn.Middleware;
 public sealed class Gt7ThumbnailMirrorMiddleware
 {
     private const string Gt7ThumbnailBaseUrl = "https://www.gran-turismo.com/common/dist/gt7/carlist/car_thumbnails";
+    private const string ManifestRelativePath = "tools/car-assets/manifests/gt7-car-thumbnails.manifest.json";
     private static readonly Regex Gt7MediaPathPattern = new(
         "^/media/(?:cars/)?gt7/(?<file>car(?<id>\\d{3,5})\\.png)$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex Gt7DetailMediaPathPattern = new(
+        "^/media/(?:cars/)?gt7/detail/(?<file>car(?<id>\\d{3,5})\\.jpg)$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> DownloadLocks = new(StringComparer.Ordinal);
@@ -19,6 +24,8 @@ public sealed class Gt7ThumbnailMirrorMiddleware
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<Gt7ThumbnailMirrorMiddleware> _logger;
     private readonly string _storageRoot;
+    private readonly string _manifestPath;
+    private readonly Lazy<IReadOnlyDictionary<string, string>> _detailUrlByExternalId;
 
     public Gt7ThumbnailMirrorMiddleware(
         RequestDelegate next,
@@ -31,6 +38,8 @@ public sealed class Gt7ThumbnailMirrorMiddleware
         _httpClientFactory = httpClientFactory;
         _logger = logger;
         _storageRoot = MediaStorageOptionsResolver.ResolveStorageRoot(options.Value, environment.ContentRootPath);
+        _manifestPath = Path.Combine(environment.ContentRootPath, ManifestRelativePath);
+        _detailUrlByExternalId = new Lazy<IReadOnlyDictionary<string, string>>(LoadDetailUrlIndex, LazyThreadSafetyMode.ExecutionAndPublication);
         Directory.CreateDirectory(_storageRoot);
     }
 
@@ -49,8 +58,9 @@ public sealed class Gt7ThumbnailMirrorMiddleware
             return;
         }
 
-        var match = Gt7MediaPathPattern.Match(path);
-        if (!match.Success)
+        var thumbnailMatch = Gt7MediaPathPattern.Match(path);
+        var detailMatch = Gt7DetailMediaPathPattern.Match(path);
+        if (!thumbnailMatch.Success && !detailMatch.Success)
         {
             await _next(context);
             return;
@@ -60,7 +70,14 @@ public sealed class Gt7ThumbnailMirrorMiddleware
         var localPath = Path.Combine(_storageRoot, relativeMediaPath);
         if (!File.Exists(localPath))
         {
-            await DownloadGt7ThumbnailIfMissingAsync(localPath, match.Groups["id"].Value, context.RequestAborted);
+            if (thumbnailMatch.Success)
+            {
+                await DownloadGt7ThumbnailIfMissingAsync(localPath, thumbnailMatch.Groups["id"].Value, context.RequestAborted);
+            }
+            else if (detailMatch.Success)
+            {
+                await DownloadGt7DetailImageIfMissingAsync(localPath, detailMatch.Groups["id"].Value, context.RequestAborted);
+            }
         }
 
         await _next(context);
@@ -116,6 +133,106 @@ public sealed class Gt7ThumbnailMirrorMiddleware
         finally
         {
             gate.Release();
+        }
+    }
+
+    private async Task DownloadGt7DetailImageIfMissingAsync(string localPath, string externalId, CancellationToken cancellationToken)
+    {
+        var gate = DownloadLocks.GetOrAdd(localPath, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+
+        try
+        {
+            if (File.Exists(localPath))
+                return;
+
+            var index = _detailUrlByExternalId.Value;
+            if (!index.TryGetValue(externalId, out var remoteUrl) || string.IsNullOrWhiteSpace(remoteUrl))
+            {
+                _logger.LogWarning("GT7 detail source URL not found for car{CarId}.", externalId);
+                return;
+            }
+
+            var client = _httpClientFactory.CreateClient(nameof(Gt7ThumbnailMirrorMiddleware));
+            using var request = new HttpRequestMessage(HttpMethod.Get, remoteUrl);
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("plzbuyme-cdn", "1.0"));
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("image/jpeg"));
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("image/*", 0.8));
+
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("GT7 detail fetch failed for car{CarId}: {StatusCode}", externalId, (int)response.StatusCode);
+                return;
+            }
+
+            var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            if (bytes.Length == 0)
+            {
+                _logger.LogWarning("GT7 detail response was empty for car{CarId}.", externalId);
+                return;
+            }
+
+            var directory = Path.GetDirectoryName(localPath);
+            if (!string.IsNullOrWhiteSpace(directory))
+                Directory.CreateDirectory(directory);
+
+            await File.WriteAllBytesAsync(localPath, bytes, cancellationToken);
+            _logger.LogInformation("Mirrored GT7 detail image for car{CarId} into local media cache.", externalId);
+        }
+        catch (OperationCanceledException)
+        {
+            // Request cancelled; no-op.
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unexpected error while mirroring GT7 detail image for car{CarId}.", externalId);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private IReadOnlyDictionary<string, string> LoadDetailUrlIndex()
+    {
+        try
+        {
+            if (!File.Exists(_manifestPath))
+            {
+                _logger.LogWarning("GT7 manifest missing for detail image mirroring: {ManifestPath}", _manifestPath);
+                return new Dictionary<string, string>(StringComparer.Ordinal);
+            }
+
+            var json = File.ReadAllText(_manifestPath);
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("assets", out var assetsElement) || assetsElement.ValueKind != JsonValueKind.Array)
+            {
+                return new Dictionary<string, string>(StringComparer.Ordinal);
+            }
+
+            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var asset in assetsElement.EnumerateArray())
+            {
+                if (!asset.TryGetProperty("externalId", out var idElement) || idElement.ValueKind != JsonValueKind.String)
+                    continue;
+                if (!asset.TryGetProperty("detailSourceUrl", out var detailElement) || detailElement.ValueKind != JsonValueKind.String)
+                    continue;
+
+                var externalId = idElement.GetString()?.Trim();
+                var detailUrl = detailElement.GetString()?.Trim();
+                if (string.IsNullOrWhiteSpace(externalId) || string.IsNullOrWhiteSpace(detailUrl))
+                    continue;
+                map[externalId] = detailUrl;
+            }
+
+            _logger.LogInformation("Loaded GT7 detail mirror index with {Count} entries.", map.Count);
+            return map;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse GT7 manifest detail URL index.");
+            return new Dictionary<string, string>(StringComparer.Ordinal);
         }
     }
 }

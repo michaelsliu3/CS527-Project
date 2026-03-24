@@ -3,13 +3,17 @@ import {
   Box,
   Button,
   Container,
+  DatePicker,
   Flex,
   Heading,
   Input,
+  Portal,
+  parseDate,
   SimpleGrid,
   Text,
   Textarea,
 } from '@chakra-ui/react'
+import { LuCalendar } from 'react-icons/lu'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../context/AuthContext'
@@ -36,6 +40,19 @@ interface CreateFormValues {
   [key: `field_${number}`]: string
 }
 
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function formatLocalTime(date: Date): string {
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${hours}:${minutes}`
+}
+
 export function CreateAuctionPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -47,6 +64,8 @@ export function CreateAuctionPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
+  const [closeDate, setCloseDate] = useState('')
+  const [closeTime, setCloseTime] = useState('')
 
   const [fieldDefs, setFieldDefs] = useState<CategoryFieldDto[]>([])
   const [fieldsLoading, setFieldsLoading] = useState(false)
@@ -63,6 +82,14 @@ export function CreateAuctionPage() {
       closeDateTime: '',
     },
   })
+
+  useEffect(() => {
+    if (!closeDate || !closeTime) {
+      setValue('closeDateTime', '')
+      return
+    }
+    setValue('closeDateTime', `${closeDate}T${closeTime}`, { shouldValidate: true })
+  }, [closeDate, closeTime, setValue])
 
   useEffect(() => {
     let isMounted = true
@@ -157,6 +184,21 @@ export function CreateAuctionPage() {
       setSubmitError('Please select a subcategory.')
       return
     }
+    if (!data.closeDateTime) {
+      setSubmitError('Please select a closing date and time.')
+      return
+    }
+    const closeAt = new Date(data.closeDateTime)
+    if (Number.isNaN(closeAt.getTime())) {
+      setSubmitError('Please select a valid closing date and time.')
+      return
+    }
+    const minAllowedCloseAt = new Date()
+    minAllowedCloseAt.setMinutes(minAllowedCloseAt.getMinutes() + 1)
+    if (closeAt.getTime() < minAllowedCloseAt.getTime()) {
+      setSubmitError('Closing date must be at least 1 minute in the future.')
+      return
+    }
 
     setSubmitError(null)
     setSubmitting(true)
@@ -175,7 +217,7 @@ export function CreateAuctionPage() {
       initialPrice: Number(data.initialPrice),
       bidIncrement: Number(data.bidIncrement),
       reservePrice: Number(data.reservePrice),
-      closeDateTime: new Date(data.closeDateTime).toISOString(),
+      closeDateTime: closeAt.toISOString(),
       fieldValues,
     }
 
@@ -203,7 +245,8 @@ export function CreateAuctionPage() {
 
   const minClose = new Date()
   minClose.setMinutes(minClose.getMinutes() + 1)
-  const minCloseStr = minClose.toISOString().slice(0, 16)
+  const minCloseDate = formatLocalDate(minClose)
+  const minCloseTime = formatLocalTime(minClose)
 
   return (
     <Container maxW="container.md" px={APP_PAGE_PX}>
@@ -431,14 +474,113 @@ export function CreateAuctionPage() {
           <Text fontSize="sm" color={dark.muted} mb={1}>
             Closing date & time *
           </Text>
-          <Input
-            type="datetime-local"
-            min={minCloseStr}
-            bg={dark.inputBg}
-            borderColor={dark.borderSubtle}
-            color="white"
-            {...register('closeDateTime', { required: true })}
-          />
+          <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
+            <DatePicker.Root
+              name="closeDate"
+              colorPalette="brand"
+              value={closeDate ? [parseDate(closeDate)] : []}
+              onValueChange={(details) => {
+                const selected = details.value[0]
+                setCloseDate(selected ? selected.toString() : '')
+              }}
+            >
+              <DatePicker.Control>
+                <DatePicker.Input
+                  bg={dark.inputBg}
+                  borderColor={dark.borderSubtle}
+                  color="white"
+                  _placeholder={{ color: dark.placeholder }}
+                  _focusVisible={{
+                    borderColor: 'brand.500',
+                    boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)',
+                  }}
+                  placeholder="Select date"
+                />
+                <DatePicker.IndicatorGroup>
+                  <DatePicker.Trigger
+                    color={dark.muted}
+                    _hover={{ color: 'white', bg: 'whiteAlpha.100' }}
+                    _focusVisible={{ boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)' }}
+                  >
+                    <LuCalendar />
+                  </DatePicker.Trigger>
+                </DatePicker.IndicatorGroup>
+              </DatePicker.Control>
+              <Portal>
+                <DatePicker.Positioner zIndex={1700}>
+                  <DatePicker.Content
+                    bg={dark.cardBg}
+                    borderWidth="1px"
+                    borderColor={dark.borderSubtle}
+                    color="white"
+                    boxShadow="xl"
+                    css={{
+                      '& [data-part="table-cell-trigger"]': {
+                        color: 'white',
+                        borderRadius: '0.375rem',
+                      },
+                      '& [data-part="table-cell-trigger"]:hover': {
+                        background: 'rgba(255, 255, 255, 0.08)',
+                      },
+                      '& [data-part="table-cell-trigger"][data-selected]': {
+                        background: 'var(--chakra-colors-brand-500)',
+                        color: 'white',
+                      },
+                      '& [data-part="table-cell-trigger"][data-today]': {
+                        borderColor: 'var(--chakra-colors-brand-500)',
+                      },
+                      '& [data-part="next-trigger"], & [data-part="prev-trigger"], & [data-part="view-trigger"]':
+                        {
+                          color: 'white',
+                          borderRadius: '0.375rem',
+                        },
+                      '& [data-part="next-trigger"]:hover, & [data-part="prev-trigger"]:hover, & [data-part="view-trigger"]:hover':
+                        {
+                          background: 'rgba(255, 255, 255, 0.08)',
+                        },
+                      '& [data-part="month-select"], & [data-part="year-select"]': {
+                        background: dark.inputBg,
+                        color: 'white',
+                        borderColor: dark.borderSubtle,
+                        borderRadius: '0.375rem',
+                      },
+                      '& [data-part="table-header"]': {
+                        color: dark.muted,
+                      },
+                    }}
+                  >
+                    <DatePicker.View view="day">
+                      <DatePicker.Header />
+                      <DatePicker.DayTable />
+                    </DatePicker.View>
+                    <DatePicker.View view="month">
+                      <DatePicker.Header />
+                      <DatePicker.MonthTable />
+                    </DatePicker.View>
+                    <DatePicker.View view="year">
+                      <DatePicker.Header />
+                      <DatePicker.YearTable />
+                    </DatePicker.View>
+                  </DatePicker.Content>
+                </DatePicker.Positioner>
+              </Portal>
+            </DatePicker.Root>
+            <Input
+              type="time"
+              value={closeTime}
+              min={closeDate === minCloseDate ? minCloseTime : undefined}
+              onChange={(event) => setCloseTime(event.target.value)}
+              bg={dark.inputBg}
+              borderColor={dark.borderSubtle}
+              color="white"
+              _placeholder={{ color: dark.placeholder }}
+              _focusVisible={{
+                borderColor: 'brand.500',
+                boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)',
+              }}
+            />
+          </SimpleGrid>
+          <Input type="hidden" {...register('closeDateTime', { required: true })} />
         </Box>
 
         <Flex gap={3} justify="flex-end">

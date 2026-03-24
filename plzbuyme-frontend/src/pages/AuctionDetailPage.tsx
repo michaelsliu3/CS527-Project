@@ -162,7 +162,7 @@ export function AuctionDetailPage() {
 
   const statusColor =
     auction.status === 'active' ? 'green' : auction.status === 'sold' ? 'blue' : 'gray'
-  const imageSrc = resolveMediaUrl(auction.imageUrl)
+  const imageSrc = resolveMediaUrl(auction.detailImageUrl ?? auction.imageUrl)
 
   return (
     <Container maxW="container.lg" px={APP_PAGE_PX}>

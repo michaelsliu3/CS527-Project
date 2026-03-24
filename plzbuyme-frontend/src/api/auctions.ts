@@ -40,6 +40,7 @@ export interface AuctionDetail {
   title: string
   description: string | null
   imageUrl?: string | null
+  detailImageUrl?: string | null
   categoryId: number
   categoryName: string
   sellerId: number
