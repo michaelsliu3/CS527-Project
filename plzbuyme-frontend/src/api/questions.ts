@@ -8,17 +8,23 @@ export interface QuestionResponse {
   usernameDisplayNameColor: string | null
   subject: string
   body: string
+  score: number
+  currentUserVote: number
   replies: QuestionReply[]
   createdAt: string
 }
 
 export interface QuestionReply {
   id: number
+  parentReplyId: number | null
   body: string
   replierDisplayName: string
   replierAvatarUrl: string | null
   replierDisplayNameColor: string | null
   replierRole: string | null
+  score: number
+  currentUserVote: number
+  replies: QuestionReply[]
   createdAt: string
 }
 
@@ -29,11 +35,19 @@ export interface CreateQuestionDto {
 
 export interface ReplyDto {
   body: string
+  parentReplyId?: number
 }
 
-export function listQuestions(keyword?: string) {
+export interface VoteDto {
+  value: 1 | -1
+}
+
+export function listQuestions(keyword?: string, sort?: 'top' | 'newest' | 'oldest') {
   return apiClient.get<QuestionResponse[]>('questions', {
-    params: keyword ? { keyword } : undefined,
+    params: {
+      ...(keyword ? { keyword } : {}),
+      ...(sort ? { sort } : {}),
+    },
   })
 }
 
@@ -43,4 +57,12 @@ export function createQuestion(dto: CreateQuestionDto) {
 
 export function replyToQuestion(id: number, dto: ReplyDto) {
   return apiClient.post<QuestionResponse>(`questions/${id}/reply`, dto)
+}
+
+export function voteQuestion(id: number, dto: VoteDto) {
+  return apiClient.post<QuestionResponse>(`questions/${id}/vote`, dto)
+}
+
+export function voteReply(id: number, dto: VoteDto) {
+  return apiClient.post<QuestionResponse>(`questions/replies/${id}/vote`, dto)
 }

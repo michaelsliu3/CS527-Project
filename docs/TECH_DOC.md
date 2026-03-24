@@ -204,6 +204,7 @@ CS527-Project/
 | `/alerts`                | `AlertsPage`           | End-user   |
 | `/notifications`         | `NotificationsPage`    | Logged in  |
 | `/questions`             | `QuestionsPage`        | Logged in  |
+| `/questions/:questionId` | `QuestionsPage`        | Logged in  |
 | `/profile`               | `ProfilePage`          | Logged in  |
 | `/rep/*`                 | `RepDashboard`         | Rep        |
 | `/admin/*`               | `AdminDashboard`       | Admin      |
@@ -475,6 +476,8 @@ Users configure alerts with optional filters (category, keyword, field criteria)
 - End-users post questions (subject + body).
 - Customer reps browse and reply.
 - All users can browse Q&A (searchable by keyword).
+- Forums support question/reply voting and threaded replies with `Top`, `Newest`, and `Oldest` sorting.
+- Frontend thread navigation supports list + detail modes (`/questions` and `/questions/:questionId`), resets scroll to top when opening a detail thread, and prevents nested interactive controls (vote/reply actions and reply textarea keyboard input) from accidentally triggering card navigation.
 
 ### 6.8 Admin Reports
 
@@ -1136,7 +1139,7 @@ npx vitest run
 |------|-------------|----------------|
 | 5 — Auth + Layout | `AuthContext.test.tsx`, `LoginPage.test.tsx`, `ProtectedRoute.test.tsx` | Login stores JWT and sets user state; logout clears token and redirects; expired token hydration clears state; protected route redirects unauthenticated users; protected route blocks wrong role |
 | 10 — Auction Pages | `AuctionCard.test.tsx`, `SearchBar.test.tsx`, `AuctionListPage.test.tsx` | AuctionCard renders price/title/countdown; search bar updates URL query params; auction list fetches and renders paginated results; bid form validates minimum amount |
-| 11 — Alerts/Notifs/Q&A | `AlertsPage.test.tsx`, `NotificationsPage.test.tsx` | Create alert form submits correct payload; delete alert shows confirmation; notifications render with unread styling; mark-read updates state |
+| 11 — Alerts/Notifs/Q&A | `AlertsPage.test.tsx`, `NotificationsPage.test.tsx`, `QuestionsPage.test.tsx` | Create alert form submits correct payload; delete alert shows confirmation; notifications render with unread styling; mark-read updates state; Q&A supports ask access by role, sort-mode refetch, forum card navigation to detail, detail scroll reset, and guards against unintended navigation from nested vote/reply interactions |
 | 12 — Rep + Admin | `RepDashboard.test.tsx`, `ReportsPage.test.tsx` | Rep user table renders and supports actions; admin create rep form submits; report tabs fetch and display data |
 
 ### 14.3 E2E Testing (Browser Agents)

@@ -294,5 +294,166 @@ public class QuestionsControllerTests
         items.Should().NotBeNull();
         items!.Should().ContainSingle(q => q.Id == question.Id);
     }
+
+    [Fact]
+    public async Task User_Can_Toggle_And_Update_Question_Vote()
+    {
+        await using var db = CreateDbContext();
+        var service = new QuestionsService(db);
+
+        var user = new User
+        {
+            Username = "vote-user",
+            Email = "vote-user@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var question = new Question
+        {
+            UserId = user.Id,
+            Subject = "Voting",
+            Body = "test"
+        };
+        db.Questions.Add(question);
+        await db.SaveChangesAsync();
+
+        var first = await service.VoteQuestionAsync(question.Id, user.Id, 1);
+        first!.Score.Should().Be(1);
+        first.CurrentUserVote.Should().Be(1);
+
+        var toggled = await service.VoteQuestionAsync(question.Id, user.Id, 1);
+        toggled!.Score.Should().Be(0);
+        toggled.CurrentUserVote.Should().Be(0);
+
+        var switched = await service.VoteQuestionAsync(question.Id, user.Id, -1);
+        switched!.Score.Should().Be(-1);
+        switched.CurrentUserVote.Should().Be(-1);
+    }
+
+    [Fact]
+    public async Task Vote_On_Reply_Updates_Aggregated_Score()
+    {
+        await using var db = CreateDbContext();
+        var service = new QuestionsService(db);
+
+        var endUser = new User
+        {
+            Username = "reply-owner",
+            Email = "reply-owner@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        var voter = new User
+        {
+            Username = "reply-voter",
+            Email = "reply-voter@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        db.Users.AddRange(endUser, voter);
+        await db.SaveChangesAsync();
+
+        var question = new Question { UserId = endUser.Id, Subject = "s", Body = "b" };
+        db.Questions.Add(question);
+        await db.SaveChangesAsync();
+
+        db.QuestionReplies.Add(new QuestionReply
+        {
+            QuestionId = question.Id,
+            RepliedByUserId = endUser.Id,
+            Body = "reply",
+            ReplierDisplayName = endUser.Username
+        });
+        await db.SaveChangesAsync();
+        var replyId = db.QuestionReplies.Single().Id;
+
+        var voted = await service.VoteReplyAsync(replyId, voter.Id, 1);
+        voted.Should().NotBeNull();
+        voted!.Replies.Should().ContainSingle();
+        voted.Replies[0].Score.Should().Be(1);
+        voted.Replies[0].CurrentUserVote.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Thread_Retrieval_And_Top_Sort_Are_Deterministic()
+    {
+        await using var db = CreateDbContext();
+        var service = new QuestionsService(db);
+
+        var owner = new User
+        {
+            Username = "owner",
+            Email = "owner@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        var voter1 = new User
+        {
+            Username = "v1",
+            Email = "v1@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        var voter2 = new User
+        {
+            Username = "v2",
+            Email = "v2@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser
+        };
+        db.Users.AddRange(owner, voter1, voter2);
+        await db.SaveChangesAsync();
+
+        var olderQuestion = new Question
+        {
+            UserId = owner.Id,
+            Subject = "Older",
+            Body = "older",
+            CreatedAt = DateTime.UtcNow.AddMinutes(-20)
+        };
+        var newerQuestion = new Question
+        {
+            UserId = owner.Id,
+            Subject = "Newer",
+            Body = "newer",
+            CreatedAt = DateTime.UtcNow.AddMinutes(-10)
+        };
+        db.Questions.AddRange(olderQuestion, newerQuestion);
+        await db.SaveChangesAsync();
+
+        var parentReply = new QuestionReply
+        {
+            QuestionId = newerQuestion.Id,
+            RepliedByUserId = owner.Id,
+            Body = "parent",
+            ReplierDisplayName = owner.Username,
+            CreatedAt = DateTime.UtcNow.AddMinutes(-9)
+        };
+        db.QuestionReplies.Add(parentReply);
+        await db.SaveChangesAsync();
+
+        db.QuestionReplies.Add(new QuestionReply
+        {
+            QuestionId = newerQuestion.Id,
+            ParentReplyId = parentReply.Id,
+            RepliedByUserId = owner.Id,
+            Body = "child",
+            ReplierDisplayName = owner.Username,
+            CreatedAt = DateTime.UtcNow.AddMinutes(-8)
+        });
+        await db.SaveChangesAsync();
+
+        await service.VoteQuestionAsync(olderQuestion.Id, voter1.Id, 1);
+        await service.VoteQuestionAsync(olderQuestion.Id, voter2.Id, 1);
+        await service.VoteQuestionAsync(newerQuestion.Id, voter1.Id, 1);
+
+        var topSorted = await service.GetQuestionsAsync(null, owner.Id, "top");
+        topSorted.Select(q => q.Id).Should().ContainInOrder(olderQuestion.Id, newerQuestion.Id);
+        topSorted[1].Replies.Should().ContainSingle();
+        topSorted[1].Replies[0].Replies.Should().ContainSingle(r => r.Body == "child");
+    }
 }
 

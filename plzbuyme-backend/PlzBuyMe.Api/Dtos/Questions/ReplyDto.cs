@@ -6,5 +6,6 @@ public record ReplyDto
 {
     [Required]
     public string Body { get; init; } = string.Empty;
+    public int? ParentReplyId { get; init; }
 }
 

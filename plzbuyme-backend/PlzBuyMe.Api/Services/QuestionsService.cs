@@ -14,12 +14,18 @@ public class QuestionsService : IQuestionsService
         _db = db;
     }
 
-    public async Task<IReadOnlyList<QuestionResponseDto>> GetQuestionsAsync(string? keyword)
+    public async Task<IReadOnlyList<QuestionResponseDto>> GetQuestionsAsync(string? keyword, int? currentUserId, string? sort)
     {
         var query = _db.Questions
             .Include(q => q.User)
             .Include(q => q.Replies)
             .ThenInclude(r => r.RepliedByUser)
+            .Include(q => q.Replies)
+            .ThenInclude(r => r.Votes)
+            .Include(q => q.Replies)
+            .ThenInclude(r => r.ChildReplies)
+            .ThenInclude(r => r.RepliedByUser)
+            .Include(q => q.Votes)
             .AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(keyword))
@@ -33,11 +39,10 @@ public class QuestionsService : IQuestionsService
                     r.ReplierDisplayName.ToLower().Contains(term)));
         }
 
-        var items = await query
-            .OrderByDescending(q => q.CreatedAt)
-            .ToListAsync();
+        var items = await query.ToListAsync();
+        var sortedItems = ApplyQuestionSort(items, sort);
 
-        return items.Select(MapQuestion).ToList();
+        return sortedItems.Select(q => MapQuestion(q, currentUserId, sort)).ToList();
     }
 
     public async Task<QuestionResponseDto> CreateQuestionAsync(int userId, CreateQuestionDto dto)
@@ -59,7 +64,7 @@ public class QuestionsService : IQuestionsService
             .AsNoTracking()
             .FirstAsync(q => q.Id == question.Id);
 
-        return MapQuestion(created);
+        return MapQuestion(created, userId, "newest");
     }
 
     public async Task<QuestionResponseDto?> ReplyAsync(int questionId, int repliedByUserId, ReplyDto dto)
@@ -73,6 +78,14 @@ public class QuestionsService : IQuestionsService
         if (question == null)
             return null;
 
+        var parentReply = dto.ParentReplyId.HasValue
+            ? await _db.QuestionReplies
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.Id == dto.ParentReplyId.Value && r.QuestionId == questionId)
+            : null;
+        if (dto.ParentReplyId.HasValue && parentReply == null)
+            return null;
+
         var replier = await _db.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(u => u.Id == repliedByUserId);
@@ -80,6 +93,7 @@ public class QuestionsService : IQuestionsService
         var reply = new QuestionReply
         {
             QuestionId = question.Id,
+            ParentReplyId = parentReply?.Id,
             RepliedByUserId = repliedByUserId,
             Body = dto.Body.Trim(),
             ReplierDisplayName = replier?.Username ?? "Support Team",
@@ -96,14 +110,125 @@ public class QuestionsService : IQuestionsService
             .Include(q => q.User)
             .Include(q => q.Replies)
             .ThenInclude(r => r.RepliedByUser)
+            .Include(q => q.Replies)
+            .ThenInclude(r => r.Votes)
+            .Include(q => q.Replies)
+            .ThenInclude(r => r.ChildReplies)
+            .ThenInclude(r => r.RepliedByUser)
+            .Include(q => q.Votes)
             .AsNoTracking()
             .FirstAsync(q => q.Id == question.Id);
 
-        return MapQuestion(refreshed);
+        return MapQuestion(refreshed, repliedByUserId, "oldest");
     }
 
-    private static QuestionResponseDto MapQuestion(Models.Question question)
+    public async Task<QuestionResponseDto?> VoteQuestionAsync(int questionId, int userId, int value)
     {
+        if (value != 1 && value != -1)
+            throw new InvalidOperationException("Vote value must be 1 or -1.");
+
+        var question = await _db.Questions.FirstOrDefaultAsync(q => q.Id == questionId);
+        if (question == null)
+            return null;
+
+        var existing = await _db.QuestionVotes
+            .FirstOrDefaultAsync(v => v.UserId == userId && v.QuestionId == questionId);
+
+        if (existing == null)
+        {
+            _db.QuestionVotes.Add(new QuestionVote
+            {
+                UserId = userId,
+                QuestionId = questionId,
+                Value = value
+            });
+        }
+        else if (existing.Value == value)
+        {
+            _db.QuestionVotes.Remove(existing);
+        }
+        else
+        {
+            existing.Value = value;
+        }
+
+        await _db.SaveChangesAsync();
+        return await GetQuestionForReturnAsync(questionId, userId);
+    }
+
+    public async Task<QuestionResponseDto?> VoteReplyAsync(int replyId, int userId, int value)
+    {
+        if (value != 1 && value != -1)
+            throw new InvalidOperationException("Vote value must be 1 or -1.");
+
+        var reply = await _db.QuestionReplies.AsNoTracking().FirstOrDefaultAsync(r => r.Id == replyId);
+        if (reply == null)
+            return null;
+
+        var existing = await _db.QuestionVotes
+            .FirstOrDefaultAsync(v => v.UserId == userId && v.QuestionReplyId == replyId);
+
+        if (existing == null)
+        {
+            _db.QuestionVotes.Add(new QuestionVote
+            {
+                UserId = userId,
+                QuestionReplyId = replyId,
+                Value = value
+            });
+        }
+        else if (existing.Value == value)
+        {
+            _db.QuestionVotes.Remove(existing);
+        }
+        else
+        {
+            existing.Value = value;
+        }
+
+        await _db.SaveChangesAsync();
+        return await GetQuestionForReturnAsync(reply.QuestionId, userId);
+    }
+
+    private async Task<QuestionResponseDto?> GetQuestionForReturnAsync(int questionId, int currentUserId)
+    {
+        var question = await _db.Questions
+            .Include(q => q.User)
+            .Include(q => q.Replies)
+            .ThenInclude(r => r.RepliedByUser)
+            .Include(q => q.Replies)
+            .ThenInclude(r => r.Votes)
+            .Include(q => q.Replies)
+            .ThenInclude(r => r.ChildReplies)
+            .ThenInclude(r => r.RepliedByUser)
+            .Include(q => q.Votes)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(q => q.Id == questionId);
+
+        return question == null ? null : MapQuestion(question, currentUserId, "oldest");
+    }
+
+    private static IReadOnlyList<Question> ApplyQuestionSort(IReadOnlyList<Question> questions, string? sort)
+    {
+        var normalizedSort = NormalizeSort(sort);
+        return normalizedSort switch
+        {
+            "oldest" => questions.OrderBy(q => q.CreatedAt).ThenBy(q => q.Id).ToList(),
+            "top" => questions
+                .OrderByDescending(q => q.Votes.Sum(v => v.Value))
+                .ThenByDescending(q => q.CreatedAt)
+                .ThenByDescending(q => q.Id)
+                .ToList(),
+            _ => questions.OrderByDescending(q => q.CreatedAt).ThenByDescending(q => q.Id).ToList()
+        };
+    }
+
+    private static QuestionResponseDto MapQuestion(Models.Question question, int? currentUserId, string? sort)
+    {
+        var repliesById = question.Replies.ToDictionary(r => r.Id);
+        var rootReplies = question.Replies.Where(r => r.ParentReplyId == null).ToList();
+        var sortedRootReplies = SortReplies(rootReplies, sort);
+
         return new QuestionResponseDto
         {
             Id = question.Id,
@@ -113,21 +238,60 @@ public class QuestionsService : IQuestionsService
             UsernameDisplayNameColor = question.User.DisplayNameColor,
             Subject = question.Subject,
             Body = question.Body,
-            Replies = question.Replies
-                .OrderBy(r => r.CreatedAt)
-                .Select(r => new QuestionReplyDto
-                {
-                    Id = r.Id,
-                    Body = r.Body,
-                    ReplierDisplayName = r.ReplierDisplayName,
-                    ReplierAvatarUrl = r.RepliedByUser?.AvatarUrl,
-                    ReplierDisplayNameColor = r.ReplierDisplayNameColor ?? r.RepliedByUser?.DisplayNameColor,
-                    ReplierRole = r.ReplierRole ?? (r.RepliedByUser != null ? ToRoleLabel(r.RepliedByUser.Role) : null),
-                    CreatedAt = r.CreatedAt
-                })
-                .ToList(),
+            Score = question.Votes.Sum(v => v.Value),
+            CurrentUserVote = currentUserId.HasValue
+                ? question.Votes.Where(v => v.UserId == currentUserId.Value).Select(v => v.Value).FirstOrDefault()
+                : 0,
+            Replies = sortedRootReplies.Select(r => MapReply(r, repliesById, currentUserId, sort)).ToList(),
             CreatedAt = question.CreatedAt
         };
+    }
+
+    private static QuestionReplyDto MapReply(
+        QuestionReply reply,
+        IReadOnlyDictionary<int, QuestionReply> repliesById,
+        int? currentUserId,
+        string? sort)
+    {
+        var childReplies = repliesById.Values.Where(r => r.ParentReplyId == reply.Id).ToList();
+        var sortedChildren = SortReplies(childReplies, sort);
+
+        return new QuestionReplyDto
+        {
+            Id = reply.Id,
+            ParentReplyId = reply.ParentReplyId,
+            Body = reply.Body,
+            ReplierDisplayName = reply.ReplierDisplayName,
+            ReplierAvatarUrl = reply.RepliedByUser?.AvatarUrl,
+            ReplierDisplayNameColor = reply.ReplierDisplayNameColor ?? reply.RepliedByUser?.DisplayNameColor,
+            ReplierRole = reply.ReplierRole ?? (reply.RepliedByUser != null ? ToRoleLabel(reply.RepliedByUser.Role) : null),
+            Score = reply.Votes.Sum(v => v.Value),
+            CurrentUserVote = currentUserId.HasValue
+                ? reply.Votes.Where(v => v.UserId == currentUserId.Value).Select(v => v.Value).FirstOrDefault()
+                : 0,
+            Replies = sortedChildren.Select(r => MapReply(r, repliesById, currentUserId, sort)).ToList(),
+            CreatedAt = reply.CreatedAt
+        };
+    }
+
+    private static IReadOnlyList<QuestionReply> SortReplies(IReadOnlyList<QuestionReply> replies, string? sort)
+    {
+        return NormalizeSort(sort) switch
+        {
+            "oldest" => replies.OrderBy(r => r.CreatedAt).ThenBy(r => r.Id).ToList(),
+            "top" => replies
+                .OrderByDescending(r => r.Votes.Sum(v => v.Value))
+                .ThenByDescending(r => r.CreatedAt)
+                .ThenByDescending(r => r.Id)
+                .ToList(),
+            _ => replies.OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id).ToList()
+        };
+    }
+
+    private static string NormalizeSort(string? sort)
+    {
+        var normalized = sort?.Trim().ToLowerInvariant();
+        return normalized is "top" or "newest" or "oldest" ? normalized : "oldest";
     }
 
     private static string ToRoleLabel(UserRole role)
