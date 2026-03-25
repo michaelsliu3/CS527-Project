@@ -108,4 +108,21 @@ describe('AuctionCard', () => {
 
     expect(screen.getByText('No reserve')).toBeInTheDocument()
   })
+
+  it('renders a placeholder when no image exists', () => {
+    renderAuctionCard({
+      id: 57,
+      title: 'Missing Image Auction',
+      currentPrice: 7000,
+      imageUrl: null,
+      closeDateTime: new Date(Date.now() + 7200000).toISOString(),
+      status: 'active',
+      categoryName: 'Sedans',
+      sellerUsername: 'seller4',
+      bidCount: 1,
+    })
+
+    expect(screen.getByText('No image available')).toBeInTheDocument()
+    expect(screen.getByLabelText('No image available for Missing Image Auction')).toBeInTheDocument()
+  })
 })

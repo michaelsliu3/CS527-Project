@@ -261,6 +261,10 @@ Self-referencing foreign key enables the hierarchical subcategory tree.
 | `category_id`    | INT               | FK → categories.id, NOT NULL      |
 | `title`          | VARCHAR(256)      | NOT NULL                          |
 | `description`    | TEXT              | NULLABLE                          |
+| `image_url`      | VARCHAR(2048)     | NULLABLE (persisted primary image URL or media key) |
+| `image_storage_key` | VARCHAR(1024)  | NULLABLE (storage key / GT7 external id) |
+| `image_source`   | VARCHAR(64)       | NULLABLE (`uploaded` / `gt7-default` / `placeholder`) |
+| `image_match_level` | VARCHAR(64)    | NULLABLE (`exact` / `partial` / `make-only` / `none`) |
 | `initial_price`  | DECIMAL(12,2)     | NOT NULL                          |
 | `bid_increment`  | DECIMAL(12,2)     | NOT NULL                          |
 | `reserve_price`  | DECIMAL(12,2)     | NOT NULL (secret, never shown)    |
@@ -438,6 +442,7 @@ function ProtectedRoute({ roles, children }: { roles: string[]; children: ReactN
 - **Create auction:** title, description, category (with subcategory-specific fields), initial price, bid increment, reserve price, closing date/time.
   - The Create Auction page fetches the **category tree** from `GET /api/categories` to render cascading **category → subcategory** dropdowns.
   - When a subcategory is selected, the UI calls `GET /api/categories/{id}/fields` to fetch the dynamic `category_fields` for that subcategory and renders the appropriate inputs (text / number / select) before submitting `CreateAuctionDto` (including `fieldValues: { fieldId, value }[]`).
+  - Optional image upload uses the media service; when no uploaded image is provided, backend resolves a GT7 default once on create, persists the resolved URL/key + match metadata, and reuses persisted values on subsequent reads.
 - **View own auctions:** filter by status (active / closed / sold).
 
 ### 6.3 Bidding (Buyer)
@@ -534,6 +539,11 @@ All endpoints return JSON. Protected routes require `Authorization: Bearer <toke
   - `sellerId`, `sellerUsername`, `sellerAvatarUrl`, `sellerDisplayNameColor`
 - `GET api/auctions/view/{id}` bid history items include bidder identity fields:
   - `bidderUsername`, `bidderAvatarUrl`, `bidderDisplayNameColor`
+- Auction list/detail responses include persisted image metadata:
+  - list: `imageUrl`, `imageSource`, `imageMatchLevel`
+  - detail: `imageUrl`, `detailImageUrl`, `imageSource`, `imageMatchLevel`
+- `POST api/auctions/create` accepts optional image fields:
+  - `imageStorageKey` (preferred) and `imageUrl` (fallback key/value input)
 
 ### Categories — `api/categories`
 
@@ -1140,6 +1150,7 @@ dotnet test
 | 3 — Models & Data | `SeedDataTests` | Seed creates admin account; seed creates category hierarchy with 3+ levels; seed creates category fields for each subcategory |
 | 4 — Auth | `AuthServiceTests`, `AuthControllerTests` | Register creates user with hashed password; register rejects duplicate username/email; login returns valid JWT with correct claims; login rejects wrong password; login rejects inactive user; delete soft-deletes user |
 | 6 — Auctions | `AuctionServiceTests`, `AuctionsControllerTests` | Create auction persists item + field values; bid below increment is rejected; bid by seller is rejected; bid on closed auction is rejected; valid bid updates current price; auto-bid triggers cascade; auto-bid stops at upper limit and notifies; CloseExpired sets winner when reserve met; CloseExpired marks closed when reserve not met; similar items returns same subcategory within preceding month |
+| 21 — Advanced Auction Cards (backend support) | `AuctionServiceTests` | Create without uploaded image resolves GT7 default once and persists source/match metadata; no-match create persists placeholder metadata; uploaded image path takes priority and bypasses GT7 resolver |
 | 7 — Alerts | `AlertServiceTests`, `AlertsControllerTests` | New item triggers matching alerts; alert with keyword filters correctly; alert with category filters correctly; notification created on match; user can only delete own alerts |
 | 8 — Q&A & Rep | `RepControllerTests`, `QuestionsControllerTests` | User posts question; rep replies to question; rep edits user; rep soft-deletes user; rep resets password; rep removes bid and recalculates current price; rep removes auction sets status to Removed |
 | 9 — Admin | `AdminControllerTests`, `ReportServiceTests` | Create rep account with correct role; total earnings sums sold items; earnings by type groups by category; best-selling returns top items by price; best buyers returns top spenders |
@@ -1162,6 +1173,7 @@ npx vitest run
 | 10 — Auction Pages | `AuctionCard.test.tsx`, `SearchBar.test.tsx`, `AuctionListPage.test.tsx` | AuctionCard renders price/title/countdown; search bar updates URL query params; auction list fetches and renders paginated results; bid form validates minimum amount |
 | 11 — Alerts/Notifs/Q&A | `AlertsPage.test.tsx`, `NotificationsPage.test.tsx`, `QuestionsPage.test.tsx` | Create alert form submits correct payload; delete alert shows confirmation; notifications render with unread styling; mark-read updates state; Q&A supports ask access by role, sort-mode refetch, forum card navigation to detail, detail scroll reset, and guards against unintended navigation from nested vote/reply interactions |
 | 12 — Rep + Admin | `RepDashboard.test.tsx`, `ReportsPage.test.tsx` | Rep user table renders and supports actions; admin create rep form submits; report tabs fetch and display data |
+| 21 — Advanced Auction Cards | `AuctionCard.test.tsx` | Renders real-time countdown text, status/highlight badges (`Ending soon`, `Reserve met`, `No reserve`, `Newly listed`), and card link behavior for browse/detail navigation |
 
 ### 14.3 E2E Testing (Browser Agents)
 

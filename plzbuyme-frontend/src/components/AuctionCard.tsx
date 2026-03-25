@@ -1,6 +1,7 @@
 import { Badge, Box, Card, Flex, Heading, Image, Text } from '@chakra-ui/react'
 import { Link as RouterLink, useLocation, type Location } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { LuImageOff } from 'react-icons/lu'
 import type { AuctionListItem } from '../api/auctions'
 import { dark } from '../theme/colors'
 import { DisplayNameText } from './DisplayNameText'
@@ -147,12 +148,34 @@ export function AuctionCard({ auction }: AuctionCardProps) {
             transition="transform 0.25s ease"
             _groupHover={{ transform: 'scale(1.04)' }}
             onError={() => {
-              if (cardImageSrc !== imageSrc) {
+              if (cardImageSrc !== imageSrc && imageSrc) {
                 setCardImageSrc(imageSrc)
+                return
               }
+              setCardImageSrc(null)
             }}
           />
-        ) : null}
+        ) : (
+          <Flex
+            h="160px"
+            w="100%"
+            bgGradient="linear(to-br, whiteAlpha.100, blackAlpha.400)"
+            borderBottomWidth="1px"
+            borderColor={dark.borderSubtle}
+            align="center"
+            justify="center"
+            direction="column"
+            gap={1}
+            aria-label={`No image available for ${auction.title}`}
+          >
+            <Box color="whiteAlpha.700" mb={1} aria-hidden="true">
+              <LuImageOff size={24} />
+            </Box>
+            <Text fontSize="sm" color={dark.muted} fontWeight="semibold">
+              No image available
+            </Text>
+          </Flex>
+        )}
         <Card.Body p={4}>
           <Flex align="flex-start" justify="space-between" gap={2} mb={2}>
             <Box
