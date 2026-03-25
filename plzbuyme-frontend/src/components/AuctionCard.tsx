@@ -6,17 +6,62 @@ import { dark } from '../theme/colors'
 import { DisplayNameText } from './DisplayNameText'
 import { resolveMediaUrl } from '../utils/mediaUrl'
 
+function formatStatusLabel(status: string): string {
+  if (!status) return 'Unknown'
+  return status.charAt(0).toUpperCase() + status.slice(1)
+}
+
 function formatCountdown(closeDateTime: string): string {
   const end = new Date(closeDateTime).getTime()
   const now = Date.now()
   const diff = end - now
-  if (diff <= 0) return 'Ended'
+  if (diff <= 0) return '00:00:00'
+
   const days = Math.floor(diff / (24 * 60 * 60 * 1000))
   const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000))
   const mins = Math.floor((diff % (60 * 60 * 1000)) / (60 * 1000))
-  if (days > 0) return `${days}d ${hours}h left`
-  if (hours > 0) return `${hours}h ${mins}m left`
-  return `${mins}m left`
+  const secs = Math.floor((diff % (60 * 1000)) / 1000)
+  if (days > 0) {
+    return `${days}d ${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(
+      secs
+    ).padStart(2, '0')}`
+  }
+  return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+}
+
+function getCountdownColor(closeDateTime: string, status: string): string {
+  if (status !== 'active') return dark.muted
+
+  const end = new Date(closeDateTime).getTime()
+  const now = Date.now()
+  const diff = end - now
+  if (diff <= 0) return 'red.300'
+  if (diff <= 60 * 60 * 1000) return 'red.300'
+  if (diff <= 24 * 60 * 60 * 1000) return 'orange.300'
+  return 'brand.400'
+}
+
+function getTimerAccent(closeDateTime: string, status: string): { width: string; bg: string } {
+  if (status !== 'active') return { width: '24%', bg: dark.border }
+  const diff = new Date(closeDateTime).getTime() - Date.now()
+  if (diff <= 0) return { width: '100%', bg: 'red.400' }
+  if (diff <= 60 * 60 * 1000) return { width: '100%', bg: 'red.400' }
+  if (diff <= 6 * 60 * 60 * 1000) return { width: '72%', bg: 'orange.400' }
+  if (diff <= 24 * 60 * 60 * 1000) return { width: '54%', bg: 'orange.300' }
+  return { width: '38%', bg: 'brand.400' }
+}
+
+function isEndingSoon(closeDateTime: string, status: string): boolean {
+  if (status !== 'active') return false
+  const diff = new Date(closeDateTime).getTime() - Date.now()
+  return diff > 0 && diff <= 60 * 60 * 1000
+}
+
+function isNewlyListed(createdAt?: string): boolean {
+  if (!createdAt) return false
+  const created = new Date(createdAt).getTime()
+  if (Number.isNaN(created)) return false
+  return Date.now() - created <= 24 * 60 * 60 * 1000
 }
 
 export interface AuctionCardProps {
@@ -46,6 +91,29 @@ export function AuctionCard({ auction }: AuctionCardProps) {
 
   const statusColor =
     auction.status === 'active' ? 'green' : auction.status === 'sold' ? 'blue' : 'gray'
+  const countdownColor = getCountdownColor(auction.closeDateTime, auction.status)
+  const timerAccent = getTimerAccent(auction.closeDateTime, auction.status)
+  const endingSoon = isEndingSoon(auction.closeDateTime, auction.status)
+  const statusLabel = endingSoon ? 'Ending soon' : formatStatusLabel(auction.status)
+  const statusBadgeColor = endingSoon ? 'red' : statusColor
+  const reservePrice = auction.reservePrice ?? null
+  const hasReserve = reservePrice != null && reservePrice > 0
+  const isReserveMet = hasReserve && ((auction.isReserveMet ?? false) || auction.currentPrice >= reservePrice)
+  const showNoReserve = reservePrice != null && reservePrice <= 0
+  const highlightTags = [
+    isReserveMet ? 'Reserve met' : null,
+    showNoReserve ? 'No reserve' : null,
+    isNewlyListed(auction.createdAt) ? 'Newly listed' : null,
+  ].filter((tag): tag is string => Boolean(tag))
+  const isExpiredActiveAuction =
+    auction.status === 'active' && new Date(auction.closeDateTime).getTime() <= Date.now()
+  const timerLabel =
+    auction.status === 'active'
+      ? isExpiredActiveAuction
+        ? 'Expired'
+        : 'Expires in'
+      : formatStatusLabel(auction.status)
+  const timerValue = auction.status === 'active' ? countdown : '00:00:00'
 
   return (
     <RouterLink to={`/auctions/${auction.id}`} state={{ backgroundLocation }}>
@@ -82,26 +150,50 @@ export function AuctionCard({ auction }: AuctionCardProps) {
         ) : null}
         <Card.Body p={4}>
           <Flex align="flex-start" justify="space-between" gap={2} mb={2}>
-            <Box overflow="hidden" textOverflow="ellipsis" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as 'vertical' }}>
-            <Heading size="sm" color="white" fontWeight="extrabold">
-              {auction.title}
-            </Heading>
-          </Box>
-            <Badge colorPalette={statusColor} size="sm" flexShrink={0}>
-              {auction.status}
+            <Box
+              overflow="hidden"
+              textOverflow="ellipsis"
+              whiteSpace="nowrap"
+              minW={0}
+            >
+              <Heading
+                size="sm"
+                color="white"
+                fontWeight="extrabold"
+                lineHeight="1.3"
+                whiteSpace="nowrap"
+                overflow="hidden"
+                textOverflow="ellipsis"
+              >
+                {auction.title}
+              </Heading>
+            </Box>
+            <Badge colorPalette={statusBadgeColor} size="sm" flexShrink={0}>
+              {statusLabel}
             </Badge>
           </Flex>
+          {highlightTags.length > 0 ? (
+            <Flex mt={1} mb={2} gap={2} flexWrap="wrap">
+              {highlightTags.map((tag) => (
+                <Badge
+                  key={`${auction.id}-${tag}`}
+                  variant="subtle"
+                  colorPalette={tag === 'Ending soon' ? 'red' : tag === 'Newly listed' ? 'purple' : 'yellow'}
+                  size="sm"
+                >
+                  {tag}
+                </Badge>
+              ))}
+            </Flex>
+          ) : null}
           <Text fontSize="xl" fontWeight="semibold" color="brand.400">
             ${auction.currentPrice.toLocaleString()}
           </Text>
-          <Text fontSize="sm" color={dark.muted} mt={1}>
-            {countdown}
-          </Text>
-          <Flex mt={2} gap={2} flexWrap="wrap">
+          <Flex mt={3} gap={2} flexWrap="wrap" align="center">
             <Badge variant="subtle" colorPalette="gray" size="sm">
               {auction.categoryName}
             </Badge>
-            <Text fontSize="xs" color={dark.muted}>
+            <Text fontSize="xs" color={dark.muted} lineHeight="1.6">
               by{' '}
               <DisplayNameText
                 name={auction.sellerUsername}
@@ -112,6 +204,17 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               · {auction.bidCount} bid{auction.bidCount !== 1 ? 's' : ''}
             </Text>
           </Flex>
+          <Box mt={3}>
+            <Flex align="center" justify="space-between" gap={3}>
+              <Text fontSize="xs" color={dark.muted} fontWeight="semibold">
+                {timerLabel}
+              </Text>
+              <Text fontSize="md" lineHeight="1" color={countdownColor} fontWeight="bold" fontFamily="mono">
+                {timerValue}
+              </Text>
+            </Flex>
+            <Box h="2px" w={timerAccent.width} bg={timerAccent.bg} transition="all 0.25s ease" mt={2} />
+          </Box>
         </Card.Body>
       </Card.Root>
     </RouterLink>
