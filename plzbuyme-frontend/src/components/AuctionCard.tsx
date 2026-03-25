@@ -1,11 +1,30 @@
 import { Badge, Box, Card, Flex, Heading, Image, Text } from '@chakra-ui/react'
 import { Link as RouterLink, useLocation, type Location } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { keyframes } from '@emotion/react'
 import { LuImageOff } from 'react-icons/lu'
 import type { AuctionListItem } from '../api/auctions'
 import { dark } from '../theme/colors'
 import { DisplayNameText } from './DisplayNameText'
 import { resolveMediaUrl } from '../utils/mediaUrl'
+
+const timerGlowPulse = keyframes`
+  0%, 100% {
+    opacity: 0.94;
+  }
+  50% {
+    opacity: 1;
+  }
+`
+
+const timerFlow = keyframes`
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -180% 0;
+  }
+`
 
 function formatStatusLabel(status: string): string {
   if (!status) return 'Unknown'
@@ -55,6 +74,14 @@ function getTimerAccent(closeDateTime: string, status: string): { width: string;
   if (diff <= 6 * 60 * 60 * 1000) return { width: '72%', bg: 'orange.400' }
   if (diff <= 24 * 60 * 60 * 1000) return { width: '54%', bg: 'orange.300' }
   return { width: '38%', bg: 'brand.400' }
+}
+
+function getTimerGlow(closeDateTime: string, status: string): string {
+  if (status !== 'active') return 'rgba(148, 163, 184, 0.24)'
+  const diff = toUtcEpochMs(closeDateTime) - Date.now()
+  if (diff <= 60 * 60 * 1000) return 'rgba(248, 113, 113, 0.82)'
+  if (diff <= 24 * 60 * 60 * 1000) return 'rgba(251, 191, 36, 0.72)'
+  return 'rgba(56, 189, 248, 0.72)'
 }
 
 function isEndingSoon(closeDateTime: string, status: string): boolean {
@@ -120,6 +147,8 @@ export function AuctionCard({ auction }: AuctionCardProps) {
         : 'Expires in'
       : formatStatusLabel(auction.status)
   const timerValue = auction.status === 'active' ? countdown : '00:00:00'
+  const animateTimerBar = auction.status === 'active' && !isExpiredActiveAuction
+  const timerGlow = getTimerGlow(auction.closeDateTime, auction.status)
 
   return (
     <RouterLink to={`/auctions/${auction.id}`} state={{ backgroundLocation }}>
@@ -238,7 +267,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               />
             </Text>
           </Flex>
-          <Box mt="auto" pt={1}>
+          <Box mt="auto" pt={10}>
             <Flex align="center" justify="space-between" gap={3}>
               <Text fontSize="xs" color={dark.muted} fontWeight="semibold">
                 {timerLabel}
@@ -247,7 +276,64 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                 {timerValue}
               </Text>
             </Flex>
-            <Box h="2px" w={timerAccent.width} bg={timerAccent.bg} transition="all 0.25s ease" mt={2} />
+            <Box h="6px" w="100%" mt={2} position="relative" overflow="visible">
+              <Box
+                h="100%"
+                w="100%"
+                bg="whiteAlpha.200"
+                borderRadius="0"
+                overflow="hidden"
+                position="relative"
+              >
+                {animateTimerBar ? (
+                  <Box
+                    position="absolute"
+                    left={0}
+                    top="50%"
+                    transform="translateY(-50%)"
+                    h="12px"
+                    w={timerAccent.width}
+                    bg={timerAccent.bg}
+                    opacity={0.62}
+                    filter="blur(8px)"
+                    pointerEvents="none"
+                    transition="all 0.25s ease"
+                  />
+                ) : null}
+              </Box>
+              <Box
+                position="absolute"
+                left={0}
+                top={0}
+                h="100%"
+                w={timerAccent.width}
+                bg={timerAccent.bg}
+                borderRadius="0"
+                zIndex={1}
+                overflow="hidden"
+                transition="all 0.25s ease"
+                boxShadow={animateTimerBar ? `0 0 10px ${timerGlow}, 0 0 22px ${timerGlow}` : 'none'}
+                animation={animateTimerBar ? `${timerGlowPulse} 4.8s ease-in-out infinite` : undefined}
+                _before={
+                  animateTimerBar
+                    ? {
+                        content: '""',
+                        position: 'absolute',
+                        inset: 0,
+                        background:
+                          'linear-gradient(110deg, rgba(255,255,255,0) 28%, rgba(255,255,255,0.68) 50%, rgba(255,255,255,0) 72%)',
+                        backgroundSize: '220% 100%',
+                        animation: `${timerFlow} 2.9s linear infinite`,
+                        willChange: 'background-position',
+                        mixBlendMode: 'screen',
+                        opacity: 0.95,
+                        filter: 'drop-shadow(0 0 3px rgba(255,255,255,0.7))',
+                        pointerEvents: 'none',
+                      }
+                    : undefined
+                }
+              />
+            </Box>
           </Box>
         </Card.Body>
       </Card.Root>
