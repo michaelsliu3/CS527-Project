@@ -129,66 +129,22 @@ export function AuctionCard({ auction }: AuctionCardProps) {
         borderWidth="1px"
         borderColor={dark.borderSubtle}
         overflow="hidden"
+        minH="460px"
         _hover={{
           borderColor: dark.hoverBorder,
           transform: 'scale(1.015)',
-          boxShadow: '0 14px 30px rgba(0,0,0,0.45)',
+          boxShadow: '0 16px 34px rgba(0,0,0,0.5), 0 0 30px rgba(56,189,248,0.28)',
         }}
         transition="transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease"
       >
-        {cardImageSrc ? (
-          <Image
-            src={cardImageSrc}
-            alt={auction.title}
-            w="100%"
-            h="160px"
-            objectFit="cover"
-            borderBottomWidth="1px"
-            borderColor={dark.borderSubtle}
-            transition="transform 0.25s ease"
-            _groupHover={{ transform: 'scale(1.04)' }}
-            onError={() => {
-              if (cardImageSrc !== imageSrc && imageSrc) {
-                setCardImageSrc(imageSrc)
-                return
-              }
-              setCardImageSrc(null)
-            }}
-          />
-        ) : (
-          <Flex
-            h="160px"
-            w="100%"
-            bgGradient="linear(to-br, whiteAlpha.100, blackAlpha.400)"
-            borderBottomWidth="1px"
-            borderColor={dark.borderSubtle}
-            align="center"
-            justify="center"
-            direction="column"
-            gap={1}
-            aria-label={`No image available for ${auction.title}`}
-          >
-            <Box color="whiteAlpha.700" mb={1} aria-hidden="true">
-              <LuImageOff size={24} />
-            </Box>
-            <Text fontSize="sm" color={dark.muted} fontWeight="semibold">
-              No image available
-            </Text>
-          </Flex>
-        )}
-        <Card.Body p={4}>
-          <Flex align="flex-start" justify="space-between" gap={2} mb={2}>
-            <Box
-              overflow="hidden"
-              textOverflow="ellipsis"
-              whiteSpace="nowrap"
-              minW={0}
-            >
+        <Card.Body p={4} display="flex" flexDirection="column" gap={3}>
+          <Flex align="flex-start" justify="space-between" gap={2}>
+            <Box overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" minW={0}>
               <Heading
-                size="sm"
+                size="lg"
                 color="white"
                 fontWeight="extrabold"
-                lineHeight="1.3"
+                lineHeight="1.2"
                 whiteSpace="nowrap"
                 overflow="hidden"
                 textOverflow="ellipsis"
@@ -200,8 +156,59 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               {statusLabel}
             </Badge>
           </Flex>
+          <Box w="calc(100% + 2rem)" mx="-4">
+            <Box
+              position="relative"
+              aspectRatio={4 / 3}
+              overflow="hidden"
+              style={{
+                WebkitMaskImage:
+                  'linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 24%, rgba(0, 0, 0, 1) 80%, rgba(0, 0, 0, 0) 100%)',
+                maskImage:
+                  'linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 24%, rgba(0, 0, 0, 1) 80%, rgba(0, 0, 0, 0) 100%)',
+              }}
+            >
+              {cardImageSrc ? (
+                <Image
+                  src={cardImageSrc}
+                  alt={auction.title}
+                  w="100%"
+                  h="100%"
+                  objectFit="cover"
+                  objectPosition="40% center"
+                  transition="transform 0.25s ease"
+                  _groupHover={{ transform: 'scale(1.04)' }}
+                  onError={() => {
+                    if (cardImageSrc !== imageSrc && imageSrc) {
+                      setCardImageSrc(imageSrc)
+                      return
+                    }
+                    setCardImageSrc(null)
+                  }}
+                />
+              ) : (
+                <Flex
+                  h="100%"
+                  w="100%"
+                  bgGradient="linear(to-br, whiteAlpha.100, blackAlpha.400)"
+                  align="center"
+                  justify="center"
+                  direction="column"
+                  gap={1}
+                  aria-label={`No image available for ${auction.title}`}
+                >
+                  <Box color="whiteAlpha.700" mb={1} aria-hidden="true">
+                    <LuImageOff size={24} />
+                  </Box>
+                  <Text fontSize="sm" color={dark.muted} fontWeight="semibold">
+                    No image available
+                  </Text>
+                </Flex>
+              )}
+            </Box>
+          </Box>
           {highlightTags.length > 0 ? (
-            <Flex mt={1} mb={2} gap={2} flexWrap="wrap">
+            <Flex gap={2} flexWrap="wrap">
               {highlightTags.map((tag) => (
                 <Badge
                   key={`${auction.id}-${tag}`}
@@ -214,25 +221,24 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               ))}
             </Flex>
           ) : null}
-          <Text fontSize="xl" fontWeight="semibold" color="brand.400">
+          <Text fontSize="2xl" fontWeight="extrabold" color="brand.400" lineHeight="1.1">
             ${auction.currentPrice.toLocaleString()}
           </Text>
-          <Flex mt={3} gap={2} flexWrap="wrap" align="center">
+          <Flex align="center" gap={2} flexWrap="wrap">
             <Badge variant="subtle" colorPalette="gray" size="sm">
               {auction.categoryName}
             </Badge>
-            <Text fontSize="xs" color={dark.muted} lineHeight="1.6">
+            <Text fontSize="sm" color={dark.muted} lineHeight="1.5">
               by{' '}
               <DisplayNameText
                 name={auction.sellerUsername}
                 displayNameColor={auction.sellerDisplayNameColor}
                 fallbackColor={dark.muted}
                 fontWeight="bold"
-              />{' '}
-              · {auction.bidCount} bid{auction.bidCount !== 1 ? 's' : ''}
+              />
             </Text>
           </Flex>
-          <Box mt={3}>
+          <Box mt="auto" pt={1}>
             <Flex align="center" justify="space-between" gap={3}>
               <Text fontSize="xs" color={dark.muted} fontWeight="semibold">
                 {timerLabel}
