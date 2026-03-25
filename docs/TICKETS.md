@@ -371,9 +371,9 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-21 — Advanced auction item cards with richer visuals
+## PBM-21 — Advanced auction item cards with richer visuals ✅
 
-**Layer:** Frontend
+**Layer:** Frontend + Backend + CDN handoff
 **Branch:** `PBM-21/advanced-auction-item-cards`
 **PR Title:** `[PBM-21] upgrade auction item cards with images, improved countdown, and richer text formatting`
 
@@ -388,6 +388,17 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Ensure accessible semantics and keyboard focus states for the full card click target and internal actions.
 - **Tests:** add/extend frontend tests for image fallback rendering, countdown state transitions (active/ending-soon/expired), and card text truncation/metadata display.
 - **Tests:** add backend tests to verify one-time default image resolution, persisted image reuse on subsequent reads, and uploaded-image priority over GT7 defaults.
+- **Implemented in this branch (additional):**
+  - Backend image provenance metadata was delivered on `Item` and auction DTOs (`imageSource`, `imageMatchLevel`) with migration support.
+  - Create-auction now resolves GT7 defaults once (when no uploaded image is provided), persists the resolved URL/key, and returns persisted image data to frontend card/detail payloads.
+  - Auction detail now supports separate `detailImageUrl` for GT7-backed items so card/detail can use fit-for-surface variants without re-running matcher logic on render.
+  - Frontend card UI shipped richer highlight tags (`Ending soon`, `Reserve met`, `No reserve`, `Newly listed`) and urgency countdown color states.
+  - Frontend card polish shipped category-type gradient tags (including rainbow `Sports Cars`), price-row tag placement, and soft tag glow treatment for stronger scanability.
+  - Timer polish shipped a dark-blue default countdown/bar state while preserving orange/red urgency transitions for near-expiry auctions.
+  - `plzbuyme-backend/scripts/create-auctions-temp.mjs` now supports `AUCTION_SEED_CATEGORY=auto` category inference, randomized auction time/price/mileage generation, and robust concept-car seeding when manifest year data is missing.
+- **Follow-up items still open under PBM-21 acceptance scope:**
+  - AuctionCard image element should explicitly enable lazy loading (`loading="lazy"`).
+  - Frontend tests should be expanded for image fallback behavior, countdown state transitions, and truncation/metadata assertions beyond current baseline checks.
 
 ---
 
@@ -473,6 +484,35 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Define deterministic post-submit behavior (success toast, modal close/reset, list refresh/navigation behavior from each launch context).
 - Ensure role/permission checks remain consistent with current app rules for users who can create auctions.
 - **Tests:** add/extend frontend tests for modal open/close triggers from both pages, form validation/submit in modal context, and state reset when reopening.
+
+---
+
+## PBM-27 — Wallet balance system with fake deposits and real bid charging
+
+**Layer:** Backend + Frontend  
+**Branch:** `PBM-27/wallet-balance-and-bid-charging`  
+**PR Title:** `[PBM-27] add wallet balance flow and enforce bid-time balance charging`
+
+- Add a wallet/balance model for end users and expose balance in authenticated profile/session payloads so UI can show spendable funds.
+- Implement temporary/fake deposit support for development/demo use (manual top-up endpoint and/or simple fixed-amount presets) with clear labeling that external payment processing is not yet integrated.
+- Enforce bid eligibility by available balance: users cannot place bids they cannot fund, and API returns deterministic validation errors for insufficient funds.
+- Apply real balance accounting on bid actions so bidding affects funds immediately (reserve/hold or deduct according to chosen policy), including correct rollback/release behavior when users are outbid or bids are canceled/invalidated.
+- Ensure auction close/settlement flow reconciles held funds and winner payment outcomes so final balances remain consistent for winner and non-winners.
+- Frontend: add wallet/deposit UI entry points (e.g., in profile or auctions area), display live balance in key bidding surfaces, and show clear error/toast messaging for insufficient funds.
+- **Tests:** backend tests for balance mutations, insufficient-funds rejection, outbid release/refund logic, and close-settlement reconciliation; frontend tests for deposit interactions, bid blocked states, and balance display updates.
+
+---
+
+## PBM-28 — Auction card image loading + coverage hardening
+
+**Layer:** Frontend  
+**Branch:** `PBM-28/auction-card-image-loading-placeholder`  
+**PR Title:** `[PBM-28] harden auction card image loading and coverage`
+
+- Add explicit lazy loading for auction card images (`loading="lazy"`) to improve list-page performance and bandwidth usage.
+- Ensure fallback behavior remains robust when preferred card image variants fail (card variant -> persisted base image -> placeholder).
+- Add or refine accessible semantics for image and placeholder states (descriptive alt text, non-decorative fallback labeling where needed).
+- **Tests:** extend `AuctionCard.test.tsx` to cover lazy-loading attr, missing-image placeholder rendering, and image-fallback transitions.
 
 ---
 

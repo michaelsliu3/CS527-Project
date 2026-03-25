@@ -5,7 +5,10 @@ export interface AuctionListItem {
   title: string
   imageUrl?: string | null
   currentPrice: number
+  reservePrice?: number | null
+  isReserveMet?: boolean | null
   closeDateTime: string
+  createdAt?: string
   status: string
   categoryName: string
   sellerUsername: string
@@ -40,6 +43,7 @@ export interface AuctionDetail {
   title: string
   description: string | null
   imageUrl?: string | null
+  detailImageUrl?: string | null
   categoryId: number
   categoryName: string
   sellerId: number

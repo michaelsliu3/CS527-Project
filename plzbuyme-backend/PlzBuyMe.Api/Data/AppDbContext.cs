@@ -84,6 +84,8 @@ public class AppDbContext : DbContext
             e.Property(i => i.Title).HasMaxLength(256);
             e.Property(i => i.ImageUrl).HasMaxLength(2048);
             e.Property(i => i.ImageStorageKey).HasMaxLength(1024);
+            e.Property(i => i.ImageSource).HasMaxLength(64);
+            e.Property(i => i.ImageMatchLevel).HasMaxLength(64);
             e.Property(i => i.InitialPrice).HasPrecision(12, 2);
             e.Property(i => i.BidIncrement).HasPrecision(12, 2);
             e.Property(i => i.ReservePrice).HasPrecision(12, 2);

@@ -1,13 +1,17 @@
 # PBM-25 Car Thumbnail Manifest
 
-This tooling builds a single manifest for GT7 car thumbnails so the app can load images directly from the GT CDN without downloading local copies.
+This tooling builds a single manifest for GT7 car images so the app can load thumbnails and higher-resolution detail/gallery images directly from the GT CDN without downloading local copies.
 
 ## What It Does
 
-1. Scrapes the GT7 car list bundle to discover stable car IDs.
+1. Scrapes the GT7 car list bundle to discover stable car IDs and all per-car image view assets.
 2. Resolves GT7 metadata chunks for car/tuner data.
 3. Auto-labels `make`, parsed `model`, parsed `year`, and sets `color` to `Unknown`.
-4. Writes one all-in-one manifest with direct `sourceUrl` values (GT CDN).
+4. Writes one all-in-one manifest with:
+   - `sourceUrl` (thumbnail),
+   - `detailSourceUrl` (preferred higher-resolution view),
+   - `galleryUrls` (all discovered GT view URLs keyed by view/angle),
+   - and direct GT CDN URLs for all image fields.
 
 ## Scripts
 
@@ -37,4 +41,4 @@ You should still review `needs-curation` and `needs-color-curation` tagged rows 
 1. Regenerate manifest:
    - `node generate-gt7-source-list.mjs`
 2. (Optional) Apply curation edits (`make`, `model`, `year`, `color`) and commit.
-3. App uses each entry's `sourceUrl` directly.
+3. App uses each entry's `sourceUrl` for list cards and `detailSourceUrl`/`galleryUrls` for detail pages.

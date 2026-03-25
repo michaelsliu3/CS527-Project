@@ -27,6 +27,25 @@ public sealed class MediaController : ControllerBase
             Found = result.Found,
             MatchLevel = result.MatchLevel,
             Url = result.Url,
+            DetailUrl = result.DetailUrl,
+            ExternalId = result.ExternalId,
+            Make = result.Make,
+            Model = result.Model,
+            Year = result.Year,
+            Title = result.Title
+        });
+    }
+
+    [HttpGet("gt7/resolve-by-external-id")]
+    public IActionResult ResolveGt7ByExternalId([FromQuery] string? externalId)
+    {
+        var result = _gt7ThumbnailResolver.ResolveByExternalId(externalId);
+        return Ok(new ResolveGt7ThumbnailResponseDto
+        {
+            Found = result.Found,
+            MatchLevel = result.MatchLevel,
+            Url = result.Url,
+            DetailUrl = result.DetailUrl,
             ExternalId = result.ExternalId,
             Make = result.Make,
             Model = result.Model,
