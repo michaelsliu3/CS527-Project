@@ -8,6 +8,16 @@ import { showErrorToast } from '../components/ui/toaster'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
 
+const DEFAULT_AUCTION_PAGE_SIZE = 21
+
+function normalizeGridPageSize(rawPageSize: string | null): number {
+  if (!rawPageSize) return DEFAULT_AUCTION_PAGE_SIZE
+  const parsed = Number(rawPageSize)
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_AUCTION_PAGE_SIZE
+  const whole = Math.floor(parsed)
+  return whole % 3 === 0 ? whole : DEFAULT_AUCTION_PAGE_SIZE
+}
+
 function buildBrowseParams(searchParams: URLSearchParams): BrowseParams {
   const params: BrowseParams = {}
   const q = searchParams.get('q')
@@ -30,8 +40,7 @@ function buildBrowseParams(searchParams: URLSearchParams): BrowseParams {
   if (sort) params.sort = sort
   const page = searchParams.get('page')
   if (page) params.page = Number(page) || 1
-  const pageSize = searchParams.get('pageSize')
-  if (pageSize) params.pageSize = Number(pageSize) || 20
+  params.pageSize = normalizeGridPageSize(searchParams.get('pageSize'))
   const make = searchParams.get('make')
   if (make) params.make = make
   const model = searchParams.get('model')
@@ -58,7 +67,7 @@ export function AuctionListPage() {
   const [items, setItems] = useState<AuctionListItem[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [page, setPage] = useState(1)
-  const [pageSize] = useState(20)
+  const [pageSize, setPageSize] = useState(DEFAULT_AUCTION_PAGE_SIZE)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -71,6 +80,7 @@ export function AuctionListPage() {
         setItems(res.data.items)
         setTotalCount(res.data.totalCount)
         setPage(res.data.page)
+        setPageSize(res.data.pageSize || DEFAULT_AUCTION_PAGE_SIZE)
         setError(null)
       })
       .catch(() => {

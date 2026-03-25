@@ -371,7 +371,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-21 — Advanced auction item cards with richer visuals
+## PBM-21 — Advanced auction item cards with richer visuals ✅
 
 **Layer:** Frontend
 **Branch:** `PBM-21/advanced-auction-item-cards`

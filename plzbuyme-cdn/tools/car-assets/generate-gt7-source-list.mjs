@@ -293,7 +293,7 @@ function buildManifest(carIds, bundleUrl, carsById, tunersById, resolvedViewAsse
       'externalId maps to GT7 car thumbnail key (e.g. car1932.png => externalId 1932).',
       'make/model/year are inferred from GT7 metadata and may require manual review for edge cases.',
       'color is not provided by GT7 metadata and defaults to "Unknown" for curation.',
-      'detailSourceUrl prefers full-size GT carlist asset views (2_01, 2_02, 3_01, then 1_01).',
+      'detailSourceUrl prefers full-size GT carlist asset views (2_01, 3_01, then 1_01).',
       'galleryUrls includes all discovered GT car asset view URLs keyed as "<view>_<angle>".',
       'This manifest is designed for direct remote GT CDN URL usage (no local asset download).'
     ],

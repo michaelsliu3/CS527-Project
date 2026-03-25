@@ -334,7 +334,7 @@ public sealed class Gt7ThumbnailMirrorMiddleware
                 string? selectedUrl = null;
                 if (asset.TryGetProperty("galleryUrls", out var galleryElement) &&
                     galleryElement.ValueKind == JsonValueKind.Object &&
-                    galleryElement.TryGetProperty("2_02", out var preferredElement) &&
+                    galleryElement.TryGetProperty("2_01", out var preferredElement) &&
                     preferredElement.ValueKind == JsonValueKind.String)
                 {
                     selectedUrl = preferredElement.GetString()?.Trim();
