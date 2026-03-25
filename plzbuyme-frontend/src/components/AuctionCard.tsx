@@ -63,7 +63,7 @@ function getCountdownColor(closeDateTime: string, status: string): string {
   if (diff <= 0) return 'red.300'
   if (diff <= 60 * 60 * 1000) return 'red.300'
   if (diff <= 24 * 60 * 60 * 1000) return 'orange.300'
-  return 'brand.400'
+  return 'blue.300'
 }
 
 function getTimerAccent(closeDateTime: string, status: string): { width: string; bg: string } {
@@ -73,7 +73,7 @@ function getTimerAccent(closeDateTime: string, status: string): { width: string;
   if (diff <= 60 * 60 * 1000) return { width: '100%', bg: 'red.400' }
   if (diff <= 6 * 60 * 60 * 1000) return { width: '72%', bg: 'orange.400' }
   if (diff <= 24 * 60 * 60 * 1000) return { width: '54%', bg: 'orange.300' }
-  return { width: '38%', bg: 'brand.400' }
+  return { width: '38%', bg: 'blue.500' }
 }
 
 function getTimerGlow(closeDateTime: string, status: string): string {
@@ -81,7 +81,7 @@ function getTimerGlow(closeDateTime: string, status: string): string {
   const diff = toUtcEpochMs(closeDateTime) - Date.now()
   if (diff <= 60 * 60 * 1000) return 'rgba(248, 113, 113, 0.82)'
   if (diff <= 24 * 60 * 60 * 1000) return 'rgba(251, 191, 36, 0.72)'
-  return 'rgba(56, 189, 248, 0.72)'
+  return 'rgba(37, 99, 235, 0.68)'
 }
 
 function isEndingSoon(closeDateTime: string, status: string): boolean {
@@ -95,6 +95,32 @@ function isNewlyListed(createdAt?: string): boolean {
   const created = toUtcEpochMs(createdAt)
   if (Number.isNaN(created)) return false
   return Date.now() - created <= 24 * 60 * 60 * 1000
+}
+
+function normalizeCategoryName(value?: string): string {
+  return (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function getCategoryGradient(categoryName?: string): string {
+  const normalized = normalizeCategoryName(categoryName)
+
+  if (normalized === 'sedan' || normalized === 'sedans') {
+    return 'linear-gradient(92deg, #38bdf8 0%, #0284c7 100%)'
+  }
+  if (normalized === 'sportscar' || normalized === 'sportscars') {
+    return 'linear-gradient(90deg, #ff003c 0%, #ff8a00 16%, #f9f871 32%, #00d084 48%, #00c2ff 64%, #4d65ff 80%, #b347ff 100%)'
+  }
+  if (normalized === 'suv' || normalized === 'suvs') {
+    return 'linear-gradient(92deg, #34d399 0%, #059669 100%)'
+  }
+  if (normalized === 'truck' || normalized === 'trucks') {
+    return 'linear-gradient(92deg, #f59e0b 0%, #f97316 50%, #ef4444 100%)'
+  }
+  if (normalized === 'electric' || normalized === 'ev' || normalized === 'evs') {
+    return 'linear-gradient(92deg, #a78bfa 0%, #7c3aed 100%)'
+  }
+
+  return 'linear-gradient(92deg, #94a3b8 0%, #475569 100%)'
 }
 
 export interface AuctionCardProps {
@@ -250,23 +276,37 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               ))}
             </Flex>
           ) : null}
-          <Text fontSize="2xl" fontWeight="extrabold" color="brand.400" lineHeight="1.1">
-            ${auction.currentPrice.toLocaleString()}
-          </Text>
-          <Flex align="center" gap={2} flexWrap="wrap">
-            <Badge variant="subtle" colorPalette="gray" size="sm">
-              {auction.categoryName}
-            </Badge>
-            <Text fontSize="sm" color={dark.muted} lineHeight="1.5">
-              by{' '}
-              <DisplayNameText
-                name={auction.sellerUsername}
-                displayNameColor={auction.sellerDisplayNameColor}
-                fallbackColor={dark.muted}
-                fontWeight="bold"
-              />
+          <Flex align="center" justify="space-between" gap={3}>
+            <Text fontSize="2xl" fontWeight="extrabold" color="brand.400" lineHeight="1.1">
+              ${auction.currentPrice.toLocaleString()}
             </Text>
+            <Box
+              as="span"
+              flexShrink={0}
+              px={2}
+              py={0.5}
+              borderRadius="md"
+              fontSize="xs"
+              fontWeight="bold"
+              lineHeight="1.2"
+              letterSpacing="0.01em"
+              color="white"
+              bg={getCategoryGradient(auction.categoryName)}
+              textShadow="0 1px 1px rgba(0, 0, 0, 0.28)"
+              boxShadow="0 6px 20px rgba(56, 189, 248, 0.22), 0 0 14px rgba(56, 189, 248, 0.2)"
+            >
+              {auction.categoryName}
+            </Box>
           </Flex>
+          <Text fontSize="sm" color={dark.muted} lineHeight="1.5">
+            by{' '}
+            <DisplayNameText
+              name={auction.sellerUsername}
+              displayNameColor={auction.sellerDisplayNameColor}
+              fallbackColor={dark.muted}
+              fontWeight="bold"
+            />
+          </Text>
           <Box mt="auto" pt={10}>
             <Flex align="center" justify="space-between" gap={3}>
               <Text fontSize="xs" color={dark.muted} fontWeight="semibold">
