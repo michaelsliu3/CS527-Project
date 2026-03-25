@@ -5,6 +5,9 @@ namespace PlzBuyMe.Api.Services;
 
 public class AuctionCloseService : BackgroundService
 {
+    // Change this value to control how often expired auctions are processed.
+    private static readonly TimeSpan CloseSweepInterval = TimeSpan.FromSeconds(10);
+
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<AuctionCloseService> _logger;
 
@@ -26,10 +29,10 @@ public class AuctionCloseService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error running auction close job; will retry in 30 seconds.");
+                _logger.LogError(ex, "Error running auction close job; will retry in {RetrySeconds} seconds.", CloseSweepInterval.TotalSeconds);
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+            await Task.Delay(CloseSweepInterval, stoppingToken);
         }
     }
 }

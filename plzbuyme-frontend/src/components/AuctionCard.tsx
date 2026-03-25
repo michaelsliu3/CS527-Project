@@ -11,8 +11,13 @@ function formatStatusLabel(status: string): string {
   return status.charAt(0).toUpperCase() + status.slice(1)
 }
 
+function toUtcEpochMs(value: string): number {
+  const normalized = value.endsWith('Z') || /[-+]\d{2}:?\d{2}$/.test(value) ? value : `${value}Z`
+  return new Date(normalized).getTime()
+}
+
 function formatCountdown(closeDateTime: string): string {
-  const end = new Date(closeDateTime).getTime()
+  const end = toUtcEpochMs(closeDateTime)
   const now = Date.now()
   const diff = end - now
   if (diff <= 0) return '00:00:00'
@@ -32,7 +37,7 @@ function formatCountdown(closeDateTime: string): string {
 function getCountdownColor(closeDateTime: string, status: string): string {
   if (status !== 'active') return dark.muted
 
-  const end = new Date(closeDateTime).getTime()
+  const end = toUtcEpochMs(closeDateTime)
   const now = Date.now()
   const diff = end - now
   if (diff <= 0) return 'red.300'
@@ -43,7 +48,7 @@ function getCountdownColor(closeDateTime: string, status: string): string {
 
 function getTimerAccent(closeDateTime: string, status: string): { width: string; bg: string } {
   if (status !== 'active') return { width: '24%', bg: dark.border }
-  const diff = new Date(closeDateTime).getTime() - Date.now()
+  const diff = toUtcEpochMs(closeDateTime) - Date.now()
   if (diff <= 0) return { width: '100%', bg: 'red.400' }
   if (diff <= 60 * 60 * 1000) return { width: '100%', bg: 'red.400' }
   if (diff <= 6 * 60 * 60 * 1000) return { width: '72%', bg: 'orange.400' }
@@ -53,13 +58,13 @@ function getTimerAccent(closeDateTime: string, status: string): { width: string;
 
 function isEndingSoon(closeDateTime: string, status: string): boolean {
   if (status !== 'active') return false
-  const diff = new Date(closeDateTime).getTime() - Date.now()
+  const diff = toUtcEpochMs(closeDateTime) - Date.now()
   return diff > 0 && diff <= 60 * 60 * 1000
 }
 
 function isNewlyListed(createdAt?: string): boolean {
   if (!createdAt) return false
-  const created = new Date(createdAt).getTime()
+  const created = toUtcEpochMs(createdAt)
   if (Number.isNaN(created)) return false
   return Date.now() - created <= 24 * 60 * 60 * 1000
 }
@@ -106,7 +111,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
     isNewlyListed(auction.createdAt) ? 'Newly listed' : null,
   ].filter((tag): tag is string => Boolean(tag))
   const isExpiredActiveAuction =
-    auction.status === 'active' && new Date(auction.closeDateTime).getTime() <= Date.now()
+    auction.status === 'active' && toUtcEpochMs(auction.closeDateTime) <= Date.now()
   const timerLabel =
     auction.status === 'active'
       ? isExpiredActiveAuction

@@ -22,8 +22,13 @@ import { isAxiosError } from 'axios'
 import { APP_PAGE_PX } from '../theme/layout'
 import { resolveMediaUrl } from '../utils/mediaUrl'
 
+function toUtcEpochMs(value: string): number {
+  const normalized = value.endsWith('Z') || /[-+]\d{2}:?\d{2}$/.test(value) ? value : `${value}Z`
+  return new Date(normalized).getTime()
+}
+
 function formatCountdown(closeDateTime: string): string {
-  const end = new Date(closeDateTime).getTime()
+  const end = toUtcEpochMs(closeDateTime)
   const now = Date.now()
   const diff = end - now
   if (diff <= 0) return 'Ended'
