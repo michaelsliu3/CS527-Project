@@ -393,6 +393,9 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
   - Create-auction now resolves GT7 defaults once (when no uploaded image is provided), persists the resolved URL/key, and returns persisted image data to frontend card/detail payloads.
   - Auction detail now supports separate `detailImageUrl` for GT7-backed items so card/detail can use fit-for-surface variants without re-running matcher logic on render.
   - Frontend card UI shipped richer highlight tags (`Ending soon`, `Reserve met`, `No reserve`, `Newly listed`) and urgency countdown color states.
+  - Frontend card polish shipped category-type gradient tags (including rainbow `Sports Cars`), price-row tag placement, and soft tag glow treatment for stronger scanability.
+  - Timer polish shipped a dark-blue default countdown/bar state while preserving orange/red urgency transitions for near-expiry auctions.
+  - `plzbuyme-backend/scripts/create-auctions-temp.mjs` now supports `AUCTION_SEED_CATEGORY=auto` category inference, randomized auction time/price/mileage generation, and robust concept-car seeding when manifest year data is missing.
 - **Follow-up items still open under PBM-21 acceptance scope:**
   - AuctionCard image element should explicitly enable lazy loading (`loading="lazy"`).
   - Frontend tests should be expanded for image fallback behavior, countdown state transitions, and truncation/metadata assertions beyond current baseline checks.

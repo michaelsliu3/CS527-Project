@@ -465,6 +465,8 @@ An ASP.NET Core `BackgroundService` runs every **30 seconds** to process auction
 
 - **Full-text search** on item title and description.
 - **Filter** by category, subcategory, price range, status, closing date range.
+- **Auction browse card UX** includes stronger card hierarchy with image-first presentation, highlight status chips (`Ending soon`, `Reserve met`, `No reserve`, `Newly listed`), and a real-time urgency-aware countdown bar/text.
+- **Category type chip styling** is rendered as a compact gradient tag (including a rainbow variant for Sports Cars) positioned inline with price for quick visual scanning.
 - **Category-specific field filters** — dynamic filters driven by `category_fields` (e.g., Year range, Mileage range, Condition, Transmission, Fuel Type for Cars). When a subcategory is selected, the UI fetches its `category_fields` and renders appropriate filter controls (text input, number range, or select dropdown). Filters are passed as a JSON object of `{ fieldId: value }` pairs.
 - **Seller filter** — filter by seller username.
 - **Sort** by price (asc/desc), closing date, newest listed, most bids.
@@ -1087,6 +1089,27 @@ Notes:
 
 - `color` defaults to `Unknown` because GT7 metadata does not provide a reliable color attribute per thumbnail.
 - Entries tagged `needs-curation` / `needs-color-curation` should be reviewed manually.
+
+### Temp Auction Seeder Script (dev helper)
+
+To rapidly seed local auction data using GT7 manifest entries:
+
+```bash
+cd CS527-Project
+API_BASE_URL="http://localhost:5081/api" \
+AUCTION_SEED_USERNAME="<seed-user>" \
+AUCTION_SEED_PASSWORD="<seed-password>" \
+AUCTION_SEED_CATEGORY="auto" \
+AUCTION_SEED_COUNT="40" \
+node plzbuyme-backend/scripts/create-auctions-temp.mjs
+```
+
+Supported behavior:
+
+- `AUCTION_SEED_CATEGORY=auto` infers `Sedans`/`SUVs`/`Trucks`/`Sports Cars`/`Electric` from manifest vehicle keywords.
+- Manual category override still works by setting `AUCTION_SEED_CATEGORY` to a specific category name.
+- Auction values are randomized per item (close window, initial price, reserve, bid increment, mileage) to avoid deterministic demo data.
+- Concept-car seeding is supported via `AUCTION_SEED_TITLE_KEYWORD=concept`; missing manifest year values are derived from title (or safely defaulted) so creation does not fail.
 
 ### Frontend Setup
 
