@@ -166,7 +166,7 @@ export function SellItemModalProvider({ children }: { children: ReactNode }) {
               aria-labelledby="create-auction-modal-title"
               maxW="920px"
               mx="auto"
-              bg={dark.cardBg}
+              bg="rgba(24, 24, 27, 0.65)"
               borderWidth="1px"
               borderColor={dark.borderSubtle}
               borderRadius="xl"
