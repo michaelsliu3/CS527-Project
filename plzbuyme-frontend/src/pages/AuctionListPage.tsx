@@ -5,8 +5,15 @@ import { browseAuctions, type AuctionListItem, type BrowseParams } from '../api/
 import { AuctionCard } from '../components/AuctionCard'
 import { SearchBar } from '../components/SearchBar'
 import { showErrorToast } from '../components/ui/toaster'
+import { useAuth } from '../context/AuthContext'
+import { useSellItemModal } from '../context/SellItemModalContext'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
+
+function canCreateAuctions(role: string | undefined): boolean {
+  if (!role) return false
+  return role === 'end_user' || role === 'vip' || role === 'customer_rep' || role === 'admin'
+}
 
 const DEFAULT_AUCTION_PAGE_SIZE = 21
 
@@ -63,6 +70,8 @@ function buildBrowseParams(searchParams: URLSearchParams): BrowseParams {
 }
 
 export function AuctionListPage() {
+  const { user } = useAuth()
+  const { openSellModal } = useSellItemModal()
   const [searchParams, setSearchParams] = useSearchParams()
   const [items, setItems] = useState<AuctionListItem[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -70,6 +79,7 @@ export function AuctionListPage() {
   const [pageSize, setPageSize] = useState(DEFAULT_AUCTION_PAGE_SIZE)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [listRefreshToken, setListRefreshToken] = useState(0)
 
   useEffect(() => {
     setLoading(true)
@@ -88,7 +98,7 @@ export function AuctionListPage() {
         showErrorToast('Failed to load auctions', 'Please try again later.')
       })
       .finally(() => setLoading(false))
-  }, [searchParams])
+  }, [searchParams, listRefreshToken])
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
   const hasNext = page < totalPages
@@ -116,6 +126,23 @@ export function AuctionListPage() {
         </Box>
 
         <Box flex="1" w="100%">
+          {canCreateAuctions(user?.role) && (
+            <Flex justify="flex-end" mb={4}>
+              <Button
+                size="sm"
+                bg="brand.500"
+                color="white"
+                _hover={{ bg: 'brand.400' }}
+                onClick={() =>
+                  openSellModal({
+                    onAfterCreate: () => setListRefreshToken((t) => t + 1),
+                  })
+                }
+              >
+                Create Auction
+              </Button>
+            </Flex>
+          )}
           {error && (
             <Text color="red.400" mb={4}>
               {error}

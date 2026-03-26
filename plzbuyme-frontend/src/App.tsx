@@ -10,7 +10,7 @@ import { RegisterPage } from './pages/RegisterPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { AuctionListPage } from './pages/AuctionListPage'
 import { AuctionDetailPage } from './pages/AuctionDetailPage'
-import { CreateAuctionPage } from './pages/CreateAuctionPage'
+import { SellItemModalProvider } from './context/SellItemModalContext'
 import { MyAuctionsPage } from './pages/MyAuctionsPage'
 import { AlertsPage } from './pages/AlertsPage'
 import { NotificationsPage } from './pages/NotificationsPage'
@@ -29,7 +29,8 @@ function App() {
   }, [navigate])
 
   return (
-    <>
+    <SellItemModalProvider>
+      <>
       <Box
         filter={backgroundLocation ? 'blur(8px)' : undefined}
         pointerEvents={backgroundLocation ? 'none' : 'auto'}
@@ -41,14 +42,7 @@ function App() {
           <Route element={<Layout />}>
             <Route path="/" element={<HomePage />} />
             <Route path="/auctions" element={<AuctionListPage />} />
-            <Route
-              path="/auctions/create"
-              element={
-                <ProtectedRoute roles={['end_user', 'vip', 'customer_rep', 'admin']}>
-                  <CreateAuctionPage />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/auctions/create" element={<Navigate to="/auctions" replace />} />
             <Route path="/auctions/:id" element={<AuctionDetailPage />} />
             <Route
               path="/my-auctions"
@@ -127,7 +121,8 @@ function App() {
           <Route path="/auctions/:id" element={<AuctionDetailPage />} />
         </Routes>
       )}
-    </>
+      </>
+    </SellItemModalProvider>
   )
 }
 

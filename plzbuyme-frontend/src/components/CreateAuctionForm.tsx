@@ -2,19 +2,17 @@ import { useState, useEffect } from 'react'
 import {
   Box,
   Button,
-  Container,
   DatePicker,
   Flex,
-  Heading,
   Input,
   Portal,
   parseDate,
   SimpleGrid,
+  Stack,
   Text,
   Textarea,
 } from '@chakra-ui/react'
 import { LuCalendar } from 'react-icons/lu'
-import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../context/AuthContext'
 import { createAuction, type CreateAuctionDto } from '../api/auctions'
@@ -27,7 +25,11 @@ import {
 } from '../api/categories'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
-import { APP_PAGE_PX } from '../theme/layout'
+
+export interface CreateAuctionFormProps {
+  onCancel: () => void
+  onSuccess: (auctionId: number) => void
+}
 
 interface CreateFormValues {
   title: string
@@ -53,8 +55,7 @@ function formatLocalTime(date: Date): string {
   return `${hours}:${minutes}`
 }
 
-export function CreateAuctionPage() {
-  const navigate = useNavigate()
+export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProps) {
   const { user } = useAuth()
   const [categories, setCategories] = useState<CategoryDto[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
@@ -68,7 +69,6 @@ export function CreateAuctionPage() {
   const [closeTime, setCloseTime] = useState('')
 
   const [fieldDefs, setFieldDefs] = useState<CategoryFieldDto[]>([])
-  const [fieldsLoading, setFieldsLoading] = useState(false)
   const [fieldsError, setFieldsError] = useState<string | null>(null)
 
   const { register, handleSubmit, setValue } = useForm<CreateFormValues>({
@@ -124,7 +124,6 @@ export function CreateAuctionPage() {
     let isMounted = true
     const loadFields = async () => {
       try {
-        setFieldsLoading(true)
         setFieldsError(null)
         const res = await fetchCategoryFields(Number(categoryId))
         if (!isMounted) return
@@ -133,10 +132,6 @@ export function CreateAuctionPage() {
         if (!isMounted) return
         setFieldDefs([])
         setFieldsError('Failed to load category fields.')
-      } finally {
-        if (isMounted) {
-          setFieldsLoading(false)
-        }
       }
     }
     void loadFields()
@@ -167,11 +162,20 @@ export function CreateAuctionPage() {
     setValue('categoryId', value)
   }
 
+  const sectionLabelProps = {
+    fontSize: 'xs' as const,
+    fontWeight: 'semibold' as const,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.08em',
+    color: dark.muted,
+    mb: 3,
+  }
+
   if (!user) {
     return (
-      <Container maxW="container.md" px={APP_PAGE_PX}>
+      <Box py={2}>
         <Text color={dark.muted}>Please log in to create an auction.</Text>
-      </Container>
+      </Box>
     )
   }
 
@@ -227,7 +231,7 @@ export function CreateAuctionPage() {
         dto.imageStorageKey = imageKey
       }
       const res = await createAuction(dto)
-      navigate(`/auctions/${res.data.id}`)
+      onSuccess(res.data.id)
     } catch (err) {
       if (isAxiosError(err) && err.response?.data) {
         const msg =
@@ -249,73 +253,71 @@ export function CreateAuctionPage() {
   const minCloseTime = formatLocalTime(minClose)
 
   return (
-    <Container maxW="container.md" px={APP_PAGE_PX}>
-      <Heading size="lg" mb={6} color="white">
-        Create auction
-      </Heading>
-      <Box
-        as="form"
-        onSubmit={handleSubmit(onSubmit)}
-        bg={dark.cardBg}
-        borderWidth="1px"
-        borderColor={dark.borderSubtle}
-        borderRadius="md"
-        p={6}
-      >
-        {submitError && (
-          <Text color="red.400" mb={4}>
-            {submitError}
-          </Text>
-        )}
-        {categoriesError && (
-          <Text color="red.400" mb={4}>
-            {categoriesError}
-          </Text>
-        )}
+    <Stack
+      as="form"
+      noValidate
+      onSubmit={handleSubmit(onSubmit)}
+      gap={0}
+      width="100%"
+    >
+      {submitError && (
+        <Text color="red.400" mb={4}>
+          {submitError}
+        </Text>
+      )}
+      {categoriesError && (
+        <Text color="red.400" mb={4}>
+          {categoriesError}
+        </Text>
+      )}
 
-        <Box mb={4}>
-          <Text fontSize="sm" color={dark.muted} mb={1}>
-            Title *
-          </Text>
-          <Input
-            bg={dark.inputBg}
-            borderColor={dark.borderSubtle}
-            color="white"
-            _placeholder={{ color: dark.placeholder }}
-            placeholder="Item title"
-            {...register('title', { required: true })}
-          />
-        </Box>
-        <Box mb={4}>
-          <Text fontSize="sm" color={dark.muted} mb={1}>
-            Description
-          </Text>
-          <Textarea
-            bg={dark.inputBg}
-            borderColor={dark.borderSubtle}
-            color="white"
-            _placeholder={{ color: dark.placeholder }}
-            placeholder="Description"
-            rows={4}
-            {...register('description')}
-          />
-        </Box>
-        <Box mb={4}>
-          <Text fontSize="sm" color={dark.muted} mb={1}>
-            Item image
-          </Text>
-          <Input
-            type="file"
-            accept="image/*"
-            bg={dark.inputBg}
-            borderColor={dark.borderSubtle}
-            color={dark.muted}
-            onChange={(event) => {
-              const nextFile = event.target.files?.[0] ?? null
-              setSelectedImageFile(nextFile)
-            }}
-          />
-        </Box>
+      <Text {...sectionLabelProps}>Listing</Text>
+      <Box mb={6}>
+        <Text fontSize="sm" color={dark.muted} mb={1}>
+          Title *
+        </Text>
+        <Input
+          bg={dark.inputBg}
+          borderColor={dark.borderSubtle}
+          color="white"
+          _placeholder={{ color: dark.placeholder }}
+          placeholder="Item title"
+          {...register('title', { required: true })}
+        />
+      </Box>
+      <Box mb={4}>
+        <Text fontSize="sm" color={dark.muted} mb={1}>
+          Description
+        </Text>
+        <Textarea
+          bg={dark.inputBg}
+          borderColor={dark.borderSubtle}
+          color="white"
+          _placeholder={{ color: dark.placeholder }}
+          placeholder="Description"
+          rows={4}
+          {...register('description')}
+        />
+      </Box>
+      <Box mb={4}>
+        <Text fontSize="sm" color={dark.muted} mb={1}>
+          Item image
+        </Text>
+        <Input
+          type="file"
+          accept="image/*"
+          bg={dark.inputBg}
+          borderColor={dark.borderSubtle}
+          color={dark.muted}
+          onChange={(event) => {
+            const nextFile = event.target.files?.[0] ?? null
+            setSelectedImageFile(nextFile)
+          }}
+        />
+      </Box>
+
+      <Box borderTopWidth="1px" borderColor={dark.borderSubtle} pt={6} mb={6}>
+        <Text {...sectionLabelProps}>Category</Text>
         <Box mb={4}>
           <Text fontSize="sm" color={dark.muted} mb={1}>
             Category *
@@ -341,7 +343,6 @@ export function CreateAuctionPage() {
             ))}
           </select>
         </Box>
-
         <Box mb={4}>
           <Text fontSize="sm" color={dark.muted} mb={1}>
             Subcategory *
@@ -380,8 +381,8 @@ export function CreateAuctionPage() {
         )}
 
         {fieldDefs.length > 0 && (
-          <Box mb={4}>
-            <Text fontSize="sm" fontWeight="medium" color={dark.muted} mb={3}>
+          <Box mb={0}>
+            <Text fontSize="sm" color={dark.muted} mb={3}>
               Item details
             </Text>
             <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
@@ -425,21 +426,24 @@ export function CreateAuctionPage() {
             </SimpleGrid>
           </Box>
         )}
+      </Box>
 
-        <SimpleGrid columns={{ base: 1, md: 3 }} gap={4} mb={4}>
+      <Box borderTopWidth="1px" borderColor={dark.borderSubtle} pt={6} mb={6}>
+        <Text {...sectionLabelProps}>Pricing</Text>
+        <SimpleGrid columns={{ base: 1, md: 3 }} gap={4}>
           <Box>
-            <Text fontSize="sm" color={dark.muted} mb={1}>
-              Initial price *
-            </Text>
-            <Input
-              type="number"
-              min={0}
-              step={0.01}
-              bg={dark.inputBg}
-              borderColor={dark.borderSubtle}
-              color="white"
-              {...register('initialPrice', { required: true })}
-            />
+          <Text fontSize="sm" color={dark.muted} mb={1}>
+            Initial price *
+          </Text>
+          <Input
+            type="number"
+            min={0}
+            step={0.01}
+            bg={dark.inputBg}
+            borderColor={dark.borderSubtle}
+            color="white"
+            {...register('initialPrice', { required: true })}
+          />
           </Box>
           <Box>
             <Text fontSize="sm" color={dark.muted} mb={1}>
@@ -470,141 +474,143 @@ export function CreateAuctionPage() {
             />
           </Box>
         </SimpleGrid>
-        <Box mb={6}>
-          <Text fontSize="sm" color={dark.muted} mb={1}>
-            Closing date & time *
-          </Text>
-          <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
-            <DatePicker.Root
-              name="closeDate"
-              colorPalette="brand"
-              value={closeDate ? [parseDate(closeDate)] : []}
-              onValueChange={(details) => {
-                const selected = details.value[0]
-                setCloseDate(selected ? selected.toString() : '')
-              }}
-            >
-              <DatePicker.Control>
-                <DatePicker.Input
-                  bg={dark.inputBg}
+      </Box>
+
+      <Box borderTopWidth="1px" borderColor={dark.borderSubtle} pt={6} mb={6}>
+        <Text {...sectionLabelProps}>Auction end</Text>
+        <Text fontSize="sm" color={dark.muted} mb={1}>
+          Closing date & time *
+        </Text>
+        <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
+          <DatePicker.Root
+            name="closeDate"
+            colorPalette="brand"
+            value={closeDate ? [parseDate(closeDate)] : []}
+            onValueChange={(details) => {
+              const selected = details.value[0]
+              setCloseDate(selected ? selected.toString() : '')
+            }}
+          >
+            <DatePicker.Control>
+              <DatePicker.Input
+                bg={dark.inputBg}
+                borderColor={dark.borderSubtle}
+                color="white"
+                _placeholder={{ color: dark.placeholder }}
+                _focusVisible={{
+                  borderColor: 'brand.500',
+                  boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)',
+                }}
+                placeholder="Select date"
+              />
+              <DatePicker.IndicatorGroup>
+                <DatePicker.Trigger
+                  color={dark.muted}
+                  _hover={{ color: 'white', bg: 'whiteAlpha.100' }}
+                  _focusVisible={{ boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)' }}
+                >
+                  <LuCalendar />
+                </DatePicker.Trigger>
+              </DatePicker.IndicatorGroup>
+            </DatePicker.Control>
+            <Portal>
+              <DatePicker.Positioner zIndex={2800}>
+                <DatePicker.Content
+                  bg={dark.cardBg}
+                  borderWidth="1px"
                   borderColor={dark.borderSubtle}
                   color="white"
-                  _placeholder={{ color: dark.placeholder }}
-                  _focusVisible={{
-                    borderColor: 'brand.500',
-                    boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)',
-                  }}
-                  placeholder="Select date"
-                />
-                <DatePicker.IndicatorGroup>
-                  <DatePicker.Trigger
-                    color={dark.muted}
-                    _hover={{ color: 'white', bg: 'whiteAlpha.100' }}
-                    _focusVisible={{ boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)' }}
-                  >
-                    <LuCalendar />
-                  </DatePicker.Trigger>
-                </DatePicker.IndicatorGroup>
-              </DatePicker.Control>
-              <Portal>
-                <DatePicker.Positioner zIndex={1700}>
-                  <DatePicker.Content
-                    bg={dark.cardBg}
-                    borderWidth="1px"
-                    borderColor={dark.borderSubtle}
-                    color="white"
-                    boxShadow="xl"
-                    css={{
-                      '& [data-part="table-cell-trigger"]': {
+                  boxShadow="xl"
+                  css={{
+                    '& [data-part="table-cell-trigger"]': {
+                      color: 'white',
+                      borderRadius: '0.375rem',
+                    },
+                    '& [data-part="table-cell-trigger"]:hover': {
+                      background: 'rgba(255, 255, 255, 0.08)',
+                    },
+                    '& [data-part="table-cell-trigger"][data-selected]': {
+                      background: 'var(--chakra-colors-brand-500)',
+                      color: 'white',
+                    },
+                    '& [data-part="table-cell-trigger"][data-today]': {
+                      borderColor: 'var(--chakra-colors-brand-500)',
+                    },
+                    '& [data-part="next-trigger"], & [data-part="prev-trigger"], & [data-part="view-trigger"]':
+                      {
                         color: 'white',
                         borderRadius: '0.375rem',
                       },
-                      '& [data-part="table-cell-trigger"]:hover': {
+                    '& [data-part="next-trigger"]:hover, & [data-part="prev-trigger"]:hover, & [data-part="view-trigger"]:hover':
+                      {
                         background: 'rgba(255, 255, 255, 0.08)',
                       },
-                      '& [data-part="table-cell-trigger"][data-selected]': {
-                        background: 'var(--chakra-colors-brand-500)',
-                        color: 'white',
-                      },
-                      '& [data-part="table-cell-trigger"][data-today]': {
-                        borderColor: 'var(--chakra-colors-brand-500)',
-                      },
-                      '& [data-part="next-trigger"], & [data-part="prev-trigger"], & [data-part="view-trigger"]':
-                        {
-                          color: 'white',
-                          borderRadius: '0.375rem',
-                        },
-                      '& [data-part="next-trigger"]:hover, & [data-part="prev-trigger"]:hover, & [data-part="view-trigger"]:hover':
-                        {
-                          background: 'rgba(255, 255, 255, 0.08)',
-                        },
-                      '& [data-part="month-select"], & [data-part="year-select"]': {
-                        background: dark.inputBg,
-                        color: 'white',
-                        borderColor: dark.borderSubtle,
-                        borderRadius: '0.375rem',
-                      },
-                      '& [data-part="table-header"]': {
-                        color: dark.muted,
-                      },
-                    }}
-                  >
-                    <DatePicker.View view="day">
-                      <DatePicker.Header />
-                      <DatePicker.DayTable />
-                    </DatePicker.View>
-                    <DatePicker.View view="month">
-                      <DatePicker.Header />
-                      <DatePicker.MonthTable />
-                    </DatePicker.View>
-                    <DatePicker.View view="year">
-                      <DatePicker.Header />
-                      <DatePicker.YearTable />
-                    </DatePicker.View>
-                  </DatePicker.Content>
-                </DatePicker.Positioner>
-              </Portal>
-            </DatePicker.Root>
-            <Input
-              type="time"
-              value={closeTime}
-              min={closeDate === minCloseDate ? minCloseTime : undefined}
-              onChange={(event) => setCloseTime(event.target.value)}
-              bg={dark.inputBg}
-              borderColor={dark.borderSubtle}
-              color="white"
-              _placeholder={{ color: dark.placeholder }}
-              _focusVisible={{
-                borderColor: 'brand.500',
-                boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)',
-              }}
-            />
-          </SimpleGrid>
-          <Input type="hidden" {...register('closeDateTime', { required: true })} />
-        </Box>
-
-        <Flex gap={3} justify="flex-end">
-          <Button
-            type="button"
-            variant="outline"
+                    '& [data-part="month-select"], & [data-part="year-select"]': {
+                      background: dark.inputBg,
+                      color: 'white',
+                      borderColor: dark.borderSubtle,
+                      borderRadius: '0.375rem',
+                    },
+                    '& [data-part="table-header"]': {
+                      color: dark.muted,
+                    },
+                  }}
+                >
+                  <DatePicker.View view="day">
+                    <DatePicker.Header />
+                    <DatePicker.DayTable />
+                  </DatePicker.View>
+                  <DatePicker.View view="month">
+                    <DatePicker.Header />
+                    <DatePicker.MonthTable />
+                  </DatePicker.View>
+                  <DatePicker.View view="year">
+                    <DatePicker.Header />
+                    <DatePicker.YearTable />
+                  </DatePicker.View>
+                </DatePicker.Content>
+              </DatePicker.Positioner>
+            </Portal>
+          </DatePicker.Root>
+          <Input
+            type="time"
+            value={closeTime}
+            min={closeDate === minCloseDate ? minCloseTime : undefined}
+            onChange={(event) => setCloseTime(event.target.value)}
+            bg={dark.inputBg}
             borderColor={dark.borderSubtle}
             color="white"
-            _hover={{ bg: 'whiteAlpha.100' }}
-            onClick={() => navigate('/auctions')}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            bg="brand.500"
-            color="white"
-            _hover={{ bg: 'brand.400' }}
-            isLoading={submitting}
-          >
-            Create auction
-          </Button>
-        </Flex>
+            _placeholder={{ color: dark.placeholder }}
+            _focusVisible={{
+              borderColor: 'brand.500',
+              boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)',
+            }}
+          />
+        </SimpleGrid>
+        <Input type="hidden" {...register('closeDateTime', { required: true })} />
       </Box>
-    </Container>
+
+      <Flex gap={3} justify="flex-end" flexWrap="wrap" pt={2}>
+        <Button
+          type="button"
+          variant="outline"
+          borderColor={dark.borderSubtle}
+          color="white"
+          _hover={{ bg: 'whiteAlpha.100' }}
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          bg="brand.500"
+          color="white"
+          _hover={{ bg: 'brand.400' }}
+          loading={submitting}
+        >
+          Create Auction
+        </Button>
+      </Flex>
+    </Stack>
   )
 }
