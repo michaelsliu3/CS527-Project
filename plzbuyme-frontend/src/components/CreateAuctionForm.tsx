@@ -5,6 +5,7 @@ import {
   DatePicker,
   Flex,
   Input,
+  Popover,
   Portal,
   parseDate,
   SimpleGrid,
@@ -12,7 +13,7 @@ import {
   Text,
   Textarea,
 } from '@chakra-ui/react'
-import { LuCalendar } from 'react-icons/lu'
+import { LuCalendar, LuClock } from 'react-icons/lu'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../context/AuthContext'
 import { createAuction, type CreateAuctionDto } from '../api/auctions'
@@ -53,6 +54,451 @@ function formatLocalTime(date: Date): string {
   const hours = String(date.getHours()).padStart(2, '0')
   const minutes = String(date.getMinutes()).padStart(2, '0')
   return `${hours}:${minutes}`
+}
+
+function parseHHMM(s: string): { h: number; m: number } | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(s)
+  if (!match) return null
+  const h = Number(match[1])
+  const m = Number(match[2])
+  if (h > 23 || m > 59) return null
+  return { h, m }
+}
+
+function formatTimeDisplay(hhmm: string): string {
+  const parsed = parseHHMM(hhmm)
+  if (!parsed) return hhmm
+  const d = new Date()
+  d.setHours(parsed.h, parsed.m, 0, 0)
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
+
+/** 12-hour clock face order (12, 1, …, 11). */
+const HOURS_12 = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] as const
+
+function to24From12Hour(hour12: number, isPm: boolean): number {
+  if (hour12 === 12) return isPm ? 12 : 0
+  return isPm ? hour12 + 12 : hour12
+}
+
+function from24To12Hour(h24: number): { hour12: number; isPm: boolean } {
+  const isPm = h24 >= 12
+  const hour12 = h24 % 12 === 0 ? 12 : h24 % 12
+  return { hour12, isPm }
+}
+
+function isHourDisabled(
+  closeDate: string,
+  hour: number,
+  minCloseDate: string,
+  minCloseTime: string
+): boolean {
+  if (!closeDate || closeDate !== minCloseDate) return false
+  const t = parseHHMM(minCloseTime)
+  if (!t) return false
+  return hour < t.h
+}
+
+function isMinuteDisabled(
+  closeDate: string,
+  hour: number,
+  minute: number,
+  minCloseDate: string,
+  minCloseTime: string
+): boolean {
+  if (!closeDate || closeDate !== minCloseDate) return false
+  const t = parseHHMM(minCloseTime)
+  if (!t) return false
+  return hour < t.h || (hour === t.h && minute < t.m)
+}
+
+function isHour12SlotDisabled(
+  closeDate: string,
+  hour12: number,
+  minCloseDate: string,
+  minCloseTime: string
+): boolean {
+  const hAm = to24From12Hour(hour12, false)
+  const hPm = to24From12Hour(hour12, true)
+  return (
+    isHourDisabled(closeDate, hAm, minCloseDate, minCloseTime) &&
+    isHourDisabled(closeDate, hPm, minCloseDate, minCloseTime)
+  )
+}
+
+const MINUTES = Array.from({ length: 60 }, (_, i) => i)
+
+type TimePick = {
+  hour12: number | null
+  isPm: boolean | null
+  minute: number | null
+}
+
+function emptyTimePick(): TimePick {
+  return { hour12: null, isPm: null, minute: null }
+}
+
+function timePickFromValue(value: string): TimePick {
+  const p = parseHHMM(value)
+  if (!p) return emptyTimePick()
+  const { hour12, isPm } = from24To12Hour(p.h)
+  return { hour12, isPm, minute: p.m }
+}
+
+/** Defaults for unset fields: 12 o’clock, AM, :00 — works for partial picks in any order. */
+function resolvePickDefaults(p: TimePick): { hour12: number; isPm: boolean; minute: number } {
+  return {
+    hour12: p.hour12 ?? 12,
+    isPm: p.isPm ?? false,
+    minute: p.minute ?? 0,
+  }
+}
+
+function clampToMinimumClose(
+  closeDate: string,
+  minCloseDate: string,
+  minCloseTime: string,
+  hour12: number,
+  isPm: boolean,
+  minute: number
+): { hour12: number; isPm: boolean; minute: number } {
+  if (closeDate !== minCloseDate) return { hour12, isPm, minute }
+  const t = parseHHMM(minCloseTime)
+  if (!t) return { hour12, isPm, minute }
+  const h24 = to24From12Hour(hour12, isPm)
+  if (h24 < t.h || (h24 === t.h && minute < t.m)) {
+    const { hour12: h12, isPm: pm } = from24To12Hour(t.h)
+    return { hour12: h12, isPm: pm, minute: t.m }
+  }
+  return { hour12, isPm, minute }
+}
+
+interface AuctionEndTimePickerProps {
+  closeDate: string
+  value: string
+  onChange: (next: string) => void
+  minCloseDate: string
+  minCloseTime: string
+}
+
+function AuctionEndTimePicker({
+  closeDate,
+  value,
+  onChange,
+  minCloseDate,
+  minCloseTime,
+}: AuctionEndTimePickerProps) {
+  const [open, setOpen] = useState(false)
+  const [pick, setPick] = useState<TimePick>(() => timePickFromValue(value))
+
+  useEffect(() => {
+    setPick(timePickFromValue(value))
+  }, [value])
+
+  const emitTime = (hour12: number, isPm: boolean, minute: number) => {
+    const clamped = clampToMinimumClose(closeDate, minCloseDate, minCloseTime, hour12, isPm, minute)
+    const h24 = to24From12Hour(clamped.hour12, clamped.isPm)
+    setPick({
+      hour12: clamped.hour12,
+      isPm: clamped.isPm,
+      minute: clamped.minute,
+    })
+    onChange(`${pad2(h24)}:${pad2(clamped.minute)}`)
+  }
+
+  const handleHour12Select = (hour12: number) => {
+    if (isHour12SlotDisabled(closeDate, hour12, minCloseDate, minCloseTime)) return
+
+    const hAm = to24From12Hour(hour12, false)
+    const hPm = to24From12Hour(hour12, true)
+    const amOk = !isHourDisabled(closeDate, hAm, minCloseDate, minCloseTime)
+    const pmOk = !isHourDisabled(closeDate, hPm, minCloseDate, minCloseTime)
+
+    let h24: number
+    if (amOk && pmOk) {
+      if (pick.isPm === true) h24 = hPm
+      else if (pick.isPm === false) h24 = hAm
+      else {
+        const p = parseHHMM(value)
+        const preferPm = p != null && p.h >= 12
+        h24 = preferPm ? hPm : hAm
+      }
+    } else if (pmOk) {
+      h24 = hPm
+    } else if (amOk) {
+      h24 = hAm
+    } else {
+      return
+    }
+
+    const { hour12: h12, isPm } = from24To12Hour(h24)
+    const baseMinute = pick.minute ?? 0
+    let minute = baseMinute
+    if (isMinuteDisabled(closeDate, h24, minute, minCloseDate, minCloseTime)) {
+      const t = parseHHMM(minCloseTime)
+      minute = t && h24 === t.h ? t.m : 0
+    }
+    emitTime(h12, isPm, minute)
+  }
+
+  const handleMeridiemSelect = (isPm: boolean) => {
+    const d = resolvePickDefaults({ ...pick, isPm })
+    const h24 = to24From12Hour(d.hour12, d.isPm)
+    if (isHourDisabled(closeDate, h24, minCloseDate, minCloseTime)) return
+    let minute = d.minute
+    if (isMinuteDisabled(closeDate, h24, minute, minCloseDate, minCloseTime)) {
+      const t = parseHHMM(minCloseTime)
+      minute = t && h24 === t.h ? t.m : 0
+    }
+    emitTime(d.hour12, isPm, minute)
+  }
+
+  const handleMinuteSelect = (minute: number) => {
+    const d = resolvePickDefaults({ ...pick, minute })
+    const h24 = to24From12Hour(d.hour12, d.isPm)
+    if (isMinuteDisabled(closeDate, h24, minute, minCloseDate, minCloseTime)) return
+    emitTime(d.hour12, d.isPm, minute)
+    setOpen(false)
+  }
+
+  const defaults = resolvePickDefaults(pick)
+  const effectiveH24 = to24From12Hour(defaults.hour12, defaults.isPm)
+
+  const timeCellSx = {
+    minW: '2.5rem',
+    h: '2.25rem',
+    borderRadius: 'md',
+    fontSize: 'sm',
+    fontVariantNumeric: 'tabular-nums' as const,
+  }
+
+  return (
+    <Popover.Root
+      lazyMount
+      unmountOnExit
+      open={open}
+      onOpenChange={(e) => setOpen(e.open)}
+      positioning={{ placement: 'bottom-start' }}
+    >
+      <Popover.Trigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          aria-label="Choose closing time"
+          display="flex"
+          w="full"
+          h="auto"
+          minH="10"
+          alignItems="stretch"
+          justifyContent="flex-start"
+          gap={0}
+          px={0}
+          py={0}
+          borderRadius="md"
+          borderWidth="1px"
+          borderColor={dark.borderSubtle}
+          bg={dark.inputBg}
+          color="inherit"
+          overflow="hidden"
+          textAlign="left"
+          fontWeight="normal"
+          colorPalette="brand"
+          _hover={{ bg: dark.inputBg }}
+          _active={{ bg: dark.inputBg }}
+          _focusVisible={{
+            borderColor: 'brand.500',
+            boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)',
+          }}
+        >
+          <Text
+            flex="1"
+            px={3}
+            py={2}
+            fontSize="sm"
+            lineHeight="1.25rem"
+            color={value ? 'white' : dark.placeholder}
+            minW={0}
+            truncate
+          >
+            {value ? formatTimeDisplay(value) : 'Select time'}
+          </Text>
+          <Flex
+            align="center"
+            justify="center"
+            w="10"
+            flexShrink={0}
+            borderLeftWidth="1px"
+            borderColor={dark.borderSubtle}
+            color={dark.muted}
+            _hover={{ color: 'white', bg: 'whiteAlpha.100' }}
+          >
+            <LuClock size={18} />
+          </Flex>
+        </Button>
+      </Popover.Trigger>
+      <Portal>
+        <Popover.Positioner zIndex={2800}>
+          <Popover.Content
+            bg={dark.cardBg}
+            borderWidth="1px"
+            borderColor={dark.borderSubtle}
+            color="white"
+            boxShadow="xl"
+            p={3}
+            w="min-content"
+          >
+            <Text fontSize="xs" fontWeight="semibold" color={dark.muted} mb={2} letterSpacing="0.06em">
+              Closing time
+            </Text>
+            <Flex gap={3} maxH="240px">
+              <Box minW="0">
+                <Text fontSize="xs" color={dark.muted} mb={1.5}>
+                  Hour
+                </Text>
+                <Box maxH="200px" overflowY="auto" pr={1} css={{ scrollbarGutter: 'stable' }}>
+                  <Flex direction="column" gap={1}>
+                    {HOURS_12.map((hour12) => {
+                      const disabled = isHour12SlotDisabled(
+                        closeDate,
+                        hour12,
+                        minCloseDate,
+                        minCloseTime
+                      )
+                      const selected = pick.hour12 === hour12
+                      return (
+                        <Button
+                          key={hour12}
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={disabled}
+                          aria-label={`Closing hour ${hour12}`}
+                          onClick={() => handleHour12Select(hour12)}
+                          justifyContent="center"
+                          {...timeCellSx}
+                          bg={selected ? 'brand.500' : 'transparent'}
+                          color={selected ? 'white' : 'white'}
+                          opacity={disabled ? 0.35 : 1}
+                          cursor={disabled ? 'not-allowed' : 'pointer'}
+                          _hover={
+                            disabled
+                              ? undefined
+                              : {
+                                  bg: selected ? 'brand.400' : 'rgba(255, 255, 255, 0.08)',
+                                }
+                          }
+                        >
+                          {hour12}
+                        </Button>
+                      )
+                    })}
+                  </Flex>
+                </Box>
+              </Box>
+              <Box minW="0">
+                <Text fontSize="xs" color={dark.muted} mb={1.5}>
+                  Minute
+                </Text>
+                <Box maxH="200px" overflowY="auto" pr={1} css={{ scrollbarGutter: 'stable' }}>
+                  <Flex direction="column" gap={1}>
+                    {MINUTES.map((minute) => {
+                      const disabled = isMinuteDisabled(
+                        closeDate,
+                        effectiveH24,
+                        minute,
+                        minCloseDate,
+                        minCloseTime
+                      )
+                      const selected = pick.minute === minute
+                      return (
+                        <Button
+                          key={minute}
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={disabled}
+                          aria-label={`Closing minute ${pad2(minute)}`}
+                          onClick={() => handleMinuteSelect(minute)}
+                          justifyContent="center"
+                          {...timeCellSx}
+                          bg={selected ? 'brand.500' : 'transparent'}
+                          color="white"
+                          opacity={disabled ? 0.35 : 1}
+                          cursor={disabled ? 'not-allowed' : 'pointer'}
+                          _hover={
+                            disabled
+                              ? undefined
+                              : {
+                                  bg: selected ? 'brand.400' : 'rgba(255, 255, 255, 0.08)',
+                                }
+                          }
+                        >
+                          {pad2(minute)}
+                        </Button>
+                      )
+                    })}
+                  </Flex>
+                </Box>
+              </Box>
+              <Box minW="0">
+                <Text fontSize="xs" color={dark.muted} mb={1.5}>
+                  AM / PM
+                </Text>
+                <Flex direction="column" gap={1}>
+                  {(
+                    [
+                      { label: 'AM', isPm: false },
+                      { label: 'PM', isPm: true },
+                    ] as const
+                  ).map(({ label, isPm }) => {
+                    const h24ForPeriod = to24From12Hour(defaults.hour12, isPm)
+                    const disabledMeridiem = isHourDisabled(
+                      closeDate,
+                      h24ForPeriod,
+                      minCloseDate,
+                      minCloseTime
+                    )
+                    const selected = pick.isPm !== null && pick.isPm === isPm
+                    return (
+                      <Button
+                        key={label}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={disabledMeridiem}
+                        aria-label={`Closing time ${label}`}
+                        onClick={() => handleMeridiemSelect(isPm)}
+                        justifyContent="center"
+                        {...timeCellSx}
+                        minW="3.25rem"
+                        bg={selected ? 'brand.500' : 'transparent'}
+                        color="white"
+                        opacity={disabledMeridiem ? 0.35 : 1}
+                        cursor={disabledMeridiem ? 'not-allowed' : 'pointer'}
+                        _hover={
+                          disabledMeridiem
+                            ? undefined
+                            : {
+                                bg: selected ? 'brand.400' : 'rgba(255, 255, 255, 0.08)',
+                              }
+                        }
+                      >
+                        {label}
+                      </Button>
+                    )
+                  })}
+                </Flex>
+              </Box>
+            </Flex>
+          </Popover.Content>
+        </Popover.Positioner>
+      </Portal>
+    </Popover.Root>
+  )
 }
 
 export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProps) {
@@ -485,6 +931,8 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
           <DatePicker.Root
             name="closeDate"
             colorPalette="brand"
+            positioning={{ placement: 'bottom-start' }}
+            openOnClick
             value={closeDate ? [parseDate(closeDate)] : []}
             onValueChange={(details) => {
               const selected = details.value[0]
@@ -572,19 +1020,12 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
               </DatePicker.Positioner>
             </Portal>
           </DatePicker.Root>
-          <Input
-            type="time"
+          <AuctionEndTimePicker
+            closeDate={closeDate}
             value={closeTime}
-            min={closeDate === minCloseDate ? minCloseTime : undefined}
-            onChange={(event) => setCloseTime(event.target.value)}
-            bg={dark.inputBg}
-            borderColor={dark.borderSubtle}
-            color="white"
-            _placeholder={{ color: dark.placeholder }}
-            _focusVisible={{
-              borderColor: 'brand.500',
-              boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)',
-            }}
+            onChange={setCloseTime}
+            minCloseDate={minCloseDate}
+            minCloseTime={minCloseTime}
           />
         </SimpleGrid>
         <Input type="hidden" {...register('closeDateTime', { required: true })} />

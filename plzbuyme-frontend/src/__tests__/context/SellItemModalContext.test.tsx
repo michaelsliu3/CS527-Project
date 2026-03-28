@@ -131,8 +131,17 @@ describe('SellItemModalContext', () => {
     const m = String(future.getMonth() + 1).padStart(2, '0')
     const d = String(future.getDate()).padStart(2, '0')
     await user.type(within(dialog).getByPlaceholderText('Select date'), `${y}-${m}-${d}`)
-    const timeInput = dialog.querySelector('input[type="time"]') as HTMLInputElement
-    await user.type(timeInput, '12:00')
+    // Close the date grid so it does not steal clicks from the time popover (openOnClick keeps it open while typing).
+    await user.click(within(dialog).getByRole('button', { name: /close calendar/i }))
+
+    await user.click(screen.getByRole('button', { name: /choose closing time/i }))
+    const timeHeading = await screen.findByText('Closing time')
+    const timePopoverContent = timeHeading.closest('[data-part="content"]')
+    expect(timePopoverContent).toBeTruthy()
+    const inTimePopover = within(timePopoverContent as HTMLElement)
+    await user.click(inTimePopover.getByRole('button', { name: /closing hour 12/i }))
+    await user.click(inTimePopover.getByRole('button', { name: /closing time pm/i }))
+    await user.click(inTimePopover.getByRole('button', { name: /closing minute 00/i }))
 
     await user.click(within(dialog).getByRole('button', { name: /^Create Auction$/i }))
 
