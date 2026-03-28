@@ -1,10 +1,14 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using PlzBuyMe.Api.Data;
 
 #nullable disable
 
 namespace PlzBuyMe.Api.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260322120000_AddUserAvatarUrl")]
     public partial class AddUserAvatarUrl : Migration
     {
         /// <inheritdoc />
