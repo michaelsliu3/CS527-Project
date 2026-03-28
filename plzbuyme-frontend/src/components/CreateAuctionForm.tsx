@@ -13,7 +13,7 @@ import {
   Text,
   Textarea,
 } from '@chakra-ui/react'
-import { LuCalendar, LuClock } from 'react-icons/lu'
+import { LuCalendar, LuClock, LuTimer } from 'react-icons/lu'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../context/AuthContext'
 import { createAuction, type CreateAuctionDto } from '../api/auctions'
@@ -131,6 +131,250 @@ function isHour12SlotDisabled(
 }
 
 const MINUTES = Array.from({ length: 60 }, (_, i) => i)
+
+const MS_PER_HOUR = 60 * 60 * 1000
+const MS_PER_DAY = 24 * MS_PER_HOUR
+const MS_PER_WEEK = 7 * MS_PER_DAY
+
+type QuickDurationUnit = 'hours' | 'days' | 'weeks'
+
+const MAX_QUICK_AMOUNT = 30
+const QUICK_AMOUNTS = Array.from({ length: MAX_QUICK_AMOUNT }, (_, i) => i + 1)
+
+function parseQuickDurationMs(amountStr: string, unit: QuickDurationUnit): number | null {
+  const n = Number(String(amountStr).trim())
+  if (!Number.isFinite(n) || n < 1 || n > MAX_QUICK_AMOUNT || n !== Math.floor(n)) return null
+  const ms =
+    unit === 'hours'
+      ? n * MS_PER_HOUR
+      : unit === 'days'
+        ? n * MS_PER_DAY
+        : n * MS_PER_WEEK
+  if (!Number.isFinite(ms)) return null
+  return ms
+}
+
+function formatQuickDurationTrigger(amountStr: string, unit: QuickDurationUnit): string {
+  const n = Number(String(amountStr).trim())
+  if (!Number.isFinite(n) || n < 1 || n > MAX_QUICK_AMOUNT || n !== Math.floor(n)) return ''
+  const unitLabel =
+    unit === 'hours'
+      ? n === 1
+        ? 'hour'
+        : 'hours'
+      : unit === 'days'
+        ? n === 1
+          ? 'day'
+          : 'days'
+        : n === 1
+          ? 'week'
+          : 'weeks'
+  return `${n} ${unitLabel}`
+}
+
+function quickAmountColumnTitle(unit: QuickDurationUnit): string {
+  if (unit === 'hours') return 'Hours'
+  if (unit === 'days') return 'Days'
+  return 'Weeks'
+}
+
+function quickUnitAriaWord(unit: QuickDurationUnit): string {
+  if (unit === 'hours') return 'hours'
+  if (unit === 'days') return 'days'
+  return 'weeks'
+}
+
+interface AuctionDurationPickerProps {
+  amount: string
+  unit: QuickDurationUnit
+  onChange: (amount: string, unit: QuickDurationUnit) => void
+}
+
+function AuctionDurationPicker({ amount, unit, onChange }: AuctionDurationPickerProps) {
+  const [open, setOpen] = useState(false)
+
+  const durationCellSx = {
+    minW: '2.5rem',
+    h: '2.25rem',
+    borderRadius: 'md',
+    fontSize: 'sm',
+    fontVariantNumeric: 'tabular-nums' as const,
+  }
+
+  const amounts = QUICK_AMOUNTS
+  const parsedN = Number(String(amount).trim())
+  const currentAmount =
+    Number.isFinite(parsedN) && parsedN >= 1 && parsedN <= MAX_QUICK_AMOUNT && parsedN === Math.floor(parsedN)
+      ? parsedN
+      : null
+
+  const handleUnitSelect = (nextUnit: QuickDurationUnit) => {
+    const cur = Number(String(amount).trim())
+    const base = Number.isFinite(cur) && cur > 0 ? Math.floor(cur) : 1
+    const clamped = Math.min(MAX_QUICK_AMOUNT, Math.max(1, base))
+    onChange(String(clamped), nextUnit)
+  }
+
+  const handleAmountSelect = (a: number) => {
+    onChange(String(a), unit)
+    setOpen(false)
+  }
+
+  const label = formatQuickDurationTrigger(amount, unit)
+
+  return (
+    <Popover.Root
+      lazyMount
+      unmountOnExit
+      open={open}
+      onOpenChange={(e) => setOpen(e.open)}
+      positioning={{ placement: 'bottom-start' }}
+    >
+      <Popover.Trigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          aria-label="Choose auction length"
+          display="flex"
+          w="full"
+          h="auto"
+          minH="10"
+          alignItems="stretch"
+          justifyContent="flex-start"
+          gap={0}
+          px={0}
+          py={0}
+          borderRadius="md"
+          borderWidth="1px"
+          borderColor={dark.borderSubtle}
+          bg={dark.inputBg}
+          color="inherit"
+          overflow="hidden"
+          textAlign="left"
+          fontWeight="normal"
+          colorPalette="brand"
+          _hover={{ bg: dark.inputBg }}
+          _active={{ bg: dark.inputBg }}
+          _focusVisible={{
+            borderColor: 'brand.500',
+            boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)',
+          }}
+        >
+          <Text
+            flex="1"
+            px={3}
+            py={2}
+            fontSize="sm"
+            lineHeight="1.25rem"
+            color={label ? 'white' : dark.placeholder}
+            minW={0}
+            truncate
+          >
+            {label || 'Select length'}
+          </Text>
+          <Flex
+            align="center"
+            justify="center"
+            w="10"
+            flexShrink={0}
+            borderLeftWidth="1px"
+            borderColor={dark.borderSubtle}
+            color={dark.muted}
+            _hover={{ color: 'white', bg: 'whiteAlpha.100' }}
+          >
+            <LuTimer size={18} />
+          </Flex>
+        </Button>
+      </Popover.Trigger>
+      <Portal>
+        <Popover.Positioner zIndex={2800}>
+          <Popover.Content
+            bg={dark.cardBg}
+            borderWidth="1px"
+            borderColor={dark.borderSubtle}
+            color="white"
+            boxShadow="xl"
+            p={3}
+            w="min-content"
+          >
+            <Text fontSize="xs" fontWeight="semibold" color={dark.muted} mb={2} letterSpacing="0.06em">
+              Auction length
+            </Text>
+            <Flex gap={3} maxH="240px">
+              <Box minW="0">
+                <Text fontSize="xs" color={dark.muted} mb={1.5}>
+                  {quickAmountColumnTitle(unit)}
+                </Text>
+                <Box maxH="200px" overflowY="auto" pr={1} css={{ scrollbarGutter: 'stable' }}>
+                  <Flex direction="column" gap={1}>
+                    {amounts.map((a) => {
+                      const selected = currentAmount === a
+                      return (
+                        <Button
+                          key={a}
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={`${a} ${quickUnitAriaWord(unit)}`}
+                          onClick={() => handleAmountSelect(a)}
+                          justifyContent="center"
+                          {...durationCellSx}
+                          bg={selected ? 'brand.500' : 'transparent'}
+                          color="white"
+                          _hover={{
+                            bg: selected ? 'brand.400' : 'rgba(255, 255, 255, 0.08)',
+                          }}
+                        >
+                          {a}
+                        </Button>
+                      )
+                    })}
+                  </Flex>
+                </Box>
+              </Box>
+              <Box minW="0">
+                <Text fontSize="xs" color={dark.muted} mb={1.5}>
+                  Unit
+                </Text>
+                <Flex direction="column" gap={1}>
+                  {(
+                    [
+                      { label: 'Hours', value: 'hours' as const },
+                      { label: 'Days', value: 'days' as const },
+                      { label: 'Weeks', value: 'weeks' as const },
+                    ] as const
+                  ).map(({ label: unitLabel, value: unitValue }) => {
+                    const selected = unit === unitValue
+                    return (
+                      <Button
+                        key={unitValue}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Length in ${unitLabel.toLowerCase()}`}
+                        onClick={() => handleUnitSelect(unitValue)}
+                        justifyContent="center"
+                        {...durationCellSx}
+                        minW="4.5rem"
+                        bg={selected ? 'brand.500' : 'transparent'}
+                        color="white"
+                        _hover={{
+                          bg: selected ? 'brand.400' : 'rgba(255, 255, 255, 0.08)',
+                        }}
+                      >
+                        {unitLabel}
+                      </Button>
+                    )
+                  })}
+                </Flex>
+              </Box>
+            </Flex>
+          </Popover.Content>
+        </Popover.Positioner>
+      </Portal>
+    </Popover.Root>
+  )
+}
 
 type TimePick = {
   hour12: number | null
@@ -511,6 +755,9 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
+  const [closeEndMode, setCloseEndMode] = useState<'quick' | 'custom'>('quick')
+  const [quickDurationAmount, setQuickDurationAmount] = useState('1')
+  const [quickDurationUnit, setQuickDurationUnit] = useState<QuickDurationUnit>('days')
   const [closeDate, setCloseDate] = useState('')
   const [closeTime, setCloseTime] = useState('')
 
@@ -530,12 +777,16 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
   })
 
   useEffect(() => {
+    if (closeEndMode !== 'custom') {
+      setValue('closeDateTime', '')
+      return
+    }
     if (!closeDate || !closeTime) {
       setValue('closeDateTime', '')
       return
     }
     setValue('closeDateTime', `${closeDate}T${closeTime}`, { shouldValidate: true })
-  }, [closeDate, closeTime, setValue])
+  }, [closeEndMode, closeDate, closeTime, setValue])
 
   useEffect(() => {
     let isMounted = true
@@ -634,14 +885,24 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
       setSubmitError('Please select a subcategory.')
       return
     }
-    if (!data.closeDateTime) {
-      setSubmitError('Please select a closing date and time.')
-      return
-    }
-    const closeAt = new Date(data.closeDateTime)
-    if (Number.isNaN(closeAt.getTime())) {
-      setSubmitError('Please select a valid closing date and time.')
-      return
+    let closeAt: Date
+    if (closeEndMode === 'quick') {
+      const quickMs = parseQuickDurationMs(quickDurationAmount, quickDurationUnit)
+      if (quickMs == null) {
+        setSubmitError('Choose an auction length from 1–30 hours, days, or weeks.')
+        return
+      }
+      closeAt = new Date(Date.now() + quickMs)
+    } else {
+      if (!data.closeDateTime) {
+        setSubmitError('Please select a closing date and time.')
+        return
+      }
+      closeAt = new Date(data.closeDateTime)
+      if (Number.isNaN(closeAt.getTime())) {
+        setSubmitError('Please select a valid closing date and time.')
+        return
+      }
     }
     const minAllowedCloseAt = new Date()
     minAllowedCloseAt.setMinutes(minAllowedCloseAt.getMinutes() + 1)
@@ -924,111 +1185,189 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
 
       <Box borderTopWidth="1px" borderColor={dark.borderSubtle} pt={6} mb={6}>
         <Text {...sectionLabelProps}>Auction end</Text>
-        <Text fontSize="sm" color={dark.muted} mb={1}>
-          Closing date & time *
-        </Text>
-        <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
-          <DatePicker.Root
-            name="closeDate"
-            colorPalette="brand"
-            positioning={{ placement: 'bottom-start' }}
-            openOnClick
-            value={closeDate ? [parseDate(closeDate)] : []}
-            onValueChange={(details) => {
-              const selected = details.value[0]
-              setCloseDate(selected ? selected.toString() : '')
+        <Flex gap={2} mb={4} flexWrap="wrap">
+          <Button
+            type="button"
+            flex="1"
+            minW="160px"
+            variant={closeEndMode === 'quick' ? 'solid' : 'outline'}
+            bg={closeEndMode === 'quick' ? 'brand.500' : undefined}
+            color="white"
+            borderColor={dark.borderSubtle}
+            _hover={
+              closeEndMode === 'quick'
+                ? { bg: 'brand.400' }
+                : { bg: 'whiteAlpha.100' }
+            }
+            onClick={() => setCloseEndMode('quick')}
+          >
+            Ends after…
+          </Button>
+          <Button
+            type="button"
+            flex="1"
+            minW="160px"
+            variant={closeEndMode === 'custom' ? 'solid' : 'outline'}
+            bg={closeEndMode === 'custom' ? 'brand.500' : undefined}
+            color="white"
+            borderColor={dark.borderSubtle}
+            _hover={
+              closeEndMode === 'custom'
+                ? { bg: 'brand.400' }
+                : { bg: 'whiteAlpha.100' }
+            }
+            onClick={() => {
+              if (closeEndMode === 'custom') return
+              setCloseEndMode('custom')
+              const quickMs = parseQuickDurationMs(quickDurationAmount, quickDurationUnit)
+              if (quickMs != null) {
+                const end = new Date(Date.now() + quickMs)
+                setCloseDate(formatLocalDate(end))
+                setCloseTime(formatLocalTime(end))
+              }
             }}
           >
-            <DatePicker.Control>
-              <DatePicker.Input
-                bg={dark.inputBg}
-                borderColor={dark.borderSubtle}
-                color="white"
-                _placeholder={{ color: dark.placeholder }}
-                _focusVisible={{
-                  borderColor: 'brand.500',
-                  boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)',
+            Specific date & time
+          </Button>
+        </Flex>
+
+        {closeEndMode === 'quick' ? (
+          <Stack gap={3}>
+            <Text fontSize="sm" color={dark.muted}>
+              Length of auction (from when you create the listing)
+            </Text>
+            <AuctionDurationPicker
+              amount={quickDurationAmount}
+              unit={quickDurationUnit}
+              onChange={(nextAmount, nextUnit) => {
+                setQuickDurationAmount(nextAmount)
+                setQuickDurationUnit(nextUnit)
+              }}
+            />
+            <Text fontSize="sm" color={dark.muted}>
+              Closes around{' '}
+              <Text as="span" color="white" fontWeight="medium">
+                {(() => {
+                  const ms = parseQuickDurationMs(quickDurationAmount, quickDurationUnit)
+                  if (ms == null) return '—'
+                  return new Date(Date.now() + ms).toLocaleString(undefined, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  })
+                })()}
+              </Text>{' '}
+              (your local time)
+            </Text>
+          </Stack>
+        ) : (
+          <>
+            <Text fontSize="sm" color={dark.muted} mb={1}>
+              Closing date & time *
+            </Text>
+            <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
+              <DatePicker.Root
+                name="closeDate"
+                colorPalette="brand"
+                positioning={{ placement: 'bottom-start' }}
+                openOnClick
+                value={closeDate ? [parseDate(closeDate)] : []}
+                onValueChange={(details) => {
+                  const selected = details.value[0]
+                  setCloseDate(selected ? selected.toString() : '')
                 }}
-                placeholder="Select date"
+              >
+                <DatePicker.Control>
+                  <DatePicker.Input
+                    bg={dark.inputBg}
+                    borderColor={dark.borderSubtle}
+                    color="white"
+                    _placeholder={{ color: dark.placeholder }}
+                    _focusVisible={{
+                      borderColor: 'brand.500',
+                      boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)',
+                    }}
+                    placeholder="Select date"
+                  />
+                  <DatePicker.IndicatorGroup>
+                    <DatePicker.Trigger
+                      color={dark.muted}
+                      _hover={{ color: 'white', bg: 'whiteAlpha.100' }}
+                      _focusVisible={{ boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)' }}
+                    >
+                      <LuCalendar />
+                    </DatePicker.Trigger>
+                  </DatePicker.IndicatorGroup>
+                </DatePicker.Control>
+                <Portal>
+                  <DatePicker.Positioner zIndex={2800}>
+                    <DatePicker.Content
+                      bg={dark.cardBg}
+                      borderWidth="1px"
+                      borderColor={dark.borderSubtle}
+                      color="white"
+                      boxShadow="xl"
+                      css={{
+                        '& [data-part="table-cell-trigger"]': {
+                          color: 'white',
+                          borderRadius: '0.375rem',
+                        },
+                        '& [data-part="table-cell-trigger"]:hover': {
+                          background: 'rgba(255, 255, 255, 0.08)',
+                        },
+                        '& [data-part="table-cell-trigger"][data-selected]': {
+                          background: 'var(--chakra-colors-brand-500)',
+                          color: 'white',
+                        },
+                        '& [data-part="table-cell-trigger"][data-today]': {
+                          borderColor: 'var(--chakra-colors-brand-500)',
+                        },
+                        '& [data-part="next-trigger"], & [data-part="prev-trigger"], & [data-part="view-trigger"]':
+                          {
+                            color: 'white',
+                            borderRadius: '0.375rem',
+                          },
+                        '& [data-part="next-trigger"]:hover, & [data-part="prev-trigger"]:hover, & [data-part="view-trigger"]:hover':
+                          {
+                            background: 'rgba(255, 255, 255, 0.08)',
+                          },
+                        '& [data-part="month-select"], & [data-part="year-select"]': {
+                          background: dark.inputBg,
+                          color: 'white',
+                          borderColor: dark.borderSubtle,
+                          borderRadius: '0.375rem',
+                        },
+                        '& [data-part="table-header"]': {
+                          color: dark.muted,
+                        },
+                      }}
+                    >
+                      <DatePicker.View view="day">
+                        <DatePicker.Header />
+                        <DatePicker.DayTable />
+                      </DatePicker.View>
+                      <DatePicker.View view="month">
+                        <DatePicker.Header />
+                        <DatePicker.MonthTable />
+                      </DatePicker.View>
+                      <DatePicker.View view="year">
+                        <DatePicker.Header />
+                        <DatePicker.YearTable />
+                      </DatePicker.View>
+                    </DatePicker.Content>
+                  </DatePicker.Positioner>
+                </Portal>
+              </DatePicker.Root>
+              <AuctionEndTimePicker
+                closeDate={closeDate}
+                value={closeTime}
+                onChange={setCloseTime}
+                minCloseDate={minCloseDate}
+                minCloseTime={minCloseTime}
               />
-              <DatePicker.IndicatorGroup>
-                <DatePicker.Trigger
-                  color={dark.muted}
-                  _hover={{ color: 'white', bg: 'whiteAlpha.100' }}
-                  _focusVisible={{ boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)' }}
-                >
-                  <LuCalendar />
-                </DatePicker.Trigger>
-              </DatePicker.IndicatorGroup>
-            </DatePicker.Control>
-            <Portal>
-              <DatePicker.Positioner zIndex={2800}>
-                <DatePicker.Content
-                  bg={dark.cardBg}
-                  borderWidth="1px"
-                  borderColor={dark.borderSubtle}
-                  color="white"
-                  boxShadow="xl"
-                  css={{
-                    '& [data-part="table-cell-trigger"]': {
-                      color: 'white',
-                      borderRadius: '0.375rem',
-                    },
-                    '& [data-part="table-cell-trigger"]:hover': {
-                      background: 'rgba(255, 255, 255, 0.08)',
-                    },
-                    '& [data-part="table-cell-trigger"][data-selected]': {
-                      background: 'var(--chakra-colors-brand-500)',
-                      color: 'white',
-                    },
-                    '& [data-part="table-cell-trigger"][data-today]': {
-                      borderColor: 'var(--chakra-colors-brand-500)',
-                    },
-                    '& [data-part="next-trigger"], & [data-part="prev-trigger"], & [data-part="view-trigger"]':
-                      {
-                        color: 'white',
-                        borderRadius: '0.375rem',
-                      },
-                    '& [data-part="next-trigger"]:hover, & [data-part="prev-trigger"]:hover, & [data-part="view-trigger"]:hover':
-                      {
-                        background: 'rgba(255, 255, 255, 0.08)',
-                      },
-                    '& [data-part="month-select"], & [data-part="year-select"]': {
-                      background: dark.inputBg,
-                      color: 'white',
-                      borderColor: dark.borderSubtle,
-                      borderRadius: '0.375rem',
-                    },
-                    '& [data-part="table-header"]': {
-                      color: dark.muted,
-                    },
-                  }}
-                >
-                  <DatePicker.View view="day">
-                    <DatePicker.Header />
-                    <DatePicker.DayTable />
-                  </DatePicker.View>
-                  <DatePicker.View view="month">
-                    <DatePicker.Header />
-                    <DatePicker.MonthTable />
-                  </DatePicker.View>
-                  <DatePicker.View view="year">
-                    <DatePicker.Header />
-                    <DatePicker.YearTable />
-                  </DatePicker.View>
-                </DatePicker.Content>
-              </DatePicker.Positioner>
-            </Portal>
-          </DatePicker.Root>
-          <AuctionEndTimePicker
-            closeDate={closeDate}
-            value={closeTime}
-            onChange={setCloseTime}
-            minCloseDate={minCloseDate}
-            minCloseTime={minCloseTime}
-          />
-        </SimpleGrid>
-        <Input type="hidden" {...register('closeDateTime', { required: true })} />
+            </SimpleGrid>
+          </>
+        )}
+        <Input type="hidden" {...register('closeDateTime')} />
       </Box>
 
       <Flex gap={3} justify="flex-end" flexWrap="wrap" pt={2}>
