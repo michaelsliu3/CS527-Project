@@ -120,6 +120,7 @@ jobs:
           cache: npm
           cache-dependency-path: plzbuyme-frontend/package-lock.json
 
+      # VITE_CDN_URL should match deploy CDN_PUBLIC_URL (browser origin for /media/...).
       - name: Install and build
         run: npm ci && npm run build
         env:

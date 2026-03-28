@@ -1,12 +1,9 @@
 import { apiClient } from './client'
+import { getCdnBaseUrl } from '../utils/mediaUrl'
 
 interface CdnUploadResponse {
   key: string
   url: string
-}
-
-function getCdnBaseUrl() {
-  return (import.meta.env.VITE_CDN_URL as string | undefined)?.replace(/\/$/, '') ?? 'http://localhost:5090'
 }
 
 export async function uploadFileToCdn(file: File, folder: 'avatars' | 'items', replaceKey?: string | null): Promise<string> {
