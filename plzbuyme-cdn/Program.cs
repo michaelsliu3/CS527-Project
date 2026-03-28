@@ -8,14 +8,25 @@ namespace PlzBuyMe.Cdn;
 
 public sealed class Program
 {
+    private static string[] ParseCorsOrigins(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"];
+        var parts = raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length > 0
+            ? parts
+            : ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"];
+    }
+
     public static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.Services.AddControllers();
+        var corsOrigins = ParseCorsOrigins(builder.Configuration["Cors:AllowedOrigins"]);
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("AllowFrontend", policy =>
-                policy.WithOrigins("http://localhost:5173", "http://localhost:5174", "http://localhost:5175")
+                policy.WithOrigins(corsOrigins)
                       .AllowAnyHeader()
                       .AllowAnyMethod());
         });

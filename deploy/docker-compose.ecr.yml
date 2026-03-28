@@ -1,0 +1,37 @@
+# Pull pre-built images from Amazon ECR (used by EC2 + GitHub Actions deploy).
+# Prerequisites on the host: deploy/.env (secrets) + ECR login (IAM role or aws ecr get-login-password).
+#
+#   export IMAGE_TAG=main   # or a git SHA pushed by CI
+#   aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+#   docker compose -f docker-compose.ecr.yml pull && docker compose -f docker-compose.ecr.yml up -d
+
+services:
+  api:
+    image: ${ECR_REGISTRY}/${ECR_REPOSITORY_API:-plzbuyme-api}:${IMAGE_TAG:-latest}
+    ports:
+      - "127.0.0.1:5081:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ReverseProxy__Enabled: "true"
+      ConnectionStrings__DefaultConnection: ${CONNECTION_STRING}
+      Cors__AllowedOrigins: ${CORS_ORIGINS}
+      Jwt__Key: ${JWT_KEY}
+      Jwt__Issuer: ${JWT_ISSUER:-PlzBuyMe}
+      Jwt__Audience: ${JWT_AUDIENCE:-PlzBuyMeUsers}
+      Jwt__ExpiresInMinutes: ${JWT_EXPIRES_MINUTES:-60}
+      MediaStorage__ServiceBaseUrl: ${CDN_PUBLIC_URL}
+
+  cdn:
+    image: ${ECR_REGISTRY}/${ECR_REPOSITORY_CDN:-plzbuyme-cdn}:${IMAGE_TAG:-latest}
+    ports:
+      - "127.0.0.1:5090:8080"
+    volumes:
+      - cdn-storage:/app/storage
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Cors__AllowedOrigins: ${CORS_ORIGINS}
+      MediaStorage__StorageRoot: storage
+      MediaStorage__PublicBaseUrl: ${CDN_PUBLIC_URL}
+
+volumes:
+  cdn-storage:
