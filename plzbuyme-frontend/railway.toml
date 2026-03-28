@@ -1,0 +1,9 @@
+# Use with Railway service Root Directory: plzbuyme-frontend
+# Build-time: set VITE_API_URL and VITE_CDN_URL to your deployed API and CDN public URLs.
+[build]
+builder = "RAILPACK"
+watchPatterns = ["plzbuyme-frontend/**"]
+
+[deploy]
+# Static dist (vite is devDependency; npx serve avoids needing it at runtime)
+startCommand = "/bin/sh -c 'exec npx --yes serve@14 -s dist -l \"$PORT\"'"

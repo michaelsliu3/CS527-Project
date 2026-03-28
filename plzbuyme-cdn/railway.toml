@@ -1,0 +1,6 @@
+# Use with Railway service Root Directory: plzbuyme-cdn
+# Set variables: ASPNETCORE_URLS=http://0.0.0.0:$PORT
+# Optional: Cors__AllowedOrigins=https://your-frontend.up.railway.app
+[build]
+builder = "RAILPACK"
+watchPatterns = ["plzbuyme-cdn/**"]

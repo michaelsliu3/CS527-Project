@@ -15,7 +15,7 @@ public sealed class Program
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("AllowFrontend", policy =>
-                policy.WithOrigins("http://localhost:5173", "http://localhost:5174", "http://localhost:5175")
+                policy.WithOrigins(ParseCorsOrigins(builder.Configuration))
                       .AllowAnyHeader()
                       .AllowAnyMethod());
         });
@@ -41,5 +41,22 @@ public sealed class Program
 
         app.MapControllers();
         app.Run();
+    }
+
+    private static string[] ParseCorsOrigins(IConfiguration configuration)
+    {
+        var extra = configuration["Cors:AllowedOrigins"];
+        var origins = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175"
+        };
+        if (!string.IsNullOrWhiteSpace(extra))
+        {
+            foreach (var o in extra.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                origins.Add(o);
+        }
+        return origins.ToArray();
     }
 }
