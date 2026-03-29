@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Container, Flex, SimpleGrid, Spinner, Text, Button } from '@chakra-ui/react'
 import { getMyAuctions, type AuctionListItem } from '../api/auctions'
 import { AuctionCard } from '../components/AuctionCard'
+import { useSellItemModal } from '../context/SellItemModalContext'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
 
@@ -13,10 +14,12 @@ const STATUS_TABS = [
 ]
 
 export function MyAuctionsPage() {
+  const { openSellModal } = useSellItemModal()
   const [items, setItems] = useState<AuctionListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [listRefreshToken, setListRefreshToken] = useState(0)
 
   useEffect(() => {
     setLoading(true)
@@ -25,13 +28,28 @@ export function MyAuctionsPage() {
       .then((res) => setItems(res.data))
       .catch(() => setError('Failed to load your auctions.'))
       .finally(() => setLoading(false))
-  }, [statusFilter])
+  }, [statusFilter, listRefreshToken])
 
   return (
     <Container maxW="container.xl" px={APP_PAGE_PX}>
-      <Text fontSize="2xl" fontWeight="bold" color="white" mb={4}>
-        My auctions
-      </Text>
+      <Flex align="center" justify="space-between" gap={4} mb={4} flexWrap="wrap">
+        <Text fontSize="2xl" fontWeight="bold" color="white">
+          My auctions
+        </Text>
+        <Button
+          size="sm"
+          bg="brand.500"
+          color="white"
+          _hover={{ bg: 'brand.400' }}
+          onClick={() =>
+            openSellModal({
+              onAfterCreate: () => setListRefreshToken((t) => t + 1),
+            })
+          }
+        >
+          Create Auction
+        </Button>
+      </Flex>
       <Flex gap={2} mb={6} flexWrap="wrap">
         {STATUS_TABS.map((tab) => (
           <Button

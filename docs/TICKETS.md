@@ -471,7 +471,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-26 — Merge Sell flow into reusable popup modal
+## PBM-26 — Merge Sell flow into reusable popup modal ✅
 
 **Layer:** Frontend  
 **Branch:** `PBM-26/sell-flow-popup-modal`  
@@ -516,6 +516,21 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
+## PBM-29 — Multi-tag car subtypes (Electric + Sports Car, etc.)
+
+**Layer:** Backend + Frontend  
+**Branch:** `PBM-29/multi-tag-car-subtypes`  
+**PR Title:** `[PBM-29] support multiple car subtype tags per auction item`
+
+- Add support for assigning and rendering multiple car subtype tags on a single listing (for example, a car can be both `Electric` and `Sports Car`).
+- Backend: extend item/category metadata and API DTOs so car subtype tags are modeled as a collection (not a single value), persisted, and returned in list/detail responses.
+- Backend: update search/filter behavior so subtype filtering can match multi-tag items deterministically (define AND/OR behavior explicitly in endpoint contract and docs).
+- Frontend: update create/edit/list/detail surfaces to display all relevant subtype tags with consistent visual treatment and safe fallback when no tags exist.
+- Frontend: keep existing subtype styling patterns (chips/badges/gradients) while handling multiple tags without overlap/truncation regressions across responsive breakpoints.
+- **Tests:** add/extend backend tests for multi-tag persistence/query filtering and frontend tests for multi-tag rendering, layout wrapping, and filter behavior.
+
+---
+
 ## Bugs
 
 ### PBM-BUG-1 — Login state lost on page refresh ✅
@@ -557,6 +572,17 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Goal:** Standardize control appearance and interaction states (default, hover, active, focus, disabled) using existing Chakra theme tokens/components so related actions feel cohesive across pages.
 - **Validation:** Add/extend targeted frontend tests where practical and perform manual UI checks on touched screens.
 
+### PBM-STYLE-3 — Auction detail bid panel styling refresh
+
+**Layer:** Frontend  
+**Branch:** `PBM-STYLE-3/auction-detail-bid-panel-styling`  
+**PR Title:** `[PBM-STYLE-3] rework auto-bid and bid history styling on auction detail page`
+
+- **Scope:** Refresh the visual design and layout of the Auction Detail page sections for `Set auto-bid` and `Bid history` to improve readability and consistency with the newer card/filter UI patterns.
+- **Problem:** Current styling in these sections feels visually uneven (spacing, hierarchy, typography, table/card treatment, and action emphasis), making bid interactions harder to scan.
+- **Goals:** Improve spacing and grouping, unify heading/text/button styles, refine bid-row readability (amount/user/time/autobid badge), and ensure responsive behavior remains clear on mobile and desktop.
+- **Validation:** Add/extend targeted frontend tests for key rendering states and run manual UI checks for alignment, hierarchy, and responsive behavior in the auction detail view.
+
 ### PBM-BUG-2 — General bug triage and stabilization sweep
 
 **Layer:** Full Stack  
@@ -567,3 +593,14 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Goals:** Prioritize user-facing and data-integrity issues first; group fixes by severity and include clear reproduction steps.
 - **Deliverables:** Bugfix patches with a tracked checklist of issues addressed, plus regression tests for high-impact fixes.
 - **Validation:** Run unit/integration tests for touched areas and perform smoke testing on critical flows (login, browse/search, bid, create auction, notifications).
+
+### PBM-BUG-3 — Auto-bid upper limit input is incorrectly constrained
+
+**Layer:** Frontend + Backend  
+**Branch:** `PBM-BUG-3/fix-autobid-upper-limit-constraint`  
+**PR Title:** `[PBM-BUG-3] allow valid auto-bid upper limits beyond strict increment multiples`
+
+- **Bug:** In auction detail, the auto-bid max amount input only accepts values that are exact multiples of `currentPrice + (n * bidIncrement)` instead of allowing any valid upper-limit value.
+- **Expected:** Users should be able to set any upper limit that is greater than or equal to the minimum allowed threshold; auto-bid execution should apply increment rules when placing bids, not when capturing the user’s max budget.
+- **Likely cause:** Frontend validation/UI controls are reusing manual-bid increment constraints for auto-bid upper-limit entry, or backend validation enforces increment-multiple checks on `upperLimit` rather than on generated bid amounts.
+- **Validation:** Add/extend tests to confirm non-multiple upper limits are accepted (e.g., `currentPrice + bidIncrement + 1`) while invalid low values are still rejected; verify auto-bid bidding steps continue to respect increment logic during actual bid placement.
