@@ -268,6 +268,7 @@ public class AuctionServiceTests
         item.Status.Should().Be(ItemStatus.Sold);
         item.WinnerId.Should().Be(bidder.Id);
         db.Notifications.Should().Contain(n => n.UserId == bidder.Id && n.Type == NotificationType.AuctionWon);
+        db.Notifications.Should().Contain(n => n.UserId == item.SellerId && n.Type == NotificationType.AuctionSold);
     }
 
     [Fact]
@@ -284,6 +285,26 @@ public class AuctionServiceTests
         item.Status.Should().Be(ItemStatus.Closed);
         item.WinnerId.Should().BeNull();
         db.Notifications.Should().Contain(n => n.UserId == item.SellerId && n.Type == NotificationType.ReserveNotMet);
+    }
+
+    [Fact]
+    public async Task CloseExpired_ReserveNotMet_NotifiesAllBidders()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var item = db.Items.First(i => i.Status == ItemStatus.Active);
+        item.CloseDateTime = DateTime.UtcNow.AddSeconds(-1);
+        var bidder1 = db.Users.Single(u => u.Username == "bidder1");
+        var bidder2 = db.Users.Single(u => u.Username == "bidder2");
+        var belowReserve = item.ReservePrice - item.BidIncrement;
+        db.Bids.Add(new Bid { ItemId = item.Id, BidderId = bidder1.Id, Amount = belowReserve - item.BidIncrement, IsAuto = false });
+        db.Bids.Add(new Bid { ItemId = item.Id, BidderId = bidder2.Id, Amount = belowReserve, IsAuto = false });
+        item.CurrentPrice = belowReserve;
+        db.SaveChanges();
+        var service = CreateService(db);
+        await service.CloseExpiredAsync();
+        db.Notifications.Should().Contain(n => n.UserId == item.SellerId && n.Type == NotificationType.ReserveNotMet);
+        db.Notifications.Should().Contain(n => n.UserId == bidder1.Id && n.Type == NotificationType.ReserveNotMet);
+        db.Notifications.Should().Contain(n => n.UserId == bidder2.Id && n.Type == NotificationType.ReserveNotMet);
     }
 
     [Fact]
@@ -377,6 +398,10 @@ public class AuctionServiceTests
         winner.WalletBalance.Should().Be(winnerStart - 23000m);
         seller.WalletBalance.Should().Be(sellerStart + 23000m);
         db.BidHolds.Should().NotContain(h => h.ItemId == item.Id);
+        var loser = db.Users.Single(u => u.Username == "bidder1");
+        db.Notifications.Should().Contain(n => n.UserId == loser.Id && n.Type == NotificationType.AuctionLost);
+        db.Notifications.Should().NotContain(n => n.UserId == winner.Id && n.Type == NotificationType.AuctionLost);
+        db.Notifications.Should().Contain(n => n.UserId == sellerId && n.Type == NotificationType.AuctionSold);
     }
 
     [Fact]

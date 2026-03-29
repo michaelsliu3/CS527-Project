@@ -14,6 +14,13 @@ public class AuctionService : IAuctionService
     private const string Gt7DefaultImageSource = "gt7-default";
     private const string PlaceholderImageSource = "placeholder";
 
+    /// <summary>Second paragraph appended to close-out messages; UI renders it in smaller text after a blank line.</summary>
+    private const string WalletBalanceDisclaimerParagraph =
+        "Wallet and payment amounts can take a short moment to process and show up in your balance.";
+
+    private static string WithWalletBalanceDisclaimer(string primary) =>
+        $"{primary}\n\n{WalletBalanceDisclaimerParagraph}";
+
     private readonly AppDbContext _db;
     private readonly IAlertService _alertService;
     private readonly ICdnGt7ThumbnailResolver _cdnGt7ThumbnailResolver;
@@ -270,11 +277,34 @@ public class AuctionService : IAuctionService
                 await _walletService.FinalizeSoldAuctionAsync(item.Id, highestBid.BidderId, highestBid.Amount, item.SellerId);
                 _db.Notifications.Add(new Notification
                 {
+                    UserId = item.SellerId,
+                    ItemId = item.Id,
+                    Type = NotificationType.AuctionSold,
+                    Message = WithWalletBalanceDisclaimer(
+                        $"Your listing \"{item.Title}\" sold for ${highestBid.Amount:N2}.")
+                });
+                _db.Notifications.Add(new Notification
+                {
                     UserId = highestBid.BidderId,
                     ItemId = item.Id,
                     Type = NotificationType.AuctionWon,
-                    Message = $"You won the auction for \"{item.Title}\"!"
+                    Message = WithWalletBalanceDisclaimer($"You won the auction for \"{item.Title}\"!")
                 });
+                var losingBidderIds = await _db.Bids
+                    .Where(b => b.ItemId == item.Id && b.BidderId != highestBid.BidderId)
+                    .Select(b => b.BidderId)
+                    .ToListAsync();
+                foreach (var loserId in losingBidderIds.Distinct())
+                {
+                    _db.Notifications.Add(new Notification
+                    {
+                        UserId = loserId,
+                        ItemId = item.Id,
+                        Type = NotificationType.AuctionLost,
+                        Message = WithWalletBalanceDisclaimer(
+                            $"You did not win the auction for \"{item.Title}\". Another bidder had the highest bid when it closed.")
+                    });
+                }
             }
             else
             {
@@ -285,8 +315,26 @@ public class AuctionService : IAuctionService
                     UserId = item.SellerId,
                     ItemId = item.Id,
                     Type = NotificationType.ReserveNotMet,
-                    Message = $"Reserve price was not met on \"{item.Title}\"."
+                    Message = WithWalletBalanceDisclaimer($"Reserve price was not met on \"{item.Title}\".")
                 });
+                var bidderIds = (await _db.Bids
+                        .AsNoTracking()
+                        .Where(b => b.ItemId == item.Id)
+                        .Select(b => b.BidderId)
+                        .ToListAsync())
+                    .Distinct()
+                    .ToList();
+                foreach (var bidderId in bidderIds)
+                {
+                    _db.Notifications.Add(new Notification
+                    {
+                        UserId = bidderId,
+                        ItemId = item.Id,
+                        Type = NotificationType.ReserveNotMet,
+                        Message = WithWalletBalanceDisclaimer(
+                            $"The auction for \"{item.Title}\" closed without meeting the reserve price. If you had funds held for your bid, they are available in your wallet again.")
+                    });
+                }
             }
         }
         await _db.SaveChangesAsync();

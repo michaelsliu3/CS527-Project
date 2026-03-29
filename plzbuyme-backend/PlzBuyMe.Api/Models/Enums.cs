@@ -29,6 +29,8 @@ public enum NotificationType
     AutoLimitReached,
     AutoBidPlaced,
     AuctionWon,
+    AuctionLost,
+    AuctionSold,
     AlertMatch,
     ReserveNotMet
 }

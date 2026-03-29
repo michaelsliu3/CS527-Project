@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { listNotifications, markNotificationRead } from '../api/notifications'
 import { apiClient } from '../api/client'
 import { showErrorToast, showNotificationToast } from './ui/toaster'
+import { splitNotificationMessage } from '../utils/notificationMessage'
 import { HiOutlineBell } from 'react-icons/hi'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
@@ -45,7 +46,7 @@ export function Layout() {
               const path =
                 n.itemId != null ? `/auctions/${n.itemId}` : '/notifications'
               const notificationId = n.id
-              showNotificationToast('Notification', n.message, {
+              showNotificationToast('Notification', splitNotificationMessage(n.message).primary, {
                 onClick: () => {
                   markNotificationRead(notificationId)
                     .then(() => window.dispatchEvent(new CustomEvent('notifications-updated')))
