@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -145,11 +146,22 @@ public class Program
         builder.Services.AddHttpClient();
         builder.Services.AddHostedService<AuctionCloseService>();
 
-        // ── CORS ────────────────────────────────────────────────────
+        if (builder.Configuration.GetValue<bool>("ReverseProxy:Enabled"))
+        {
+            builder.Services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                options.KnownNetworks.Clear();
+                options.KnownProxies.Clear();
+            });
+        }
+
+        // ── CORS (comma-separated origins in Cors:AllowedOrigins or env Cors__AllowedOrigins) ──
+        var corsOrigins = ParseCorsOrigins(builder.Configuration["Cors:AllowedOrigins"]);
         builder.Services.AddCors(options =>
         {
             options.AddPolicy("AllowFrontend", policy =>
-                policy.WithOrigins("http://localhost:5173")
+                policy.WithOrigins(corsOrigins)
                       .AllowAnyHeader()
                       .AllowAnyMethod());
         });
@@ -190,8 +202,19 @@ public class Program
         });
     }
 
+    private static string[] ParseCorsOrigins(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return ["http://localhost:5173"];
+        var parts = raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length > 0 ? parts : ["http://localhost:5173"];
+    }
+
     private static void ConfigurePipeline(WebApplication app)
     {
+        if (app.Configuration.GetValue<bool>("ReverseProxy:Enabled"))
+            app.UseForwardedHeaders();
+
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();

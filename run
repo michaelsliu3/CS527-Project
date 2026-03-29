@@ -31,13 +31,13 @@ fi
 # ── CDN ─────────────────────────────────────────────────────────────
 echo "==> Starting media CDN (plzbuyme-cdn)..."
 cd "$CDN_DIR"
-dotnet run --project PlzBuyMe.Cdn.csproj &
+dotnet run --project PlzBuyMe.Cdn.csproj --launch-profile http &
 CDN_PID=$!
 
 # ── Backend ─────────────────────────────────────────────────────────
 echo "==> Starting backend (ASP.NET Core)..."
 cd "$BACKEND_DIR"
-dotnet run --project PlzBuyMe.Api &
+dotnet run --project PlzBuyMe.Api --launch-profile http &
 BACKEND_PID=$!
 
 # ── Frontend ────────────────────────────────────────────────────────

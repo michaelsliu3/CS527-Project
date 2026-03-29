@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ChangeEvent } from 'react'
 import {
   Box,
   Button,
@@ -205,12 +205,15 @@ export function AlertsPage() {
                       control={control}
                       defaultValue=""
                       render={({ field }) => (
-                        <NativeSelect.Root
-                          value={field.value}
-                          onValueChange={(e) => field.onChange(e.value)}
-                          size="md"
-                        >
+                        <NativeSelect.Root size="md">
                           <NativeSelect.Field
+                            ref={field.ref}
+                            name={field.name}
+                            value={field.value}
+                            onBlur={field.onBlur}
+                            onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                              field.onChange(e.target.value)
+                            }
                             bg={dark.inputBg}
                             borderColor={dark.borderSubtle}
                             color="white"

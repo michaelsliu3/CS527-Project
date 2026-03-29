@@ -1,0 +1,42 @@
+# EC2-style stack: API + CDN containers. Use Amazon RDS for MySQL (set CONNECTION_STRING in .env).
+# From this directory: cp .env.example .env && edit .env, then:
+#   docker compose up -d --build
+#
+# Optional: local MySQL for testing — use both files:
+#   docker compose -f docker-compose.yml -f docker-compose.local-mysql.yml up -d --build
+
+services:
+  api:
+    build:
+      context: ../plzbuyme-backend/PlzBuyMe.Api
+      dockerfile: Dockerfile
+    ports:
+      - "5081:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ReverseProxy__Enabled: "true"
+      ConnectionStrings__DefaultConnection: ${CONNECTION_STRING}
+      Cors__AllowedOrigins: ${CORS_ORIGINS}
+      Jwt__Key: ${JWT_KEY}
+      Jwt__Issuer: ${JWT_ISSUER:-PlzBuyMe}
+      Jwt__Audience: ${JWT_AUDIENCE:-PlzBuyMeUsers}
+      Jwt__ExpiresInMinutes: ${JWT_EXPIRES_MINUTES:-60}
+      # Docker network (not CDN_PUBLIC_URL): API must reach CDN for GT7 resolve; avoids hairpin/localhost issues.
+      MediaStorage__ServiceBaseUrl: http://cdn:8080
+
+  cdn:
+    build:
+      context: ../plzbuyme-cdn
+      dockerfile: Dockerfile
+    ports:
+      - "5090:8080"
+    volumes:
+      - cdn-storage:/app/storage
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Cors__AllowedOrigins: ${CORS_ORIGINS}
+      MediaStorage__StorageRoot: storage
+      MediaStorage__PublicBaseUrl: ${CDN_PUBLIC_URL}
+
+volumes:
+  cdn-storage:

@@ -1,10 +1,14 @@
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using PlzBuyMe.Api.Data;
 
 #nullable disable
 
 namespace PlzBuyMe.Api.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260313120000_AddFullTextIndexToItems")]
     public partial class AddFullTextIndexToItems : Migration
     {
         /// <inheritdoc />

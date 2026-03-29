@@ -1,0 +1,139 @@
+# =============================================================================
+# plzbuy.me — Nginx reverse proxy examples
+#
+# Install (required): copy THIS file to a name that matches your nginx include,
+# e.g.  sudo cp plzbuy.me.conf.example /etc/nginx/conf.d/plzbuy.conf
+# Many distros only load /etc/nginx/conf.d/*.conf — *.conf.example is IGNORED.
+# Then: sudo nginx -t && sudo systemctl reload nginx
+#
+# Docker must publish API on 127.0.0.1:5081 and CDN on 127.0.0.1:5090
+# (see deploy/docker-compose*.yml).
+# =============================================================================
+
+upstream plzbuyme_api {
+    server 127.0.0.1:5081;
+    keepalive 32;
+}
+
+upstream plzbuyme_cdn {
+    server 127.0.0.1:5090;
+    keepalive 32;
+}
+
+# -----------------------------------------------------------------------------
+# A) Single host over HTTP — e.g. http://3.84.104.109/
+#     Frontend VITE_API_URL=http://YOUR_IP/api
+#     Frontend VITE_CDN_URL=http://YOUR_IP  (image URLs use /media/...; uploads use /api/media/...)
+# -----------------------------------------------------------------------------
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+
+    client_max_body_size 50m;
+
+    # CDN controllers (upload, GT7 resolve, etc.) — MUST be above /api/ or nginx sends
+    # /api/media/upload to the main API and you get 404 on EC2.
+    # Note: GET /api/media/upload returns 404 from Kestrel (only POST exists). Test routing with:
+    #   curl -sS -o /dev/null -w '%{http_code}\n' 'http://127.0.0.1/api/media/gt7/resolve?make=Toyota&model=Camry&year=2022'
+    location /api/media/ {
+        proxy_pass http://plzbuyme_cdn/api/media/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+
+    # Must preserve /api/ prefix — see deploy README / prior notes.
+    location /api/ {
+        proxy_pass http://plzbuyme_api/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+
+    # Health check without port (optional)
+    location = /health {
+        proxy_pass http://plzbuyme_api/health;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # CDN serves uploaded files under /media/...
+    location /media/ {
+        proxy_pass http://plzbuyme_cdn/media/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+}
+
+# -----------------------------------------------------------------------------
+# B) TLS + split hostnames (api.* and cdn.*)
+#     Replace server_name and ssl_certificate paths; uncomment to use.
+#     DNS: A/AAAA for api.example.com and cdn.example.com → this server.
+# -----------------------------------------------------------------------------
+
+# server {
+#     listen 443 ssl http2;
+#     server_name api.example.com;
+#
+#     ssl_certificate     /etc/letsencrypt/live/api.example.com/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/api.example.com/privkey.pem;
+#
+#     client_max_body_size 50m;
+#
+#     location /api/ {
+#         proxy_pass http://plzbuyme_api/api/;
+#         proxy_http_version 1.1;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         proxy_read_timeout 120s;
+#     }
+#
+#     location = /health {
+#         proxy_pass http://plzbuyme_api/health;
+#         proxy_http_version 1.1;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#     }
+# }
+#
+# server {
+#     listen 443 ssl http2;
+#     server_name cdn.example.com;
+#
+#     ssl_certificate     /etc/letsencrypt/live/cdn.example.com/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/cdn.example.com/privkey.pem;
+#     client_max_body_size 50m;
+#
+#     # Pass full URI — backend expects /media/..., controllers on same Kestrel app.
+#     location / {
+#         proxy_pass http://plzbuyme_cdn;
+#         proxy_http_version 1.1;
+#         proxy_set_header Host $host;
+#         proxy_set_header X-Real-IP $remote_addr;
+#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         proxy_read_timeout 120s;
+#     }
+# }
+#
+# server {
+#     listen 80;
+#     server_name api.example.com cdn.example.com;
+#     return 301 https://$host$request_uri;
+# }

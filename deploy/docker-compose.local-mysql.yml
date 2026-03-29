@@ -1,0 +1,29 @@
+# Adds a local MySQL 8 container and points the API at it. Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.local-mysql.yml up -d --build
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: localdev
+      MYSQL_DATABASE: plzbuyme
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot", "-plocaldev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  api:
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__DefaultConnection: >-
+        Server=mysql;Port=3306;Database=plzbuyme;User=root;Password=localdev;
+
+volumes:
+  mysql-data:

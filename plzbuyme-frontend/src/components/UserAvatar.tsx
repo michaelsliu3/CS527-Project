@@ -1,4 +1,4 @@
-import { Box, type BoxProps } from '@chakra-ui/react'
+import { Box, Image, type BoxProps } from '@chakra-ui/react'
 import { useEffect, useMemo, useState } from 'react'
 import { resolveMediaUrl } from '../utils/mediaUrl'
 
@@ -38,13 +38,12 @@ export function UserAvatar({
   if (resolvedSrc && !imageErrored) {
     return (
       <Box {...frameProps}>
-        <Box
-          as="img"
+        <Image
           src={resolvedSrc}
           alt={`${name} avatar`}
           w="100%"
           h="100%"
-          objectFit="cover"
+          fit="cover"
           onError={() => setImageErrored(true)}
         />
       </Box>
