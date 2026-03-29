@@ -15,6 +15,7 @@ import { CreateAuctionForm } from '../components/CreateAuctionForm'
 import { dark } from '../theme/colors'
 import { showSuccessToast } from '../components/ui/toaster'
 import { APP_PAGE_PX } from '../theme/layout'
+import { useScrollLock } from '../hooks/useScrollLock'
 
 const overlayFadeIn = keyframes`
   from { opacity: 0; backdrop-filter: blur(0px); }
@@ -128,6 +129,8 @@ export function SellItemModalProvider({ children }: { children: ReactNode }) {
     },
     [navigate],
   )
+
+  useScrollLock(open)
 
   useEffect(() => {
     if (!open || isClosing) return

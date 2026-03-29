@@ -21,6 +21,7 @@ import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
 import { APP_PAGE_PX } from '../theme/layout'
 import { resolveMediaUrl } from '../utils/mediaUrl'
+import { useScrollLock } from '../hooks/useScrollLock'
 
 function toUtcEpochMs(value: string): number {
   const normalized = value.endsWith('Z') || /[-+]\d{2}:?\d{2}$/.test(value) ? value : `${value}Z`
@@ -73,6 +74,8 @@ export function AuctionDetailPage() {
   const isModal = Boolean(location.state && (location.state as { backgroundLocation?: unknown }).backgroundLocation)
   const [isClosing, setIsClosing] = useState(false)
   const closeTimeoutRef = useRef<number | null>(null)
+
+  useScrollLock(isModal)
 
   useEffect(() => {
     return () => {

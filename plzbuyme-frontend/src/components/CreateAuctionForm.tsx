@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Box,
   Button,
@@ -13,7 +13,7 @@ import {
   Text,
   Textarea,
 } from '@chakra-ui/react'
-import { LuCalendar, LuClock, LuTimer } from 'react-icons/lu'
+import { LuCalendar, LuClock, LuImage, LuTimer } from 'react-icons/lu'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../context/AuthContext'
 import { createAuction, type CreateAuctionDto } from '../api/auctions'
@@ -26,6 +26,23 @@ import {
 } from '../api/categories'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
+import { keyframes } from '@emotion/react'
+
+/** Draws attention to the main category control (e.g. subcategory clicked first). */
+const categoryFieldAttentionPop = keyframes`
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(245, 101, 101, 0.4);
+  }
+  50% {
+    transform: scale(1.014);
+    box-shadow: 0 0 0 6px rgba(245, 101, 101, 0.1);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(245, 101, 101, 0);
+  }
+`
 
 export interface CreateAuctionFormProps {
   onCancel: () => void
@@ -427,6 +444,8 @@ interface AuctionEndTimePickerProps {
   onChange: (next: string) => void
   minCloseDate: string
   minCloseTime: string
+  /** Outline color for the trigger (e.g. validation error). */
+  triggerBorderColor?: string
 }
 
 function AuctionEndTimePicker({
@@ -435,6 +454,7 @@ function AuctionEndTimePicker({
   onChange,
   minCloseDate,
   minCloseTime,
+  triggerBorderColor = dark.borderSubtle,
 }: AuctionEndTimePickerProps) {
   const [open, setOpen] = useState(false)
   const [pick, setPick] = useState<TimePick>(() => timePickFromValue(value))
@@ -544,7 +564,7 @@ function AuctionEndTimePicker({
           py={0}
           borderRadius="md"
           borderWidth="1px"
-          borderColor={dark.borderSubtle}
+          borderColor={triggerBorderColor}
           bg={dark.inputBg}
           color="inherit"
           overflow="hidden"
@@ -576,7 +596,7 @@ function AuctionEndTimePicker({
             w="10"
             flexShrink={0}
             borderLeftWidth="1px"
-            borderColor={dark.borderSubtle}
+            borderColor={triggerBorderColor}
             color={dark.muted}
             _hover={{ color: 'white', bg: 'whiteAlpha.100' }}
           >
@@ -755,6 +775,7 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const [closeEndMode, setCloseEndMode] = useState<'quick' | 'custom'>('quick')
   const [quickDurationAmount, setQuickDurationAmount] = useState('1')
   const [quickDurationUnit, setQuickDurationUnit] = useState<QuickDurationUnit>('days')
@@ -764,7 +785,11 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
   const [fieldDefs, setFieldDefs] = useState<CategoryFieldDto[]>([])
   const [fieldsError, setFieldsError] = useState<string | null>(null)
 
-  const { register, handleSubmit, setValue } = useForm<CreateFormValues>({
+  const [customErrors, setCustomErrors] = useState<Record<string, string>>({})
+  const [categoryAttentionTick, setCategoryAttentionTick] = useState(0)
+  const categoryFieldAnchorRef = useRef<HTMLDivElement>(null)
+
+  const { register, handleSubmit, setValue, getValues, formState } = useForm<CreateFormValues>({
     defaultValues: {
       title: '',
       description: '',
@@ -775,6 +800,12 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
       closeDateTime: '',
     },
   })
+  const { errors } = formState
+
+  /** Hex for native controls + Chakra; aligns with red.400 */
+  const errorAccent = '#f56565'
+  const labelColor = (invalid: boolean) => (invalid ? errorAccent : dark.muted)
+  const inputBorderColor = (invalid: boolean) => (invalid ? errorAccent : dark.borderSubtle)
 
   useEffect(() => {
     if (closeEndMode !== 'custom') {
@@ -851,12 +882,24 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
     setFieldDefs([])
     setFieldsError(null)
     setValue('categoryId', '')
+    setCustomErrors((prev) => {
+      if (!prev.rootCategory) return prev
+      const next = { ...prev }
+      delete next.rootCategory
+      return next
+    })
   }
 
   const handleSubcategoryChange = (value: string) => {
     const id = value ? Number(value) : ''
     setCategoryId(id)
     setValue('categoryId', value)
+    setCustomErrors((prev) => {
+      if (!prev.subcategory) return prev
+      const next = { ...prev }
+      delete next.subcategory
+      return next
+    })
   }
 
   const sectionLabelProps = {
@@ -876,42 +919,66 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
     )
   }
 
-  const onSubmit = async (data: CreateFormValues) => {
+  /** Category, subcategory, and auction-end rules (not covered by react-hook-form). */
+  const validateCustomAuctionFields = (
+    data: CreateFormValues,
+  ): { customErrors: Record<string, string>; closeAt: Date | null } => {
+    const nextCustom: Record<string, string> = {}
+
     if (!selectedRootId) {
-      setSubmitError('Please select a category.')
-      return
+      nextCustom.rootCategory = 'Please select a category.'
     }
     if (!categoryId) {
-      setSubmitError('Please select a subcategory.')
-      return
+      nextCustom.subcategory = 'Please select a subcategory.'
     }
-    let closeAt: Date
+
+    let closeAt: Date | null = null
     if (closeEndMode === 'quick') {
       const quickMs = parseQuickDurationMs(quickDurationAmount, quickDurationUnit)
       if (quickMs == null) {
-        setSubmitError('Choose an auction length from 1–30 hours, days, or weeks.')
-        return
+        nextCustom.quickDuration = 'Choose a length from 1–30 hours, days, or weeks.'
+      } else {
+        closeAt = new Date(Date.now() + quickMs)
       }
-      closeAt = new Date(Date.now() + quickMs)
     } else {
       if (!data.closeDateTime) {
-        setSubmitError('Please select a closing date and time.')
-        return
-      }
-      closeAt = new Date(data.closeDateTime)
-      if (Number.isNaN(closeAt.getTime())) {
-        setSubmitError('Please select a valid closing date and time.')
-        return
+        nextCustom.auctionEnd = 'Please select a closing date and time.'
+      } else {
+        const parsed = new Date(data.closeDateTime)
+        if (Number.isNaN(parsed.getTime())) {
+          nextCustom.auctionEnd = 'Please enter a valid closing date and time.'
+        } else {
+          closeAt = parsed
+        }
       }
     }
+
     const minAllowedCloseAt = new Date()
     minAllowedCloseAt.setMinutes(minAllowedCloseAt.getMinutes() + 1)
-    if (closeAt.getTime() < minAllowedCloseAt.getTime()) {
-      setSubmitError('Closing date must be at least 1 minute in the future.')
+    if (closeAt != null && closeAt.getTime() < minAllowedCloseAt.getTime()) {
+      nextCustom.auctionEnd = 'Closing must be at least 1 minute from now.'
+    }
+
+    return { customErrors: nextCustom, closeAt }
+  }
+
+  const onSubmit = async (data: CreateFormValues) => {
+    const { customErrors: nextCustom, closeAt } = validateCustomAuctionFields(data)
+
+    if (Object.keys(nextCustom).length > 0) {
+      setCustomErrors(nextCustom)
+      setSubmitError(null)
       return
     }
 
+    setCustomErrors({})
     setSubmitError(null)
+
+    if (closeAt == null) {
+      setSubmitError('Check auction end time and try again.')
+      return
+    }
+
     setSubmitting(true)
 
     const fieldValues = fieldDefs
@@ -963,7 +1030,10 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
     <Stack
       as="form"
       noValidate
-      onSubmit={handleSubmit(onSubmit)}
+      onSubmit={handleSubmit(onSubmit, () => {
+        setCustomErrors(validateCustomAuctionFields(getValues()).customErrors)
+        setSubmitError(null)
+      })}
       gap={0}
       width="100%"
     >
@@ -980,17 +1050,25 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
 
       <Text {...sectionLabelProps}>Listing</Text>
       <Box mb={6}>
-        <Text fontSize="sm" color={dark.muted} mb={1}>
+        <Text fontSize="sm" color={labelColor(!!errors.title)} mb={1}>
           Title *
         </Text>
         <Input
           bg={dark.inputBg}
-          borderColor={dark.borderSubtle}
+          borderColor={inputBorderColor(!!errors.title)}
           color="white"
           _placeholder={{ color: dark.placeholder }}
           placeholder="Item title"
-          {...register('title', { required: true })}
+          {...register('title', {
+            required: 'Title is required.',
+            validate: (v) => v.trim() !== '' || 'Title cannot be empty.',
+          })}
         />
+        {errors.title?.message && (
+          <Text fontSize="xs" color={errorAccent} mt={1}>
+            {errors.title.message}
+          </Text>
+        )}
       </Box>
       <Box mb={4}>
         <Text fontSize="sm" color={dark.muted} mb={1}>
@@ -1006,79 +1084,169 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
           {...register('description')}
         />
       </Box>
-      <Box mb={4}>
-        <Text fontSize="sm" color={dark.muted} mb={1}>
+      <Box mb={6}>
+        <Text fontSize="sm" color={dark.muted} mb={3}>
           Item image
         </Text>
-        <Input
-          type="file"
-          accept="image/*"
-          bg={dark.inputBg}
-          borderColor={dark.borderSubtle}
-          color={dark.muted}
-          onChange={(event) => {
-            const nextFile = event.target.files?.[0] ?? null
-            setSelectedImageFile(nextFile)
-          }}
-        />
+        <Box position="relative">
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            aria-label="Choose item image"
+            onChange={(event) => {
+              const nextFile = event.target.files?.[0] ?? null
+              setSelectedImageFile(nextFile)
+            }}
+            style={{
+              position: 'absolute',
+              width: 1,
+              height: 1,
+              padding: 0,
+              margin: -1,
+              overflow: 'hidden',
+              clip: 'rect(0, 0, 0, 0)',
+              whiteSpace: 'nowrap',
+              border: 0,
+            }}
+          />
+          <Flex align="center" gap={2} flexWrap="wrap">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              borderColor={dark.borderSubtle}
+              color="white"
+              fontSize="sm"
+              h="auto"
+              py={1.5}
+              px={3}
+              _hover={{ bg: 'whiteAlpha.100' }}
+              display="inline-flex"
+              alignItems="center"
+              gap={1.5}
+              onClick={() => imageInputRef.current?.click()}
+            >
+              <LuImage size={15} aria-hidden />
+              Choose image
+            </Button>
+            <Text
+              fontSize="xs"
+              color={selectedImageFile ? dark.label : dark.placeholder}
+              flex="1"
+              minW={0}
+              css={{
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {selectedImageFile ? selectedImageFile.name : 'No image selected'}
+            </Text>
+          </Flex>
+        </Box>
       </Box>
 
       <Box borderTopWidth="1px" borderColor={dark.borderSubtle} pt={6} mb={6}>
         <Text {...sectionLabelProps}>Category</Text>
-        <Box mb={4}>
-          <Text fontSize="sm" color={dark.muted} mb={1}>
+        <Box mb={4} ref={categoryFieldAnchorRef}>
+          <Text fontSize="sm" color={labelColor(!!customErrors.rootCategory)} mb={1}>
             Category *
           </Text>
-          <select
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              background: dark.inputBg,
-              border: `1px solid ${dark.borderSubtle}`,
-              borderRadius: '6px',
-              color: 'white',
-            }}
-            value={selectedRootId === '' ? '' : String(selectedRootId)}
-            onChange={(e) => handleRootChange(e.target.value)}
-            disabled={categoriesLoading}
-          >
-            <option value="">Select category</option>
-            {rootCategories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </Box>
-        <Box mb={4}>
-          <Text fontSize="sm" color={dark.muted} mb={1}>
-            Subcategory *
-          </Text>
-          <select
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              background: dark.inputBg,
-              border: `1px solid ${dark.borderSubtle}`,
-              borderRadius: '6px',
-              color: 'white',
-            }}
-            value={categoryId === '' ? '' : String(categoryId)}
-            onChange={(e) => handleSubcategoryChange(e.target.value)}
-            disabled={
-              categoriesLoading ||
-              !selectedRoot ||
-              !selectedRoot.children ||
-              selectedRoot.children.length === 0
+          <Box
+            key={`category-attn-${categoryAttentionTick}`}
+            borderRadius="6px"
+            style={{ transformOrigin: 'center center' }}
+            animation={
+              categoryAttentionTick > 0
+                ? `${categoryFieldAttentionPop} 0.45s ease-out`
+                : undefined
             }
           >
-            <option value="">Select subcategory</option>
-            {selectedRoot?.children?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            <select
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                background: dark.inputBg,
+                border: `1px solid ${inputBorderColor(!!customErrors.rootCategory)}`,
+                borderRadius: '6px',
+                color: 'white',
+              }}
+              value={selectedRootId === '' ? '' : String(selectedRootId)}
+              onChange={(e) => handleRootChange(e.target.value)}
+              disabled={categoriesLoading}
+            >
+              <option value="">Select category</option>
+              {rootCategories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </Box>
+          {customErrors.rootCategory && (
+            <Text fontSize="xs" color={errorAccent} mt={1}>
+              {customErrors.rootCategory}
+            </Text>
+          )}
+        </Box>
+        <Box mb={4}>
+          <Text fontSize="sm" color={labelColor(!!customErrors.subcategory)} mb={1}>
+            Subcategory *
+          </Text>
+          <Box position="relative" w="100%">
+            <select
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                background: dark.inputBg,
+                border: `1px solid ${inputBorderColor(!!customErrors.subcategory)}`,
+                borderRadius: '6px',
+                color: 'white',
+              }}
+              value={categoryId === '' ? '' : String(categoryId)}
+              onChange={(e) => handleSubcategoryChange(e.target.value)}
+              disabled={
+                categoriesLoading ||
+                !selectedRoot ||
+                !selectedRoot.children ||
+                selectedRoot.children.length === 0
+              }
+            >
+              <option value="">Select subcategory</option>
+              {selectedRoot?.children?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {!categoriesLoading && selectedRootId === '' && (
+              <Box
+                position="absolute"
+                inset={0}
+                zIndex={1}
+                cursor="pointer"
+                borderRadius="6px"
+                aria-label="Choose a category first to pick a subcategory"
+                onClick={() => {
+                  setCustomErrors((prev) => ({
+                    ...prev,
+                    rootCategory: 'Choose a category first.',
+                  }))
+                  setCategoryAttentionTick((t) => t + 1)
+                  categoryFieldAnchorRef.current?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest',
+                  })
+                }}
+              />
+            )}
+          </Box>
+          {customErrors.subcategory && (
+            <Text fontSize="xs" color={errorAccent} mt={1}>
+              {customErrors.subcategory}
+            </Text>
+          )}
         </Box>
 
         {fieldsError && (
@@ -1093,43 +1261,58 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
               Item details
             </Text>
             <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
-              {fieldDefs.map((f) => (
-                <Box key={f.id}>
-                  <Text fontSize="sm" color={dark.muted} mb={1}>
-                    {f.fieldName} {f.options ? '*' : ''}
-                  </Text>
-                  {f.fieldType === 'select' && f.options ? (
-                    <select
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        background: dark.inputBg,
-                        border: `1px solid ${dark.borderSubtle}`,
-                        borderRadius: '6px',
-                        color: 'white',
-                      }}
-                      {...register(`field_${f.id}` as keyof CreateFormValues)}
-                    >
-                      <option value="">Select {f.fieldName}</option>
-                      {f.options.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <Input
-                      type={f.fieldType === 'number' ? 'number' : 'text'}
-                      bg={dark.inputBg}
-                      borderColor={dark.borderSubtle}
-                      color="white"
-                      _placeholder={{ color: dark.placeholder }}
-                      placeholder={f.fieldName}
-                      {...register(`field_${f.id}` as keyof CreateFormValues)}
-                    />
-                  )}
-                </Box>
-              ))}
+              {fieldDefs.map((f) => {
+                const fieldKey = `field_${f.id}` as keyof CreateFormValues
+                const fieldErr = errors[fieldKey]
+                const invalid = !!fieldErr
+                return (
+                  <Box key={f.id}>
+                    <Text fontSize="sm" color={labelColor(invalid)} mb={1}>
+                      {f.fieldName} {f.options ? '*' : ''}
+                    </Text>
+                    {f.fieldType === 'select' && f.options ? (
+                      <select
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          background: dark.inputBg,
+                          border: `1px solid ${inputBorderColor(invalid)}`,
+                          borderRadius: '6px',
+                          color: 'white',
+                        }}
+                        {...register(
+                          fieldKey,
+                          f.options
+                            ? { required: `${f.fieldName} is required.` }
+                            : {},
+                        )}
+                      >
+                        <option value="">Select {f.fieldName}</option>
+                        {f.options.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input
+                        type={f.fieldType === 'number' ? 'number' : 'text'}
+                        bg={dark.inputBg}
+                        borderColor={inputBorderColor(invalid)}
+                        color="white"
+                        _placeholder={{ color: dark.placeholder }}
+                        placeholder={f.fieldName}
+                        {...register(fieldKey)}
+                      />
+                    )}
+                    {fieldErr?.message && (
+                      <Text fontSize="xs" color={errorAccent} mt={1}>
+                        {fieldErr.message}
+                      </Text>
+                    )}
+                  </Box>
+                )
+              })}
             </SimpleGrid>
           </Box>
         )}
@@ -1139,21 +1322,34 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
         <Text {...sectionLabelProps}>Pricing</Text>
         <SimpleGrid columns={{ base: 1, md: 3 }} gap={4}>
           <Box>
-          <Text fontSize="sm" color={dark.muted} mb={1}>
-            Initial price *
-          </Text>
-          <Input
-            type="number"
-            min={0}
-            step={0.01}
-            bg={dark.inputBg}
-            borderColor={dark.borderSubtle}
-            color="white"
-            {...register('initialPrice', { required: true })}
-          />
+            <Text fontSize="sm" color={labelColor(!!errors.initialPrice)} mb={1}>
+              Initial price *
+            </Text>
+            <Input
+              type="number"
+              min={0}
+              step={0.01}
+              bg={dark.inputBg}
+              borderColor={inputBorderColor(!!errors.initialPrice)}
+              color="white"
+              {...register('initialPrice', {
+                required: 'Initial price is required.',
+                validate: (v) => {
+                  if (v === '') return 'Initial price is required.'
+                  const n = Number(v)
+                  if (Number.isNaN(n) || n < 0) return 'Enter a valid price (0 or greater).'
+                  return true
+                },
+              })}
+            />
+            {errors.initialPrice?.message && (
+              <Text fontSize="xs" color={errorAccent} mt={1}>
+                {errors.initialPrice.message}
+              </Text>
+            )}
           </Box>
           <Box>
-            <Text fontSize="sm" color={dark.muted} mb={1}>
+            <Text fontSize="sm" color={labelColor(!!errors.bidIncrement)} mb={1}>
               Bid increment *
             </Text>
             <Input
@@ -1161,13 +1357,26 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
               min={0.01}
               step={0.01}
               bg={dark.inputBg}
-              borderColor={dark.borderSubtle}
+              borderColor={inputBorderColor(!!errors.bidIncrement)}
               color="white"
-              {...register('bidIncrement', { required: true })}
+              {...register('bidIncrement', {
+                required: 'Bid increment is required.',
+                validate: (v) => {
+                  if (v === '') return 'Bid increment is required.'
+                  const n = Number(v)
+                  if (Number.isNaN(n) || n < 0.01) return 'Must be at least 0.01.'
+                  return true
+                },
+              })}
             />
+            {errors.bidIncrement?.message && (
+              <Text fontSize="xs" color={errorAccent} mt={1}>
+                {errors.bidIncrement.message}
+              </Text>
+            )}
           </Box>
           <Box>
-            <Text fontSize="sm" color={dark.muted} mb={1}>
+            <Text fontSize="sm" color={labelColor(!!errors.reservePrice)} mb={1}>
               Reserve price *
             </Text>
             <Input
@@ -1175,10 +1384,23 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
               min={0}
               step={0.01}
               bg={dark.inputBg}
-              borderColor={dark.borderSubtle}
+              borderColor={inputBorderColor(!!errors.reservePrice)}
               color="white"
-              {...register('reservePrice', { required: true })}
+              {...register('reservePrice', {
+                required: 'Reserve price is required.',
+                validate: (v) => {
+                  if (v === '') return 'Reserve price is required.'
+                  const n = Number(v)
+                  if (Number.isNaN(n) || n < 0) return 'Enter a valid reserve (0 or greater).'
+                  return true
+                },
+              })}
             />
+            {errors.reservePrice?.message && (
+              <Text fontSize="xs" color={errorAccent} mt={1}>
+                {errors.reservePrice.message}
+              </Text>
+            )}
           </Box>
         </SimpleGrid>
       </Box>
@@ -1199,7 +1421,15 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
                 ? { bg: 'brand.400' }
                 : { bg: 'whiteAlpha.100' }
             }
-            onClick={() => setCloseEndMode('quick')}
+            onClick={() => {
+              setCloseEndMode('quick')
+              setCustomErrors((prev) => {
+                if (!prev.auctionEnd) return prev
+                const next = { ...prev }
+                delete next.auctionEnd
+                return next
+              })
+            }}
           >
             Ends after…
           </Button>
@@ -1219,6 +1449,12 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
             onClick={() => {
               if (closeEndMode === 'custom') return
               setCloseEndMode('custom')
+              setCustomErrors((prev) => {
+                if (!prev.quickDuration) return prev
+                const next = { ...prev }
+                delete next.quickDuration
+                return next
+              })
               const quickMs = parseQuickDurationMs(quickDurationAmount, quickDurationUnit)
               if (quickMs != null) {
                 const end = new Date(Date.now() + quickMs)
@@ -1233,7 +1469,7 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
 
         {closeEndMode === 'quick' ? (
           <Stack gap={3}>
-            <Text fontSize="sm" color={dark.muted}>
+            <Text fontSize="sm" color={labelColor(!!customErrors.quickDuration)}>
               Length of auction (from when you create the listing)
             </Text>
             <AuctionDurationPicker
@@ -1242,8 +1478,19 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
               onChange={(nextAmount, nextUnit) => {
                 setQuickDurationAmount(nextAmount)
                 setQuickDurationUnit(nextUnit)
+                setCustomErrors((prev) => {
+                  if (!prev.quickDuration) return prev
+                  const next = { ...prev }
+                  delete next.quickDuration
+                  return next
+                })
               }}
             />
+            {customErrors.quickDuration && (
+              <Text fontSize="xs" color={errorAccent}>
+                {customErrors.quickDuration}
+              </Text>
+            )}
             <Text fontSize="sm" color={dark.muted}>
               Closes around{' '}
               <Text as="span" color="white" fontWeight="medium">
@@ -1261,7 +1508,7 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
           </Stack>
         ) : (
           <>
-            <Text fontSize="sm" color={dark.muted} mb={1}>
+            <Text fontSize="sm" color={labelColor(!!customErrors.auctionEnd)} mb={1}>
               Closing date & time *
             </Text>
             <SimpleGrid columns={{ base: 1, md: 2 }} gap={3}>
@@ -1274,12 +1521,18 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
                 onValueChange={(details) => {
                   const selected = details.value[0]
                   setCloseDate(selected ? selected.toString() : '')
+                  setCustomErrors((prev) => {
+                    if (!prev.auctionEnd) return prev
+                    const next = { ...prev }
+                    delete next.auctionEnd
+                    return next
+                  })
                 }}
               >
                 <DatePicker.Control>
                   <DatePicker.Input
                     bg={dark.inputBg}
-                    borderColor={dark.borderSubtle}
+                    borderColor={inputBorderColor(!!customErrors.auctionEnd)}
                     color="white"
                     _placeholder={{ color: dark.placeholder }}
                     _focusVisible={{
@@ -1360,11 +1613,25 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
               <AuctionEndTimePicker
                 closeDate={closeDate}
                 value={closeTime}
-                onChange={setCloseTime}
+                onChange={(next) => {
+                  setCloseTime(next)
+                  setCustomErrors((prev) => {
+                    if (!prev.auctionEnd) return prev
+                    const n = { ...prev }
+                    delete n.auctionEnd
+                    return n
+                  })
+                }}
                 minCloseDate={minCloseDate}
                 minCloseTime={minCloseTime}
+                triggerBorderColor={inputBorderColor(!!customErrors.auctionEnd)}
               />
             </SimpleGrid>
+            {customErrors.auctionEnd && (
+              <Text fontSize="xs" color={errorAccent} mt={1}>
+                {customErrors.auctionEnd}
+              </Text>
+            )}
           </>
         )}
         <Input type="hidden" {...register('closeDateTime')} />
