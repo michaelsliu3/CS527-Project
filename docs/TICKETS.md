@@ -471,7 +471,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-26 — Merge Sell flow into reusable popup modal
+## PBM-26 — Merge Sell flow into reusable popup modal ✅
 
 **Layer:** Frontend  
 **Branch:** `PBM-26/sell-flow-popup-modal`  
