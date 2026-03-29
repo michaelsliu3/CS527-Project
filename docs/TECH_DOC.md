@@ -1108,6 +1108,7 @@ Supported behavior:
 
 - `AUCTION_SEED_CATEGORY=auto` infers `Sedans`/`SUVs`/`Trucks`/`Sports Cars`/`Electric` from manifest vehicle keywords.
 - Manual category override still works by setting `AUCTION_SEED_CATEGORY` to a specific category name.
+- Cars are chosen **at random** (without replacement) from the manifest up to `AUCTION_SEED_COUNT`; with `AUCTION_SEED_TITLE_KEYWORD`, the pool is filtered first, then shuffled.
 - Auction values are randomized per item (close window, initial price, reserve, bid increment, mileage) to avoid deterministic demo data.
 - Concept-car seeding is supported via `AUCTION_SEED_TITLE_KEYWORD=concept`; missing manifest year values are derived from title (or safely defaulted) so creation does not fail.
 

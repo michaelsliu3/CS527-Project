@@ -64,16 +64,23 @@ function requireFieldIdByName(fields, name) {
   return field.id;
 }
 
+function shuffleInPlace(array) {
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
 function selectAssets(assets, count) {
   const base = assets.filter((asset) => asset?.make && asset?.model);
-  if (!TITLE_KEYWORD) {
-    return base.slice(0, count);
-  }
-
-  const filtered = base.filter((asset) =>
-    String(asset?.title || "").toLowerCase().includes(TITLE_KEYWORD),
-  );
-  return filtered.slice(0, count);
+  const pool = TITLE_KEYWORD
+    ? base.filter((asset) =>
+        String(asset?.title || "").toLowerCase().includes(TITLE_KEYWORD),
+      )
+    : [...base];
+  shuffleInPlace(pool);
+  return pool.slice(0, Math.min(count, pool.length));
 }
 
 function resolveAssetYear(asset) {

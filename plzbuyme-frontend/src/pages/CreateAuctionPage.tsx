@@ -373,6 +373,12 @@ export function CreateAuctionPage() {
           </select>
         </Box>
 
+        {fieldsLoading && categoryId !== '' && (
+          <Text color={dark.muted} mb={4} fontSize="sm">
+            Loading item fields…
+          </Text>
+        )}
+
         {fieldsError && (
           <Text color="red.400" mb={4}>
             {fieldsError}
@@ -599,7 +605,7 @@ export function CreateAuctionPage() {
             bg="brand.500"
             color="white"
             _hover={{ bg: 'brand.400' }}
-            isLoading={submitting}
+            loading={submitting}
           >
             Create auction
           </Button>
