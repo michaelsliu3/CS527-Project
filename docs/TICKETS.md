@@ -550,6 +550,24 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
+## PBM-31 — “My bids” page (auctions the user has bid on)
+
+**Layer:** Backend + Frontend  
+**Branch:** `PBM-31/my-bids-page`  
+**PR Title:** `[PBM-31] add My bids page for auctions the user has bid on`
+
+- Add a **logged-in** destination (e.g. `/my-bids` or a **My bids** tab alongside **My auctions**) that lists every auction where the current user has **at least one `Bid` row**, with clear status (active / sold / closed), closing time, current price, and a link to the auction detail page.
+- **Backend:** Today `GET api/auctions/history/{userId}` returns items the user **bid on or sold** (`GetHistoryAsync`). Either:
+  - add a dedicated endpoint (e.g. `GET api/auctions/my-bids` or `history` query `scope=bids`) that returns **only** items with user bids, or
+  - reuse `history` on the frontend but **filter client-side** to bid-only (document tradeoff: extra payload if user sells many listings).
+  Prefer a **server-side bids-only list** if the combined history response is large or confusing.
+- **Enrichment (recommended):** extend the list DTO (or add a slim `MyBidAuctionRowDto`) with fields such as **user’s highest bid on that item**, **whether they are the current high bidder** (when active), and **winner flag** when sold—so the page is useful without opening every detail view.
+- **Frontend:** new page using existing list/card patterns (`AuctionCard` or table variant), loading and empty states (“You have not placed any bids yet”), sort default (e.g. active first, then by close date or last bid time).
+- **Nav:** add **My bids** to `Layout` for roles that can bid (aligned with **My auctions** / **Sell** visibility rules).
+- **Tests:** backend tests for authorization (only self), bids-only vs history semantics, and DTO fields; frontend tests for route guard, empty list, and row actions linking to detail.
+
+---
+
 ## Bugs
 
 ### PBM-BUG-1 — Login state lost on page refresh ✅
