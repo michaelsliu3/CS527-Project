@@ -40,13 +40,21 @@ export function getCdnBaseUrl(): string {
   return 'http://localhost:5090'
 }
 
-/** DB often stores dev URLs (localhost:5090); rewrite to the public CDN base for EC2 / production SPAs. */
-function rewriteLoopbackMediaUrlIfNeeded(url: string, cdnBase: string): string {
+/**
+ * DB rows may store full URLs from an old CDN_PUBLIC_URL (e.g. http://3.80.65.189/media/... or localhost:5090).
+ * On an HTTPS SPA, http://… must be rewritten or the browser blocks mixed content. Any absolute /media/… URL
+ * is treated as our CDN and rebased onto VITE_CDN_URL (or inferred base).
+ */
+function rewriteAbsoluteCdnMediaUrlIfNeeded(url: string, cdnBase: string): string {
   try {
     const parsed = new URL(url)
-    if (!isLoopbackHost(parsed.hostname)) return url
     if (!parsed.pathname.startsWith('/media/')) return url
     const base = new URL(cdnBase)
+    const sameOrigin =
+      parsed.protocol === base.protocol &&
+      parsed.hostname === base.hostname &&
+      parsed.port === base.port
+    if (sameOrigin) return url
     return `${base.origin}${parsed.pathname}${parsed.search}${parsed.hash}`
   } catch {
     return url
@@ -58,7 +66,7 @@ export function resolveMediaUrl(mediaUrl: string | null | undefined): string | n
   const cdnBase = getCdnBaseUrl()
   if (mediaUrl.startsWith('data:')) return mediaUrl
   if (mediaUrl.startsWith('http://') || mediaUrl.startsWith('https://')) {
-    return rewriteLoopbackMediaUrlIfNeeded(mediaUrl, cdnBase)
+    return rewriteAbsoluteCdnMediaUrlIfNeeded(mediaUrl, cdnBase)
   }
   if (!mediaUrl.startsWith('/')) return `${cdnBase}/media/${mediaUrl}`
   if (mediaUrl.startsWith('/media/')) return `${cdnBase}${mediaUrl}`
