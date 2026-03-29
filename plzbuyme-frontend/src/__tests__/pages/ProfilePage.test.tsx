@@ -28,6 +28,43 @@ vi.mock('../../components/ui/toaster', () => ({
 
 const mockedUseAuth = vi.mocked(useAuth)
 
+const baseUser = {
+  id: 1,
+  username: 'alice',
+  avatarUrl: null as string | null,
+  displayNameColor: null as string | null,
+  email: 'alice@example.com',
+  role: 'vip',
+  walletBalance: 0,
+  walletAvailableBalance: 0,
+}
+
+const baseProfile = {
+  id: 1,
+  username: 'alice',
+  avatarUrl: null,
+  displayNameColor: null,
+  email: 'alice@example.com',
+  role: 'vip',
+}
+
+function authContext(overrides: Partial<ReturnType<typeof defaultAuth>> = {}) {
+  return { ...defaultAuth(), ...overrides }
+}
+
+function defaultAuth() {
+  return {
+    user: { ...baseUser },
+    loading: false,
+    login: vi.fn(),
+    register: vi.fn(),
+    logout: vi.fn(),
+    updateDisplayNameColor: vi.fn(),
+    updateAvatarUrl: vi.fn(),
+    refreshProfile: vi.fn().mockResolvedValue(null),
+  }
+}
+
 function renderProfile() {
   return render(
     <ChakraProvider value={system}>
@@ -41,20 +78,12 @@ function renderProfile() {
 describe('ProfilePage display name color', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedUseAuth.mockReturnValue({
-      user: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
-      loading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-      updateDisplayNameColor: vi.fn(),
-      updateAvatarUrl: vi.fn(),
-    })
+    mockedUseAuth.mockReturnValue(authContext())
   })
 
   it('shows color controls for VIP users', async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      data: { ...baseProfile, role: 'vip' },
     } as never)
     renderProfile()
     expect(await screen.findByText('Display name color')).toBeInTheDocument()
@@ -63,17 +92,31 @@ describe('ProfilePage display name color', () => {
   })
 
   it('hides color controls for end users', async () => {
-    mockedUseAuth.mockReturnValue({
-      user: { id: 2, username: 'bob', avatarUrl: null, displayNameColor: null, email: 'bob@example.com', role: 'end_user' },
-      loading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-      updateDisplayNameColor: vi.fn(),
-      updateAvatarUrl: vi.fn(),
-    })
+    mockedUseAuth.mockReturnValue(
+      authContext({
+        user: {
+          id: 2,
+          username: 'bob',
+          avatarUrl: null,
+          displayNameColor: null,
+          email: 'bob@example.com',
+          role: 'end_user',
+          walletBalance: 0,
+          walletAvailableBalance: 0,
+        },
+      })
+    )
     vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { id: 2, username: 'bob', avatarUrl: null, displayNameColor: null, email: 'bob@example.com', role: 'end_user' },
+      data: {
+        id: 2,
+        username: 'bob',
+        avatarUrl: null,
+        displayNameColor: null,
+        email: 'bob@example.com',
+        role: 'end_user',
+        walletBalance: 0,
+        walletAvailableBalance: 0,
+      },
     } as never)
     renderProfile()
     await screen.findByText('Profile')
@@ -82,17 +125,9 @@ describe('ProfilePage display name color', () => {
 
   it('submits selected hardcoded solid color and updates auth color', async () => {
     const updateDisplayNameColor = vi.fn()
-    mockedUseAuth.mockReturnValue({
-      user: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
-      loading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-      updateDisplayNameColor,
-      updateAvatarUrl: vi.fn(),
-    })
+    mockedUseAuth.mockReturnValue(authContext({ updateDisplayNameColor }))
     vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      data: { ...baseProfile, role: 'vip' },
     } as never)
     vi.mocked(apiClient.patch).mockResolvedValueOnce({
       data: { displayNameColor: '#A78BFA' },
@@ -115,7 +150,7 @@ describe('ProfilePage display name color', () => {
 
   it('does not render manual color picker inputs', async () => {
     vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      data: { ...baseProfile, role: 'vip' },
     } as never)
 
     renderProfile()
@@ -126,17 +161,9 @@ describe('ProfilePage display name color', () => {
 
   it('submits animated preset payload', async () => {
     const updateDisplayNameColor = vi.fn()
-    mockedUseAuth.mockReturnValue({
-      user: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
-      loading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-      updateDisplayNameColor,
-      updateAvatarUrl: vi.fn(),
-    })
+    mockedUseAuth.mockReturnValue(authContext({ updateDisplayNameColor }))
     vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      data: { ...baseProfile, role: 'vip' },
     } as never)
     vi.mocked(apiClient.patch).mockResolvedValueOnce({
       data: { displayNameColor: 'RAINBOW' },
@@ -158,17 +185,9 @@ describe('ProfilePage display name color', () => {
 
   it('uploads profile picture and updates auth avatar state', async () => {
     const updateAvatarUrl = vi.fn()
-    mockedUseAuth.mockReturnValue({
-      user: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
-      loading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-      updateDisplayNameColor: vi.fn(),
-      updateAvatarUrl,
-    })
+    mockedUseAuth.mockReturnValue(authContext({ updateAvatarUrl }))
     vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: { id: 1, username: 'alice', avatarUrl: null, displayNameColor: null, email: 'alice@example.com', role: 'vip' },
+      data: { ...baseProfile, role: 'vip' },
     } as never)
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: { key: 'avatars/user-1-new.png', url: 'http://localhost:5090/media/avatars/user-1-new.png' },
@@ -194,30 +213,19 @@ describe('ProfilePage display name color', () => {
 
   it('removes profile picture and falls back to initials', async () => {
     const updateAvatarUrl = vi.fn()
-    mockedUseAuth.mockReturnValue({
-      user: {
-        id: 1,
-        username: 'alice',
-        avatarUrl: 'avatars/user-1.png',
-        displayNameColor: null,
-        email: 'alice@example.com',
-        role: 'vip',
-      },
-      loading: false,
-      login: vi.fn(),
-      register: vi.fn(),
-      logout: vi.fn(),
-      updateDisplayNameColor: vi.fn(),
-      updateAvatarUrl,
-    })
+    mockedUseAuth.mockReturnValue(
+      authContext({
+        updateAvatarUrl,
+        user: {
+          ...baseUser,
+          avatarUrl: 'avatars/user-1.png',
+        },
+      })
+    )
     vi.mocked(apiClient.get).mockResolvedValueOnce({
       data: {
-        id: 1,
-        username: 'alice',
+        ...baseProfile,
         avatarUrl: 'avatars/user-1.png',
-        displayNameColor: null,
-        email: 'alice@example.com',
-        role: 'vip',
       },
     } as never)
     vi.mocked(apiClient.delete).mockResolvedValueOnce({

@@ -135,6 +135,7 @@ public class Program
         });
 
         // ── Services ─────────────────────────────────────────────────
+        builder.Services.AddScoped<IWalletService, WalletService>();
         builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<IAlertService, AlertService>();
         builder.Services.AddScoped<INotificationService, NotificationService>();

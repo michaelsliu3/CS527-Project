@@ -18,6 +18,8 @@ export interface AuthUser {
   displayNameColor: string | null
   email: string
   role: string
+  walletBalance: number
+  walletAvailableBalance: number
 }
 
 interface JwtPayload {
@@ -38,15 +40,19 @@ interface AuthResponse {
   email: string
   role: string
   userId: number
+  walletBalance?: number
+  walletAvailableBalance?: number
 }
 
-interface ProfileResponse {
+export interface AuthProfilePayload {
   id: number
   username: string
   avatarUrl?: string | null
   displayNameColor?: string | null
   email: string
   role: string
+  walletBalance?: number
+  walletAvailableBalance?: number
 }
 
 interface AuthContextValue {
@@ -57,6 +63,7 @@ interface AuthContextValue {
   logout: () => void
   updateDisplayNameColor: (displayNameColor: string | null) => void
   updateAvatarUrl: (avatarUrl: string | null) => void
+  refreshProfile: () => Promise<AuthProfilePayload | null>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -89,9 +96,31 @@ function decodeToken(token: string): AuthUser | null {
     const avatarUrl = firstString(payload, ['avatar_url'])
     const displayNameColor = firstString(payload, ['display_name_color'])
     if (!id || !username) return null
-    return { id, username, avatarUrl, displayNameColor, email, role }
+    return {
+      id,
+      username,
+      avatarUrl,
+      displayNameColor,
+      email,
+      role,
+      walletBalance: 0,
+      walletAvailableBalance: 0,
+    }
   } catch {
     return null
+  }
+}
+
+function mergeProfileIntoUser(prev: AuthUser, data: AuthProfilePayload): AuthUser {
+  return {
+    ...prev,
+    username: data.username,
+    avatarUrl: data.avatarUrl ?? null,
+    displayNameColor: data.displayNameColor ?? null,
+    email: data.email,
+    role: data.role,
+    walletBalance: data.walletBalance ?? 0,
+    walletAvailableBalance: data.walletAvailableBalance ?? 0,
   }
 }
 
@@ -112,18 +141,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Always hydrate latest profile metadata (avatar/color) from backend,
       // because JWT claims may lag behind profile updates.
       void apiClient
-        .get<ProfileResponse>('auth/profile')
+        .get<AuthProfilePayload>('auth/profile')
         .then(({ data }) => {
           setUser((prev) => {
             if (!prev) return prev
-            return {
-              ...prev,
-              username: data.username,
-              avatarUrl: data.avatarUrl ?? null,
-              displayNameColor: data.displayNameColor ?? null,
-              email: data.email,
-              role: data.role,
-            }
+            return mergeProfileIntoUser(prev, data)
           })
         })
         .catch(() => {
@@ -153,6 +175,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       displayNameColor: data.displayNameColor ?? null,
       email: data.email,
       role: data.role,
+      walletBalance: data.walletBalance ?? 0,
+      walletAvailableBalance: data.walletAvailableBalance ?? 0,
     })
     return { username: data.username }
   }, [])
@@ -172,11 +196,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         displayNameColor: data.displayNameColor ?? null,
         email: data.email,
         role: data.role,
+        walletBalance: data.walletBalance ?? 0,
+        walletAvailableBalance: data.walletAvailableBalance ?? 0,
       })
       return { username: data.username }
     },
     []
   )
+
+  const refreshProfile = useCallback(async (): Promise<AuthProfilePayload | null> => {
+    const token = localStorage.getItem(TOKEN_KEY)
+    if (!token) return null
+    try {
+      const { data } = await apiClient.get<AuthProfilePayload>('auth/profile')
+      setUser((prev) => {
+        if (!prev) return prev
+        return mergeProfileIntoUser(prev, data)
+      })
+      return data
+    } catch {
+      return null
+    }
+  }, [])
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY)
@@ -211,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     updateDisplayNameColor,
     updateAvatarUrl,
+    refreshProfile,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

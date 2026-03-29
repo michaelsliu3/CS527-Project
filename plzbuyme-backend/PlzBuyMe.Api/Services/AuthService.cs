@@ -26,11 +26,13 @@ public class AuthService : IAuthService
     };
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
+    private readonly IWalletService _walletService;
 
-    public AuthService(AppDbContext db, IConfiguration config)
+    public AuthService(AppDbContext db, IConfiguration config, IWalletService walletService)
     {
         _db = db;
         _config = config;
+        _walletService = walletService;
     }
 
     public string HashPassword(string password)
@@ -95,6 +97,7 @@ public class AuthService : IAuthService
         await _db.SaveChangesAsync();
 
         var token = GenerateJwt(user);
+        var (walletBalance, walletAvailable) = await _walletService.GetWalletSnapshotAsync(user.Id);
         return new RegisterResult
         {
             Data = new AuthResponseDto
@@ -105,7 +108,9 @@ public class AuthService : IAuthService
                 DisplayNameColor = user.DisplayNameColor,
                 Email = user.Email,
                 Role = RoleToClaimValue(user.Role),
-                UserId = user.Id
+                UserId = user.Id,
+                WalletBalance = walletBalance,
+                WalletAvailableBalance = walletAvailable
             }
         };
     }
@@ -122,6 +127,7 @@ public class AuthService : IAuthService
             return new LoginResult { FailureReason = LoginFailureReason.AccountInactive };
 
         var token = GenerateJwt(user);
+        var (walletBalance, walletAvailable) = await _walletService.GetWalletSnapshotAsync(user.Id);
         return new LoginResult
         {
             Data = new AuthResponseDto
@@ -132,7 +138,9 @@ public class AuthService : IAuthService
                 DisplayNameColor = user.DisplayNameColor,
                 Email = user.Email,
                 Role = RoleToClaimValue(user.Role),
-                UserId = user.Id
+                UserId = user.Id,
+                WalletBalance = walletBalance,
+                WalletAvailableBalance = walletAvailable
             }
         };
     }
@@ -143,6 +151,7 @@ public class AuthService : IAuthService
             .FirstOrDefaultAsync(u => u.Id == userId);
         if (user == null)
             return null;
+        var (walletBalance, walletAvailable) = await _walletService.GetWalletSnapshotAsync(user.Id);
         return new ProfileDto
         {
             Id = user.Id,
@@ -150,7 +159,9 @@ public class AuthService : IAuthService
             AvatarUrl = ResolveAvatarReference(user),
             DisplayNameColor = user.DisplayNameColor,
             Email = user.Email,
-            Role = RoleToClaimValue(user.Role)
+            Role = RoleToClaimValue(user.Role),
+            WalletBalance = walletBalance,
+            WalletAvailableBalance = walletAvailable
         };
     }
 

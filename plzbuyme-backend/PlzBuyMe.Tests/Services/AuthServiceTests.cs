@@ -28,7 +28,7 @@ public class AuthServiceTests
         AppDbContext db,
         IConfiguration? config = null)
     {
-        return new AuthService(db, config ?? CreateTestJwtConfig());
+        return new AuthService(db, config ?? CreateTestJwtConfig(), new WalletService(db));
     }
 
     [Fact]

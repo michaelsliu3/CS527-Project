@@ -17,17 +17,20 @@ public class AuctionService : IAuctionService
     private readonly AppDbContext _db;
     private readonly IAlertService _alertService;
     private readonly ICdnGt7ThumbnailResolver _cdnGt7ThumbnailResolver;
+    private readonly IWalletService _walletService;
     private readonly ILogger<AuctionService> _logger;
 
     public AuctionService(
         AppDbContext db,
         IAlertService alertService,
         ICdnGt7ThumbnailResolver cdnGt7ThumbnailResolver,
+        IWalletService walletService,
         ILogger<AuctionService> logger)
     {
         _db = db;
         _alertService = alertService;
         _cdnGt7ThumbnailResolver = cdnGt7ThumbnailResolver;
+        _walletService = walletService;
         _logger = logger;
     }
 
@@ -143,6 +146,8 @@ public class AuctionService : IAuctionService
         if (amount < item.CurrentPrice + item.BidIncrement)
             throw new InvalidOperationException("Bid too low.");
 
+        await _walletService.ApplyBidHoldAsync(itemId, bidderId, amount);
+
         _db.Bids.Add(new Bid { ItemId = itemId, BidderId = bidderId, Amount = amount, IsAuto = false });
         var previousHighBidderId = await _db.Bids
             .Where(b => b.ItemId == itemId && b.BidderId != bidderId)
@@ -207,6 +212,8 @@ public class AuctionService : IAuctionService
             var needed = item.CurrentPrice + item.BidIncrement;
             if (needed <= ab.UpperLimit)
             {
+                await _walletService.ApplyBidHoldAsync(item.Id, ab.BidderId, needed);
+
                 _db.Bids.Add(new Bid
                 {
                     ItemId = item.Id,
@@ -260,6 +267,7 @@ public class AuctionService : IAuctionService
             {
                 item.Status = ItemStatus.Sold;
                 item.WinnerId = highestBid.BidderId;
+                await _walletService.FinalizeSoldAuctionAsync(item.Id, highestBid.BidderId, highestBid.Amount, item.SellerId);
                 _db.Notifications.Add(new Notification
                 {
                     UserId = highestBid.BidderId,
@@ -270,6 +278,7 @@ public class AuctionService : IAuctionService
             }
             else
             {
+                await _walletService.ReleaseItemHoldAsync(item.Id);
                 item.Status = ItemStatus.Closed;
                 _db.Notifications.Add(new Notification
                 {

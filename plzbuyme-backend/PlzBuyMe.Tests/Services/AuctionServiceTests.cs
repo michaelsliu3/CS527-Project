@@ -37,6 +37,7 @@ public class AuctionServiceTests
             db,
             alertService ?? new AlertService(db),
             resolver ?? CreateResolverMock(),
+            new WalletService(db),
             new Mock<ILogger<AuctionService>>().Object);
     }
 
@@ -314,5 +315,82 @@ public class AuctionServiceTests
         var similar = await service.GetSimilarAsync(item1.Id, 5);
         similar.Should().Contain(s => s.Id == item2.Id);
         similar.Should().NotContain(s => s.Id == item1.Id);
+    }
+
+    [Fact]
+    public async Task PlaceBid_InsufficientWallet_ThrowsDeterministicMessage()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var item = db.Items.First(i => i.Title.Contains("Civic"));
+        var poor = new User
+        {
+            Username = "poor",
+            Email = "poor@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            WalletBalance = 0m
+        };
+        db.Users.Add(poor);
+        db.SaveChanges();
+        var service = CreateService(db);
+        var minBid = item.CurrentPrice + item.BidIncrement;
+        var act = () => service.PlaceBidAsync(item.Id, poor.Id, minBid);
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage(WalletService.InsufficientWalletMessage);
+    }
+
+    [Fact]
+    public async Task PlaceBid_WhenOutbid_PreviousLeaderHoldReleased()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var item = db.Items.First(i => i.Title.Contains("Civic"));
+        var bidder1 = db.Users.Single(u => u.Username == "bidder1");
+        var bidder2 = db.Users.Single(u => u.Username == "bidder2");
+        db.BidHolds.Single(h => h.ItemId == item.Id).UserId.Should().Be(bidder1.Id);
+        var service = CreateService(db);
+        var newAmount = item.CurrentPrice + item.BidIncrement;
+        await service.PlaceBidAsync(item.Id, bidder2.Id, newAmount);
+        var hold = db.BidHolds.Single(h => h.ItemId == item.Id);
+        hold.UserId.Should().Be(bidder2.Id);
+        hold.Amount.Should().Be(newAmount);
+        db.BidHolds.Should().NotContain(h => h.UserId == bidder1.Id && h.ItemId == item.Id);
+    }
+
+    [Fact]
+    public async Task CloseExpired_WhenSold_DebitWinnerCreditSellerAndClearHold()
+    {
+        var (db, _, _, sellerId) = CreateSeededContext();
+        var seller = await db.Users.FindAsync(sellerId) ?? throw new InvalidOperationException("seller missing");
+        var winner = db.Users.Single(u => u.Username == "bidder2");
+        var sellerStart = seller.WalletBalance;
+        var winnerStart = winner.WalletBalance;
+        var item = db.Items.First(i => i.Title.Contains("Camry"));
+        item.CloseDateTime = DateTime.UtcNow.AddSeconds(-1);
+        item.ReservePrice = 22000m;
+        db.SaveChanges();
+        var service = CreateService(db);
+        await service.CloseExpiredAsync();
+        db.Entry(seller).Reload();
+        db.Entry(winner).Reload();
+        db.Entry(item).Reload();
+        item.Status.Should().Be(ItemStatus.Sold);
+        item.WinnerId.Should().Be(winner.Id);
+        winner.WalletBalance.Should().Be(winnerStart - 23000m);
+        seller.WalletBalance.Should().Be(sellerStart + 23000m);
+        db.BidHolds.Should().NotContain(h => h.ItemId == item.Id);
+    }
+
+    [Fact]
+    public async Task CloseExpired_WhenReserveNotMet_ReleasesHighBidHold()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var item = db.Items.First(i => i.Title.Contains("Camry"));
+        item.CloseDateTime = DateTime.UtcNow.AddSeconds(-1);
+        db.SaveChanges();
+        db.BidHolds.Should().Contain(h => h.ItemId == item.Id);
+        var service = CreateService(db);
+        await service.CloseExpiredAsync();
+        db.Entry(item).Reload();
+        item.Status.Should().Be(ItemStatus.Closed);
+        db.BidHolds.Should().NotContain(h => h.ItemId == item.Id);
     }
 }

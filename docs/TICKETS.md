@@ -531,6 +531,25 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
+## PBM-30 — Admin “GM” tools menu (bulk seeding & fixtures)
+
+**Layer:** Backend + Frontend  
+**Branch:** `PBM-30/admin-gm-tools-menu`  
+**PR Title:** `[PBM-30] add admin GM menu for bulk auctions, users, forums, and fixtures`
+
+- Add an **admin-only** surface (e.g. a “GM tools” section on the existing admin dashboard, or a dedicated `/admin/gm` route) that exposes **safe, intentional** operations for demos, load testing, and QA—not for production abuse.
+- **Guardrails:** all actions require `AdminOnly` (or stricter); optional confirmation dialogs and/or typed confirmations for destructive or high-volume actions; rate limits or batch caps where appropriate; audit logging (who ran what, when, counts affected) if not already present elsewhere.
+- **Initial tool set (iterate as needed):**
+  - **Auctions:** generate N auctions with realistic or randomized fields (reuse/align with existing seed or `scripts/create-auctions-temp.mjs` logic where possible); options for category, seller assignment, close dates, bid counts.
+  - **Users:** bulk-create end-user accounts (username pattern, optional wallet balance); optional password policy for demo users.
+  - **Forums / Q&A:** if the product model is “questions” threads, seed N questions (and optional rep replies) tied to existing users/items; if true forums are out of scope, scope this bullet to “Q&A seeding” only and document the limitation.
+  - **Other fixtures:** wallet top-ups, alerts/notifications samples, or sold/closed auction history—only where APIs already exist or small admin endpoints are justified.
+- **Implementation notes:** prefer authenticated **admin API endpoints** (`POST /api/admin/gm/...` or similar) that call shared services, rather than one-off curl scripts, so the UI and automation stay in sync; keep payloads validated and idempotent where useful (e.g. “ensure at least N listings” vs blind duplicate spam).
+- **Docs:** short note in `TECH_DOC.md` or admin-facing copy listing what each tool does and that it is for **non-production** or controlled environments unless explicitly enabled.
+- **Tests:** backend tests for authorization (non-admin forbidden), validation, and bounded batch behavior; frontend tests for role-gated visibility and successful trigger + error toasts.
+
+---
+
 ## Bugs
 
 ### PBM-BUG-1 — Login state lost on page refresh ✅

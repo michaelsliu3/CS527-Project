@@ -37,7 +37,7 @@ public class AdminControllerTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(inMemorySettings)
             .Build();
-        return new AuthService(db, configuration);
+        return new AuthService(db, configuration, new WalletService(db));
     }
 
     [Fact]
