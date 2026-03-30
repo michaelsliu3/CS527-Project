@@ -18,7 +18,6 @@ import { showErrorToast, showSuccessToast } from './ui/toaster'
 import { dark } from '../theme/colors'
 
 const DEPOSIT_PRESETS = [25, 50, 100, 250, 500] as const
-const MAX_DEPOSIT = 1_000_000
 
 function formatMoney(n: number): string {
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -133,8 +132,8 @@ export function WalletModal({ open, onClose, refreshProfile, walletBalance, wall
   const handleDepositNext = () => {
     if (depositStep === 1) {
       const a = depositAmount
-      if (a == null || a > MAX_DEPOSIT) {
-        showErrorToast('Invalid amount', `Enter an amount between 0.01 and ${MAX_DEPOSIT.toLocaleString()}.`)
+      if (a == null) {
+        showErrorToast('Invalid amount', 'Enter a positive amount to deposit.')
         return
       }
       setDepositStep(2)

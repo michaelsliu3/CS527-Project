@@ -564,12 +564,12 @@ End-user policy only (`[Authorize(Policy = "EndUser")]`). Used for **demo / deve
 
 | Method | Route                 | Description | Request body |
 |--------|----------------------|-------------|--------------|
-| POST   | `api/wallet/deposit` | Add funds   | `WalletDepositRequestDto`: optional `amount` (positive decimal), **or** `preset` string `small` (100), `medium` (500), `large` (2000). Omitting both or invalid preset → **400**. Single deposits capped at **1,000,000** server-side. |
+| POST   | `api/wallet/deposit` | Add funds   | `WalletDepositRequestDto`: optional `amount` (positive decimal), **or** `preset` string `small` (100), `medium` (500), `large` (2000). Omitting both or invalid preset → **400**. No artificial cap on deposit size beyond validation. |
 | POST   | `api/wallet/withdraw`| Remove funds| `WalletWithdrawRequestDto`: positive `amount`; cannot exceed **available** balance (after holds). |
 
 **Responses:** `WalletDepositResponseDto` / `WalletWithdrawResponseDto` with `walletBalance` and `walletAvailableBalance` after the operation.
 
-**Errors:** Invalid amounts and over-large deposits return **400** with `InvalidOperationException` message text; insufficient available balance on withdraw returns **400** with `"Withdrawal exceeds available balance."`
+**Errors:** Invalid amounts return **400** with `InvalidOperationException` message text; insufficient available balance on withdraw returns **400** with `"Withdrawal exceeds available balance."`
 - `POST api/auth/profile/avatar` response:
   - `{ "avatarUrl": "avatars/..." }` (backend stores media key/filename; frontend resolves to CDN URL)
 - `DELETE api/auth/profile/avatar` response:

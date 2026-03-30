@@ -8,8 +8,6 @@ public class WalletService : IWalletService
 {
     public const string InsufficientWalletMessage = "Insufficient wallet balance.";
 
-    private const decimal MaxDeposit = 1_000_000m;
-
     private readonly AppDbContext _db;
 
     public WalletService(AppDbContext db)
@@ -92,8 +90,6 @@ public class WalletService : IWalletService
     {
         if (amount <= 0m)
             throw new InvalidOperationException("Deposit amount must be positive.");
-        if (amount > MaxDeposit)
-            throw new InvalidOperationException($"Deposits are capped at {MaxDeposit:N2}.");
 
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
         if (user == null)
