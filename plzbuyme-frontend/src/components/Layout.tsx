@@ -1,5 +1,5 @@
 import { Box, Badge, Button, Container, Flex, Heading, Menu, Spinner } from '@chakra-ui/react'
-import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom'
+import { Outlet, Link as RouterLink, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { listNotifications, markNotificationRead } from '../api/notifications'
@@ -24,6 +24,9 @@ const canUseEndUserFeatures = (role: string) =>
 export function Layout() {
   const { user, loading, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const locationRef = useRef(location)
+  locationRef.current = location
   const [unreadCount, setUnreadCount] = useState(0)
   const [navAvatarUrl, setNavAvatarUrl] = useState<string | null>(null)
   const lastKnownUnreadIdsRef = useRef<Set<number>>(new Set())
@@ -51,7 +54,12 @@ export function Layout() {
                   markNotificationRead(notificationId)
                     .then(() => window.dispatchEvent(new CustomEvent('notifications-updated')))
                     .catch(() => showErrorToast('Error', 'Failed to mark as read.'))
-                  navigate(path)
+                  navigate(
+                    path,
+                    path.startsWith('/auctions/')
+                      ? { state: { backgroundLocation: locationRef.current } }
+                      : undefined,
+                  )
                 },
               })
             }

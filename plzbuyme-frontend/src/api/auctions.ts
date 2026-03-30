@@ -52,6 +52,7 @@ export interface AuctionDetail {
   sellerDisplayNameColor?: string | null
   initialPrice: number
   bidIncrement: number
+  reservePrice: number
   currentPrice: number
   closeDateTime: string
   status: string

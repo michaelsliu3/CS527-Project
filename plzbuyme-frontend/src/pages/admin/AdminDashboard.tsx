@@ -36,7 +36,7 @@ export function AdminDashboard() {
       <Text fontSize="2xl" fontWeight="bold" color="white" mb={6}>
         Admin Dashboard
       </Text>
-      <Flex gap={4} mb={8}>
+      <Flex gap={4} mb={8} flexWrap="wrap">
         <Button
           asChild
           size="sm"
@@ -46,6 +46,16 @@ export function AdminDashboard() {
           _hover={{ bg: 'whiteAlpha.100' }}
         >
           <Link to="/admin/reports">View Reports</Link>
+        </Button>
+        <Button
+          asChild
+          size="sm"
+          variant="outline"
+          borderColor={dark.borderSubtle}
+          color="white"
+          _hover={{ bg: 'whiteAlpha.100' }}
+        >
+          <Link to="/admin/gm">GM tools</Link>
         </Button>
       </Flex>
       <Box

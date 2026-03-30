@@ -144,6 +144,7 @@ public class Program
         builder.Services.AddScoped<IQuestionsService, QuestionsService>();
         builder.Services.AddScoped<IRepService, RepService>();
         builder.Services.AddScoped<IReportService, ReportService>();
+        builder.Services.AddScoped<IGmToolsService, GmToolsService>();
         builder.Services.AddHttpClient();
         builder.Services.AddHostedService<AuctionCloseService>();
 

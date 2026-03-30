@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ChakraProvider } from '@chakra-ui/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -35,6 +35,7 @@ const auctionDetail = {
   sellerUsername: 'seller1',
   initialPrice: 1000,
   bidIncrement: 100,
+  reservePrice: 1500,
   currentPrice: 1000,
   closeDateTime: new Date(Date.now() + 86400000).toISOString(),
   status: 'active',
@@ -197,6 +198,43 @@ describe('AuctionDetailPage wallet', () => {
     await waitFor(() => {
       expect(auctionsApi.placeBid).toHaveBeenCalledWith(1, 1150)
       expect(refreshProfile).toHaveBeenCalled()
+    })
+  })
+
+  it('closes overlay modal when pointerdown hits outside the sheet (e.g. dimmed backdrop)', async () => {
+    mockedUseAuth.mockReturnValue({
+      user: null,
+      loading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      updateDisplayNameColor: vi.fn(),
+      updateAvatarUrl: vi.fn(),
+      refreshProfile: vi.fn().mockResolvedValue(null),
+    })
+    vi.mocked(auctionsApi.getAuction).mockResolvedValue({ data: auctionDetail } as never)
+    const bgLoc = { pathname: '/auctions', search: '', hash: '', state: null, key: 'bg' }
+    render(
+      <ChakraProvider value={system}>
+        <MemoryRouter
+          initialEntries={[
+            { pathname: '/auctions', key: 'bg' },
+            { pathname: '/auctions/1', state: { backgroundLocation: bgLoc }, key: 'd' },
+          ]}
+          initialIndex={1}
+        >
+          <Routes>
+            <Route path="/auctions" element={<div data-testid="auction-list">List</div>} />
+            <Route path="/auctions/:id" element={<AuctionDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </ChakraProvider>
+    )
+    await screen.findByText('Test listing')
+    fireEvent.pointerDown(screen.getByTestId('auction-detail-modal-backdrop'))
+    await waitFor(() => {
+      expect(screen.queryByText('Test listing')).not.toBeInTheDocument()
+      expect(screen.getByTestId('auction-list')).toBeInTheDocument()
     })
   })
 

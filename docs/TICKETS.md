@@ -568,6 +568,22 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
+## PBM-32 — Seller actions on own active auctions (no listing edits)
+
+**Layer:** Backend + Frontend  
+**Branch:** `PBM-32/seller-auction-lifecycle-actions`  
+**PR Title:** `[PBM-32] seller lifecycle actions for active auctions (end early, etc.; no field edits)`
+
+**Placeholder / intent:** Give sellers limited control over auctions that are **still active**—without reopening **create-time listing data** (title, description, category fields, reserve, images, etc. remain immutable after publish). Primary candidate: **end the auction early** (business rules TBD: e.g. immediate close vs. scheduled, reserve/winner semantics, notifications to bidders).
+
+- **Out of scope for this ticket (explicit):** General “edit my listing” or admin-style field patches; those stay separate (admin/rep flows or a different product decision).
+- **Backend (sketch):** Authenticated seller-only endpoint(s), e.g. `POST api/auctions/{id}/end-early` or `POST api/auctions/{id}/seller-actions` with a small action enum; validate item is active, seller owns item, and any policy checks (min time open, bid count, etc.—to be specified). Reuse or align with existing close/winner logic where possible.
+- **Frontend (sketch):** From **My auctions** and/or **auction detail** (when viewer is seller and auction is active), expose safe actions (e.g. **End auction now**) with confirmation modal and clear copy about consequences.
+- **Product follow-ups to decide:** Whether other actions belong here (e.g. “withdraw” if no bids, messaging-only nudges) vs. separate tickets; audit/logging if required.
+- **Tests:** Authorization (only owner, only active), happy path close, rejection cases; frontend tests for visibility and confirm flow.
+
+---
+
 ## Bugs
 
 ### PBM-BUG-1 — Login state lost on page refresh ✅

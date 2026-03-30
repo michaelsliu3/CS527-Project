@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { Box, Container, Flex, Heading, IconButton } from '@chakra-ui/react'
 import { keyframes } from '@emotion/react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { CreateAuctionForm } from '../components/CreateAuctionForm'
 import { dark } from '../theme/colors'
 import { showSuccessToast } from '../components/ui/toaster'
@@ -62,6 +62,7 @@ const SellItemModalContext = createContext<SellItemModalContextValue | null>(nul
 
 export function SellItemModalProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [open, setOpen] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
   const [formMountKey, setFormMountKey] = useState(0)
@@ -124,10 +125,10 @@ export function SellItemModalProvider({ children }: { children: ReactNode }) {
       if (afterCreate) {
         afterCreate(auctionId)
       } else {
-        navigate(`/auctions/${auctionId}`)
+        navigate(`/auctions/${auctionId}`, { state: { backgroundLocation: location } })
       }
     },
-    [navigate],
+    [navigate, location],
   )
 
   useScrollLock(open)

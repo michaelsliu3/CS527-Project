@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos;
+using PlzBuyMe.Api.Dtos.Admin;
 using PlzBuyMe.Api.Dtos.Auctions;
 using PlzBuyMe.Api.Models;
 
@@ -264,79 +265,8 @@ public class AuctionService : IAuctionService
             .ToListAsync();
 
         foreach (var item in expired)
-        {
-            var highestBid = await _db.Bids
-                .Where(b => b.ItemId == item.Id)
-                .OrderByDescending(b => b.Amount)
-                .FirstOrDefaultAsync();
+            await ProcessActiveAuctionCloseByRulesAsync(item);
 
-            if (highestBid != null && highestBid.Amount >= item.ReservePrice)
-            {
-                item.Status = ItemStatus.Sold;
-                item.WinnerId = highestBid.BidderId;
-                await _walletService.FinalizeSoldAuctionAsync(item.Id, highestBid.BidderId, highestBid.Amount, item.SellerId);
-                _db.Notifications.Add(new Notification
-                {
-                    UserId = item.SellerId,
-                    ItemId = item.Id,
-                    Type = NotificationType.AuctionSold,
-                    Message = WithWalletBalanceDisclaimer(
-                        $"Your listing \"{item.Title}\" sold for ${highestBid.Amount:N2}.")
-                });
-                _db.Notifications.Add(new Notification
-                {
-                    UserId = highestBid.BidderId,
-                    ItemId = item.Id,
-                    Type = NotificationType.AuctionWon,
-                    Message = WithWalletBalanceDisclaimer($"You won the auction for \"{item.Title}\"!")
-                });
-                var losingBidderIds = await _db.Bids
-                    .Where(b => b.ItemId == item.Id && b.BidderId != highestBid.BidderId)
-                    .Select(b => b.BidderId)
-                    .ToListAsync();
-                foreach (var loserId in losingBidderIds.Distinct())
-                {
-                    _db.Notifications.Add(new Notification
-                    {
-                        UserId = loserId,
-                        ItemId = item.Id,
-                        Type = NotificationType.AuctionLost,
-                        Message = WithWalletBalanceDisclaimer(
-                            $"You did not win the auction for \"{item.Title}\". Another bidder had the highest bid when it closed.")
-                    });
-                }
-            }
-            else
-            {
-                await _walletService.ReleaseItemHoldAsync(item.Id);
-                item.Status = ItemStatus.Closed;
-                _db.Notifications.Add(new Notification
-                {
-                    UserId = item.SellerId,
-                    ItemId = item.Id,
-                    Type = NotificationType.ReserveNotMet,
-                    Message = WithWalletBalanceDisclaimer($"Reserve price was not met on \"{item.Title}\".")
-                });
-                var bidderIds = (await _db.Bids
-                        .AsNoTracking()
-                        .Where(b => b.ItemId == item.Id)
-                        .Select(b => b.BidderId)
-                        .ToListAsync())
-                    .Distinct()
-                    .ToList();
-                foreach (var bidderId in bidderIds)
-                {
-                    _db.Notifications.Add(new Notification
-                    {
-                        UserId = bidderId,
-                        ItemId = item.Id,
-                        Type = NotificationType.ReserveNotMet,
-                        Message = WithWalletBalanceDisclaimer(
-                            $"The auction for \"{item.Title}\" closed without meeting the reserve price. If you had funds held for your bid, they are available in your wallet again.")
-                    });
-                }
-            }
-        }
         await _db.SaveChangesAsync();
     }
 
@@ -669,6 +599,7 @@ public class AuctionService : IAuctionService
             SellerDisplayNameColor = item.Seller.DisplayNameColor,
             InitialPrice = item.InitialPrice,
             BidIncrement = item.BidIncrement,
+            ReservePrice = item.ReservePrice,
             CurrentPrice = item.CurrentPrice,
             CloseDateTime = item.CloseDateTime,
             Status = item.Status.ToString().ToLowerInvariant(),
@@ -802,5 +733,256 @@ public class AuctionService : IAuctionService
             .Select(g => g.Key)
             .ToListAsync();
         return values;
+    }
+
+    public async Task<(string? Error, AuctionDetailDto? Detail)> AdminPatchAuctionAsync(
+        int itemId,
+        AdminPatchAuctionDto dto,
+        int adminUserId)
+    {
+        var item = await _db.Items.FirstOrDefaultAsync(i => i.Id == itemId);
+        if (item == null)
+            return ("Auction not found.", null);
+
+        var hasEnd = !string.IsNullOrWhiteSpace(dto.EndAuction);
+        if (hasEnd && AdminPatchHasOtherFields(dto))
+            return ("Send EndAuction alone, or omit it when updating fields.", null);
+
+        if (hasEnd)
+        {
+            if (item.Status != ItemStatus.Active)
+                return ("End auction is only valid for active listings.", null);
+
+            switch (dto.EndAuction!.Trim().ToLowerInvariant())
+            {
+                case "natural":
+                    await ProcessActiveAuctionCloseByRulesAsync(item);
+                    break;
+                case "closed":
+                    await ForceCloseActiveWithoutSaleAsync(item);
+                    break;
+                case "sold":
+                    var soldErr = await TryFinalizeActiveAsSoldWithTopBidAsync(item);
+                    if (soldErr != null)
+                        return (soldErr, null);
+                    break;
+                default:
+                    return ("EndAuction must be natural, closed, or sold.", null);
+            }
+
+            await _db.SaveChangesAsync();
+            _logger.LogWarning("Admin {AdminId} ended auction {ItemId} via {Mode}", adminUserId, itemId, dto.EndAuction);
+            return (null, await GetByIdAsync(itemId));
+        }
+
+        if (item.Status != ItemStatus.Active)
+        {
+            if (dto.Title != null)
+                item.Title = dto.Title.Trim();
+            if (dto.Description != null)
+                item.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
+            await _db.SaveChangesAsync();
+            _logger.LogWarning("Admin {AdminId} updated metadata on non-active auction {ItemId}", adminUserId, itemId);
+            return (null, await GetByIdAsync(itemId));
+        }
+
+        var hasBids = await _db.Bids.AnyAsync(b => b.ItemId == itemId);
+
+        if (dto.Title != null)
+            item.Title = dto.Title.Trim();
+        if (dto.Description != null)
+            item.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
+
+        if (dto.CloseDateTime.HasValue)
+        {
+            var closeUtc = dto.CloseDateTime.Value.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(dto.CloseDateTime.Value, DateTimeKind.Utc)
+                : dto.CloseDateTime.Value.ToUniversalTime();
+            if (closeUtc <= DateTime.UtcNow)
+                return ("Close date must be in the future.", null);
+            item.CloseDateTime = closeUtc;
+        }
+
+        if (dto.BidIncrement.HasValue)
+        {
+            if (dto.BidIncrement.Value <= 0m)
+                return ("Bid increment must be positive.", null);
+            item.BidIncrement = dto.BidIncrement.Value;
+        }
+
+        if (dto.ReservePrice.HasValue)
+        {
+            if (dto.ReservePrice.Value < 0m)
+                return ("Reserve cannot be negative.", null);
+            item.ReservePrice = dto.ReservePrice.Value;
+        }
+
+        if (dto.InitialPrice.HasValue || dto.CurrentPrice.HasValue)
+        {
+            if (hasBids)
+                return ("Cannot change initial or current price when bids exist.", null);
+            if (dto.InitialPrice.HasValue)
+            {
+                if (dto.InitialPrice.Value < 0m)
+                    return ("Initial price cannot be negative.", null);
+                item.InitialPrice = dto.InitialPrice.Value;
+            }
+
+            if (dto.CurrentPrice.HasValue)
+            {
+                if (dto.CurrentPrice.Value < 0m)
+                    return ("Current price cannot be negative.", null);
+                item.CurrentPrice = dto.CurrentPrice.Value;
+            }
+
+            if (dto.InitialPrice.HasValue && !dto.CurrentPrice.HasValue)
+                item.CurrentPrice = item.InitialPrice;
+            else if (dto.CurrentPrice.HasValue && !dto.InitialPrice.HasValue)
+                item.InitialPrice = item.CurrentPrice;
+        }
+
+        await _db.SaveChangesAsync();
+        _logger.LogWarning("Admin {AdminId} patched active auction {ItemId}", adminUserId, itemId);
+        return (null, await GetByIdAsync(itemId));
+    }
+
+    private static bool AdminPatchHasOtherFields(AdminPatchAuctionDto dto)
+    {
+        return dto.Title != null
+            || dto.Description != null
+            || dto.CloseDateTime.HasValue
+            || dto.BidIncrement.HasValue
+            || dto.ReservePrice.HasValue
+            || dto.InitialPrice.HasValue
+            || dto.CurrentPrice.HasValue;
+    }
+
+    private async Task ProcessActiveAuctionCloseByRulesAsync(Item item)
+    {
+        var highestBid = await _db.Bids
+            .Where(b => b.ItemId == item.Id)
+            .OrderByDescending(b => b.Amount)
+            .FirstOrDefaultAsync();
+
+        if (highestBid != null && highestBid.Amount >= item.ReservePrice)
+        {
+            item.Status = ItemStatus.Sold;
+            item.WinnerId = highestBid.BidderId;
+            await _walletService.FinalizeSoldAuctionAsync(item.Id, highestBid.BidderId, highestBid.Amount, item.SellerId);
+            _db.Notifications.Add(new Notification
+            {
+                UserId = item.SellerId,
+                ItemId = item.Id,
+                Type = NotificationType.AuctionSold,
+                Message = WithWalletBalanceDisclaimer(
+                    $"Your listing \"{item.Title}\" sold for ${highestBid.Amount:N2}.")
+            });
+            _db.Notifications.Add(new Notification
+            {
+                UserId = highestBid.BidderId,
+                ItemId = item.Id,
+                Type = NotificationType.AuctionWon,
+                Message = WithWalletBalanceDisclaimer($"You won the auction for \"{item.Title}\"!")
+            });
+            var losingBidderIds = await _db.Bids
+                .Where(b => b.ItemId == item.Id && b.BidderId != highestBid.BidderId)
+                .Select(b => b.BidderId)
+                .ToListAsync();
+            foreach (var loserId in losingBidderIds.Distinct())
+            {
+                _db.Notifications.Add(new Notification
+                {
+                    UserId = loserId,
+                    ItemId = item.Id,
+                    Type = NotificationType.AuctionLost,
+                    Message = WithWalletBalanceDisclaimer(
+                        $"You did not win the auction for \"{item.Title}\". Another bidder had the highest bid when it closed.")
+                });
+            }
+        }
+        else
+        {
+            await ForceCloseActiveWithoutSaleAsync(item);
+        }
+    }
+
+    private async Task ForceCloseActiveWithoutSaleAsync(Item item)
+    {
+        await _walletService.ReleaseItemHoldAsync(item.Id);
+        item.Status = ItemStatus.Closed;
+        item.WinnerId = null;
+        _db.Notifications.Add(new Notification
+        {
+            UserId = item.SellerId,
+            ItemId = item.Id,
+            Type = NotificationType.ReserveNotMet,
+            Message = WithWalletBalanceDisclaimer($"Reserve price was not met on \"{item.Title}\".")
+        });
+        var bidderIds = (await _db.Bids
+                .AsNoTracking()
+                .Where(b => b.ItemId == item.Id)
+                .Select(b => b.BidderId)
+                .ToListAsync())
+            .Distinct()
+            .ToList();
+        foreach (var bidderId in bidderIds)
+        {
+            _db.Notifications.Add(new Notification
+            {
+                UserId = bidderId,
+                ItemId = item.Id,
+                Type = NotificationType.ReserveNotMet,
+                Message = WithWalletBalanceDisclaimer(
+                    $"The auction for \"{item.Title}\" closed without meeting the reserve price. If you had funds held for your bid, they are available in your wallet again.")
+            });
+        }
+    }
+
+    private async Task<string?> TryFinalizeActiveAsSoldWithTopBidAsync(Item item)
+    {
+        var highestBid = await _db.Bids
+            .Where(b => b.ItemId == item.Id)
+            .OrderByDescending(b => b.Amount)
+            .FirstOrDefaultAsync();
+        if (highestBid == null)
+            return "No bids to complete a sale.";
+        if (highestBid.Amount < item.ReservePrice)
+            return "Top bid is below reserve; use natural or adjust reserve first.";
+
+        item.Status = ItemStatus.Sold;
+        item.WinnerId = highestBid.BidderId;
+        await _walletService.FinalizeSoldAuctionAsync(item.Id, highestBid.BidderId, highestBid.Amount, item.SellerId);
+        _db.Notifications.Add(new Notification
+        {
+            UserId = item.SellerId,
+            ItemId = item.Id,
+            Type = NotificationType.AuctionSold,
+            Message = WithWalletBalanceDisclaimer(
+                $"Your listing \"{item.Title}\" sold for ${highestBid.Amount:N2}.")
+        });
+        _db.Notifications.Add(new Notification
+        {
+            UserId = highestBid.BidderId,
+            ItemId = item.Id,
+            Type = NotificationType.AuctionWon,
+            Message = WithWalletBalanceDisclaimer($"You won the auction for \"{item.Title}\"!")
+        });
+        var losingBidderIds = await _db.Bids
+            .Where(b => b.ItemId == item.Id && b.BidderId != highestBid.BidderId)
+            .Select(b => b.BidderId)
+            .ToListAsync();
+        foreach (var loserId in losingBidderIds.Distinct())
+        {
+            _db.Notifications.Add(new Notification
+            {
+                UserId = loserId,
+                ItemId = item.Id,
+                Type = NotificationType.AuctionLost,
+                Message = WithWalletBalanceDisclaimer(
+                    $"You did not win the auction for \"{item.Title}\". Another bidder had the highest bid when it closed.")
+            });
+        }
+
+        return null;
     }
 }
