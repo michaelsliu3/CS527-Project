@@ -487,7 +487,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-27 — Wallet balance system with fake deposits and real bid charging
+## PBM-27 — Wallet balance system with fake deposits and real bid charging ✅
 
 **Layer:** Backend + Frontend  
 **Branch:** `PBM-27/wallet-balance-and-bid-charging`  
@@ -631,7 +631,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Deliverables:** Bugfix patches with a tracked checklist of issues addressed, plus regression tests for high-impact fixes.
 - **Validation:** Run unit/integration tests for touched areas and perform smoke testing on critical flows (login, browse/search, bid, create auction, notifications).
 
-### PBM-BUG-3 — Auto-bid upper limit input is incorrectly constrained
+### PBM-BUG-3 — Auto-bid upper limit input is incorrectly constrained ✅
 
 **Layer:** Frontend + Backend  
 **Branch:** `PBM-BUG-3/fix-autobid-upper-limit-constraint`  
