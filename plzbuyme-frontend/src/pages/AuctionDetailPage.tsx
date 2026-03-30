@@ -352,7 +352,7 @@ export function AuctionDetailPage() {
                 <Flex gap={2} mb={3}>
                   <Input
                     type="number"
-                    step={auction.bidIncrement}
+                    step="any"
                     min={auction.currentPrice + auction.bidIncrement}
                     bg={dark.inputBg}
                     borderColor={dark.borderSubtle}
