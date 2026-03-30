@@ -487,7 +487,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-27 — Wallet balance system with fake deposits and real bid charging
+## PBM-27 — Wallet balance system with fake deposits and real bid charging ✅
 
 **Layer:** Backend + Frontend  
 **Branch:** `PBM-27/wallet-balance-and-bid-charging`  
