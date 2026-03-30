@@ -128,6 +128,36 @@ namespace PlzBuyMe.Api.Migrations
                     b.ToTable("Bids");
                 });
 
+            modelBuilder.Entity("PlzBuyMe.Api.Models.BidHold", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int>("ItemId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemId")
+                        .IsUnique()
+                        .HasDatabaseName("idx_bid_holds_item");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("idx_bid_holds_user");
+
+                    b.ToTable("BidHolds");
+                });
+
             modelBuilder.Entity("PlzBuyMe.Api.Models.Category", b =>
                 {
                     b.Property<int>("Id")
@@ -499,6 +529,10 @@ namespace PlzBuyMe.Api.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("varchar(64)");
 
+                    b.Property<decimal>("WalletBalance")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("decimal(12,2)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
@@ -564,6 +598,25 @@ namespace PlzBuyMe.Api.Migrations
                     b.Navigation("Bidder");
 
                     b.Navigation("Item");
+                });
+
+            modelBuilder.Entity("PlzBuyMe.Api.Models.BidHold", b =>
+                {
+                    b.HasOne("PlzBuyMe.Api.Models.Item", "Item")
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PlzBuyMe.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Item");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("PlzBuyMe.Api.Models.Category", b =>

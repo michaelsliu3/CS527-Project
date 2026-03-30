@@ -4,6 +4,7 @@ import { showErrorToast } from '../components/ui/toaster'
 import { useNavigate } from 'react-router-dom'
 import {
   HiOutlineBell,
+  HiOutlineCheckCircle,
   HiOutlineExclamation,
   HiOutlineTag,
   HiOutlineLightningBolt,
@@ -12,12 +13,15 @@ import { HiOutlineTrophy } from 'react-icons/hi2'
 import { listNotifications, markNotificationRead, markAllNotificationsRead, type NotificationItem } from '../api/notifications'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
+import { splitNotificationMessage } from '../utils/notificationMessage'
 
 const NOTIFICATION_ICONS: Record<string, React.ElementType> = {
   outbid: HiOutlineExclamation,
   auto_limit_reached: HiOutlineLightningBolt,
   auto_bid_placed: HiOutlineLightningBolt,
   auction_won: HiOutlineTrophy,
+  auction_lost: HiOutlineExclamation,
+  auction_sold: HiOutlineCheckCircle,
   alert_match: HiOutlineTag,
   reserve_not_met: HiOutlineExclamation,
 }
@@ -156,9 +160,19 @@ export function NotificationsPage() {
                   <NotificationIcon type={n.type} />
                 </Box>
                 <Box flex={1} minW={0}>
-                  <Text color="white" lineClamp={2}>
-                    {n.message}
-                  </Text>
+                  {(() => {
+                    const { primary, disclaimer } = splitNotificationMessage(n.message)
+                    return (
+                      <>
+                        <Text color="white">{primary}</Text>
+                        {disclaimer != null && disclaimer.length > 0 && (
+                          <Text fontSize="sm" color={dark.placeholder} mt={1.5} lineHeight="short">
+                            {disclaimer}
+                          </Text>
+                        )}
+                      </>
+                    )
+                  })()}
                   <Flex align="center" gap={2} mt={2}>
                     <Text fontSize="sm" color={dark.placeholder}>
                       {formatTime(n.createdAt)}

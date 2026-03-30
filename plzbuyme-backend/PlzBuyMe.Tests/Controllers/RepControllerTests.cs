@@ -34,7 +34,7 @@ public class RepControllerTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(inMemorySettings)
             .Build();
-        return new AuthService(db, configuration);
+        return new AuthService(db, configuration, new WalletService(db));
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public class RepControllerTests
     {
         await using var db = CreateDbContext();
         var authService = CreateAuthService(db);
-        var repService = new RepService(db, authService);
+        var repService = new RepService(db, authService, new WalletService(db));
         var rep = new User
         {
             Username = "rep1",
@@ -88,7 +88,7 @@ public class RepControllerTests
     {
         await using var db = CreateDbContext();
         var authService = CreateAuthService(db);
-        var repService = new RepService(db, authService);
+        var repService = new RepService(db, authService, new WalletService(db));
         var rep = new User
         {
             Username = "rep1",
@@ -130,7 +130,7 @@ public class RepControllerTests
     {
         await using var db = CreateDbContext();
         var authService = CreateAuthService(db);
-        var repService = new RepService(db, authService);
+        var repService = new RepService(db, authService, new WalletService(db));
         var admin = new User
         {
             Username = "admin1",
@@ -173,7 +173,7 @@ public class RepControllerTests
     {
         await using var db = CreateDbContext();
         var authService = CreateAuthService(db);
-        var repService = new RepService(db, authService);
+        var repService = new RepService(db, authService, new WalletService(db));
         var rep = new User
         {
             Username = "rep1",
@@ -213,7 +213,7 @@ public class RepControllerTests
     {
         await using var db = CreateDbContext();
         var authService = CreateAuthService(db);
-        var repService = new RepService(db, authService);
+        var repService = new RepService(db, authService, new WalletService(db));
         var rep = new User
         {
             Username = "rep1",
@@ -253,7 +253,7 @@ public class RepControllerTests
     {
         await using var db = CreateDbContext();
         var authService = CreateAuthService(db);
-        var repService = new RepService(db, authService);
+        var repService = new RepService(db, authService, new WalletService(db));
         var admin = new User
         {
             Username = "admin",
@@ -292,7 +292,7 @@ public class RepControllerTests
     {
         await using var db = CreateDbContext();
         var authService = CreateAuthService(db);
-        var repService = new RepService(db, authService);
+        var repService = new RepService(db, authService, new WalletService(db));
         var admin = new User
         {
             Username = "admin",
@@ -334,7 +334,7 @@ public class RepControllerTests
     {
         await using var db = CreateDbContext();
         var authService = CreateAuthService(db);
-        var repService = new RepService(db, authService);
+        var repService = new RepService(db, authService, new WalletService(db));
         var admin = new User
         {
             Username = "admin",
@@ -374,7 +374,7 @@ public class RepControllerTests
     {
         await using var db = CreateDbContext();
         var authService = CreateAuthService(db);
-        var repService = new RepService(db, authService);
+        var repService = new RepService(db, authService, new WalletService(db));
         var rep = new User
         {
             Username = "rep1",
@@ -407,7 +407,7 @@ public class RepControllerTests
     {
         await using var db = CreateDbContext();
         var authService = CreateAuthService(db);
-        var repService = new RepService(db, authService);
+        var repService = new RepService(db, authService, new WalletService(db));
         var rep = new User
         {
             Username = "rep1",
@@ -442,7 +442,7 @@ public class RepControllerTests
     {
         await using var db = CreateDbContext();
         var authService = CreateAuthService(db);
-        var repService = new RepService(db, authService);
+        var repService = new RepService(db, authService, new WalletService(db));
         var rep = new User
         {
             Username = "rep1",
@@ -455,21 +455,24 @@ public class RepControllerTests
             Username = "seller",
             Email = "seller@example.com",
             PasswordHash = "hash",
-            Role = UserRole.EndUser
+            Role = UserRole.EndUser,
+            WalletBalance = 10_000m
         };
         var bidder1 = new User
         {
             Username = "bidder1",
             Email = "bidder1@example.com",
             PasswordHash = "hash",
-            Role = UserRole.EndUser
+            Role = UserRole.EndUser,
+            WalletBalance = 10_000m
         };
         var bidder2 = new User
         {
             Username = "bidder2",
             Email = "bidder2@example.com",
             PasswordHash = "hash",
-            Role = UserRole.EndUser
+            Role = UserRole.EndUser,
+            WalletBalance = 10_000m
         };
         db.Users.AddRange(rep, seller, bidder1, bidder2);
         await db.SaveChangesAsync();
@@ -521,7 +524,7 @@ public class RepControllerTests
     {
         await using var db = CreateDbContext();
         var authService = CreateAuthService(db);
-        var repService = new RepService(db, authService);
+        var repService = new RepService(db, authService, new WalletService(db));
         var rep = new User
         {
             Username = "rep1",
@@ -586,7 +589,7 @@ public class RepControllerTests
     {
         await using var db = CreateDbContext();
         var authService = CreateAuthService(db);
-        var repService = new RepService(db, authService);
+        var repService = new RepService(db, authService, new WalletService(db));
         var rep = new User
         {
             Username = "rep1",

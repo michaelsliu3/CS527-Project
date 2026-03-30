@@ -5,10 +5,12 @@ import { useAuth } from '../context/AuthContext'
 import { listNotifications, markNotificationRead } from '../api/notifications'
 import { apiClient } from '../api/client'
 import { showErrorToast, showNotificationToast } from './ui/toaster'
+import { splitNotificationMessage } from '../utils/notificationMessage'
 import { HiOutlineBell } from 'react-icons/hi'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
 import { DisplayNameText } from './DisplayNameText'
+import { NavWallet } from './NavWallet'
 import { UserAvatar } from './UserAvatar'
 
 /** How often to poll for new notifications while the user is logged in (used for badge + real-time toasts). */
@@ -44,7 +46,7 @@ export function Layout() {
               const path =
                 n.itemId != null ? `/auctions/${n.itemId}` : '/notifications'
               const notificationId = n.id
-              showNotificationToast('Notification', n.message, {
+              showNotificationToast('Notification', splitNotificationMessage(n.message).primary, {
                 onClick: () => {
                   markNotificationRead(notificationId)
                     .then(() => window.dispatchEvent(new CustomEvent('notifications-updated')))
@@ -130,6 +132,7 @@ export function Layout() {
                   <RouterLink to="/questions" style={{ fontWeight: 500, color: linkColor }}>
                     Forums
                   </RouterLink>
+                  <NavWallet />
                   <RouterLink to="/notifications" aria-label="Notifications" style={{ padding: 8, display: 'inline-flex', alignItems: 'center', color: linkColor, position: 'relative' }}>
                     <HiOutlineBell size={20} />
                     {unreadCount > 0 && (

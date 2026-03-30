@@ -70,7 +70,7 @@ export function AuctionDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const { user } = useAuth()
+  const { user, refreshProfile } = useAuth()
   const isModal = Boolean(location.state && (location.state as { backgroundLocation?: unknown }).backgroundLocation)
   const [isClosing, setIsClosing] = useState(false)
   const closeTimeoutRef = useRef<number | null>(null)
@@ -166,6 +166,7 @@ export function AuctionDetailPage() {
       const res = await getAuction(auction.id)
       setAuction(res.data)
       setValue('amount', String(res.data.currentPrice + res.data.bidIncrement))
+      await refreshProfile()
     } catch (err) {
       const msg = isAxiosError(err) && err.response?.data
         ? (typeof err.response.data === 'string' ? err.response.data : (err.response.data as { message?: string }).message)
@@ -185,6 +186,7 @@ export function AuctionDetailPage() {
       await setAutoBid(auction.id, Number(data.autoLimit))
       const res = await getAuction(auction.id)
       setAuction(res.data)
+      await refreshProfile()
     } catch (err) {
       const msg = isAxiosError(err) && err.response?.data
         ? (typeof err.response.data === 'string' ? err.response.data : (err.response.data as { message?: string }).message)
@@ -332,6 +334,15 @@ export function AuctionDetailPage() {
               <Heading size="sm" mb={3} color="white">
                 Place bid
               </Heading>
+              {user && (
+                <Text fontSize="sm" color={dark.muted} mb={2}>
+                  Spendable wallet: $
+                  {(user.walletAvailableBalance ?? 0).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </Text>
+              )}
               {bidError && (
                 <Text color="red.400" fontSize="sm" mb={2}>
                   {bidError}

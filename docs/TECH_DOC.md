@@ -187,6 +187,7 @@ CS527-Project/
 | `AlertsController`      | `api/alerts`        | Manage item alerts                      |
 | `NotificationsController`| `api/notifications`| List and mark-read notifications        |
 | `QuestionsController`   | `api/questions`     | Customer Q&A                            |
+| `WalletController`      | `api/wallet`        | Demo deposit / withdraw (end-user)      |
 | `AdminController`       | `api/admin`         | Admin dashboard and reports             |
 | `RepController`         | `api/rep`           | Customer rep functions                  |
 
@@ -230,6 +231,7 @@ CS527-Project/
 | `role`          | ENUM('end_user', 'customer_rep', 'admin') | NOT NULL, DEFAULT 'end_user' |
 | `is_active`     | BOOLEAN           | DEFAULT TRUE                      |
 | `created_at`    | DATETIME          | DEFAULT CURRENT_TIMESTAMP         |
+| `wallet_balance`| DECIMAL(12,2)     | NOT NULL, DEFAULT 0 — ledger balance for demo bidding/settlement |
 
 #### `categories`
 
@@ -296,6 +298,16 @@ Self-referencing foreign key enables the hierarchical subcategory tree.
 | `is_auto`        | BOOLEAN           | DEFAULT FALSE                     |
 | `created_at`     | DATETIME          | DEFAULT CURRENT_TIMESTAMP         |
 
+#### `bid_holds` *(one row per active auction — current high bidder’s hold)*
+
+| Column           | Type              | Constraints                       |
+|------------------|-------------------|-----------------------------------|
+| `item_id`        | INT               | PK, FK → items.id — at most one hold row per item |
+| `user_id`        | INT               | FK → users.id, NOT NULL           |
+| `amount`         | DECIMAL(12,2)     | NOT NULL — equals that user’s current high bid amount on this item |
+
+**Semantics:** `wallet_balance` is the user’s total balance. While leading on an auction, a hold row records how much of that balance is **reserved** for that item. **Available balance** = `wallet_balance − SUM(bid_holds.amount)` for that user. Placing a higher bid on the same auction updates the same hold row; being outbid removes the hold for that item (funds become available again for other auctions).
+
 #### `auto_bids`
 
 | Column           | Type              | Constraints                       |
@@ -329,7 +341,7 @@ Self-referencing foreign key enables the hierarchical subcategory tree.
 | `user_id`        | INT               | FK → users.id, NOT NULL           |
 | `item_id`        | INT               | FK → items.id, NULLABLE           |
 | `message`        | TEXT              | NOT NULL                          |
-| `type`           | ENUM('outbid', 'auto_limit_reached', 'auto_bid_placed', 'auction_won', 'alert_match', 'reserve_not_met') | NOT NULL |
+| `type`           | VARCHAR(32) / enum string (snake_case in DB) — see §7 notifications | NOT NULL |
 | `is_read`        | BOOLEAN           | DEFAULT FALSE                     |
 | `created_at`     | DATETIME          | DEFAULT CURRENT_TIMESTAMP         |
 
@@ -363,6 +375,7 @@ CREATE INDEX idx_items_category      ON items(category_id);
 CREATE INDEX idx_items_seller        ON items(seller_id);
 CREATE INDEX idx_bids_item           ON bids(item_id, created_at);
 CREATE INDEX idx_bids_bidder         ON bids(bidder_id);
+CREATE INDEX idx_bid_holds_user      ON bid_holds(user_id);
 CREATE INDEX idx_notifications_user  ON notifications(user_id, is_read);
 CREATE INDEX idx_alerts_user         ON alerts(user_id, is_active);
 CREATE FULLTEXT INDEX idx_items_ft   ON items(title, description);
@@ -379,6 +392,7 @@ CREATE FULLTEXT INDEX idx_items_ft   ON items(title, description);
 | Register / Login / Logout       | Yes      | Yes          | Yes   |
 | Create auction                  | Yes      | —            | —     |
 | Place bid                       | Yes      | —            | —     |
+| Wallet deposit / withdraw (demo)| Yes      | —            | —     |
 | Set alerts                      | Yes      | —            | —     |
 | Search & browse                 | Yes      | Yes          | Yes   |
 | View bid history                | Yes      | Yes          | Yes   |
@@ -452,14 +466,38 @@ function ProtectedRoute({ roles, children }: { roles: string[]; children: ReactN
 - **Outbid notification:** when a manual bidder is outbid.
 - **Upper limit reached notification:** when an auto-bidder's limit is exceeded.
 
-### 6.4 Auction Closing
+**Wallet & bid eligibility (demo ledger):**
 
-An ASP.NET Core `BackgroundService` runs every **30 seconds** to process auctions whose `close_datetime` has passed:
+- Each end-user has a **`wallet_balance`** on `users`. There is **no** external payment processor; **`POST api/wallet/deposit`** adds funds for development/demo (fixed presets `small` / `medium` / `large` or a positive custom `amount`, capped server-side).
+- **`POST api/wallet/withdraw`** reduces balance but cannot take the user below **available** balance (balance minus sum of active `bid_holds`).
+- Before accepting a manual or auto-bid, `WalletService.ApplyBidHoldAsync` ensures **available balance** covers the incremental hold (new high bid minus previous hold on that item, if the same user was already winning). If not, the API returns **`400`** with the deterministic message **`Insufficient wallet balance.`** (constant `WalletService.InsufficientWalletMessage`).
+- **Hold model:** at most **one** `bid_holds` row per `item_id`, always for the **current high bidder**, amount = their winning bid. Outbidding removes the previous leader’s hold and creates/updates the new leader’s hold.
 
-1. Find all `active` items where `close_datetime ≤ NOW()`.
-2. For each item:
-   - If `current_price ≥ reserve_price` → status = `sold`, set `winner_id`, notify winner.
-   - If `current_price < reserve_price` → status = `closed`, notify seller that reserve was not met.
+### 6.4 Auction Closing & Settlement
+
+`AuctionCloseService` (`BackgroundService`) runs on a fixed interval (currently **10 seconds**) and calls `AuctionService.CloseExpiredAsync()`:
+
+1. Load all **`active`** items with `close_datetime ≤ UtcNow`.
+2. Determine **`highestBid`** (max `bids.amount` for that item; may be null).
+
+**Path A — Reserve met (sale):** `highestBid != null` **and** `highestBid.amount ≥ reserve_price`
+
+- Set `status = sold`, `winner_id = highestBid.bidder_id`.
+- **`WalletService.FinalizeSoldAuctionAsync`:** remove the item’s `bid_holds` row; **debit** `winner.wallet_balance` by final hammer price; **credit** `seller.wallet_balance` by the same amount. Throws if the winner’s balance is insufficient (should not happen if holds were consistent).
+- **Notifications** (each may include a two-paragraph message; see §7):
+  - **Seller:** `auction_sold` — listing sold, includes **formatted sale amount**.
+  - **Winner:** `auction_won`.
+  - **Every other distinct `bidder_id`** on that item (from `bids`): `auction_lost` — auction closed, another bidder had the high bid.
+
+**Path B — Reserve not met or no bids:** otherwise
+
+- **`WalletService.ReleaseItemHoldAsync`:** delete `bid_holds` for that item (releases the high bidder’s hold back to available balance; no money moves between users).
+- Set `status = closed`, `winner_id` null.
+- **Notifications:**
+  - **Seller:** `reserve_not_met`.
+  - **Every distinct bidder** on that item: `reserve_not_met` with copy explaining the auction closed without meeting reserve and that any bid hold is released.
+
+**Close-out disclaimer text:** For all of the above seller/bidder notifications, the API appends a second paragraph (after `\n\n`) stating that wallet/payment figures can take a short moment to appear in the UI. The React notifications page renders that paragraph in smaller, muted text; the header toast uses only the first paragraph to keep toasts short.
 
 ### 6.5 Search & Browsing
 
@@ -516,8 +554,22 @@ All endpoints return JSON. Protected routes require `Authorization: Bearer <toke
 
 - `POST api/auth/register` and `POST api/auth/login` responses include:
   - `token`, `userId`, `username`, `avatarUrl`, `displayNameColor`, `email`, `role`
+  - **`walletBalance`**, **`walletAvailableBalance`** — total ledger balance and spendable amount after subtracting active `bid_holds` (see §6.3).
 - `GET api/auth/profile` response includes:
-  - `id`, `username`, `avatarUrl`, `displayNameColor`, `email`, `role`
+  - `id`, `username`, `avatarUrl`, `displayNameColor`, `email`, `role`, **`walletBalance`**, **`walletAvailableBalance`**
+
+### Wallet — `api/wallet`
+
+End-user policy only (`[Authorize(Policy = "EndUser")]`). Used for **demo / development** top-ups; not real card processing.
+
+| Method | Route                 | Description | Request body |
+|--------|----------------------|-------------|--------------|
+| POST   | `api/wallet/deposit` | Add funds   | `WalletDepositRequestDto`: optional `amount` (positive decimal), **or** `preset` string `small` (100), `medium` (500), `large` (2000). Omitting both or invalid preset → **400**. Single deposits capped at **1,000,000** server-side. |
+| POST   | `api/wallet/withdraw`| Remove funds| `WalletWithdrawRequestDto`: positive `amount`; cannot exceed **available** balance (after holds). |
+
+**Responses:** `WalletDepositResponseDto` / `WalletWithdrawResponseDto` with `walletBalance` and `walletAvailableBalance` after the operation.
+
+**Errors:** Invalid amounts and over-large deposits return **400** with `InvalidOperationException` message text; insufficient available balance on withdraw returns **400** with `"Withdrawal exceeds available balance."`
 - `POST api/auth/profile/avatar` response:
   - `{ "avatarUrl": "avatars/..." }` (backend stores media key/filename; frontend resolves to CDN URL)
 - `DELETE api/auth/profile/avatar` response:
@@ -570,7 +622,24 @@ All endpoints return JSON. Protected routes require `Authorization: Bearer <toke
 | PATCH  | `api/notifications/{id}/read`  | Mark as read         | Logged in |
 | PATCH  | `api/notifications/read-all`   | Mark all as read     | Logged in |
 
-**Frontend polling:** When the user is logged in, `Layout.tsx` polls `GET api/notifications` every **5 seconds** to update the bell badge count and to show a top-right toast for new unread notifications. The interval is defined as `NOTIFICATION_POLL_INTERVAL_MS` in `src/components/Layout.tsx`.
+**Frontend polling:** When the user is logged in, `Layout.tsx` polls `GET api/notifications` every **5 seconds** to update the bell badge count and to show a top-right toast for new unread notifications. The interval is defined as `NOTIFICATION_POLL_INTERVAL_MS` in `src/components/Layout.tsx`. New toasts pass **`splitNotificationMessage(message).primary`** so only the main sentence appears in the toast; the optional second paragraph is still stored in the API and shown on `/notifications`.
+
+**`type` values (snake_case in JSON):**
+
+| `type` | Typical audience | Meaning |
+|--------|------------------|---------|
+| `outbid` | Bidder | Another user exceeded your bid. |
+| `auto_limit_reached` | Auto-bidder | Upper limit no longer sufficient. |
+| `auto_bid_placed` | Auto-bidder | System placed a bid on your behalf. |
+| `auction_won` | Winner | You won; includes wallet disclaimer when created at close. |
+| `auction_lost` | Losing bidder | Item sold to another bidder at close. |
+| `auction_sold` | Seller | Your listing sold; message includes final price + disclaimer. |
+| `alert_match` | Alert owner | New listing matched an alert. |
+| `reserve_not_met` | Seller **or** bidder | Seller: reserve not met. Bidder: auction ended without sale / hold released + disclaimer. |
+
+**Message shape for close-out events:** Primary copy, then `\n\n`, then a fixed **wallet processing** disclaimer (`WalletBalanceDisclaimerParagraph` in `AuctionService`). The frontend helper `src/utils/notificationMessage.ts` splits on the first `\n\n` to render body + smaller disclaimer on `NotificationsPage.tsx`.
+
+**List cap:** `NotificationService` returns the latest **100** notifications per user (`MaxNotificationsPerUser`).
 
 ### Questions — `api/questions`
 
@@ -613,74 +682,30 @@ All endpoints return JSON. Protected routes require `Authorization: Bearer <toke
 
 ## 8. Auction Engine Logic
 
-All auction business logic lives in `Services/AuctionService.cs`.
+Core auction code lives in `Services/AuctionService.cs`; wallet mutations are delegated to `Services/WalletService.cs` (`IWalletService`).
 
 ### 8.1 Manual Bidding
 
-```csharp
-public async Task PlaceBid(int itemId, int bidderId, decimal amount)
-{
-    var item = await _db.Items.FindAsync(itemId);
+`PlaceBidAsync` validates active auction, not seller, and minimum bid (`current_price + bid_increment`), then:
 
-    if (item.Status != ItemStatus.Active)
-        throw new InvalidOperationException("Auction is not active");
-    if (item.SellerId == bidderId)
-        throw new InvalidOperationException("Sellers cannot bid on their own items");
-    if (amount < item.CurrentPrice + item.BidIncrement)
-        throw new InvalidOperationException("Bid too low");
-
-    _db.Bids.Add(new Bid { ItemId = itemId, BidderId = bidderId, Amount = amount });
-    item.CurrentPrice = amount;
-
-    await NotifyOtherBidders(item, bidderId, NotificationType.Outbid);
-    await TriggerAutoBids(item, excludeUserId: bidderId);
-    await _db.SaveChangesAsync();
-}
-```
+1. **`await _walletService.ApplyBidHoldAsync(itemId, bidderId, amount)`** — enforces available balance and updates `bid_holds` (removes prior high bidder’s hold if different user).
+2. Inserts `Bid` row, sets `item.CurrentPrice = amount`.
+3. **`NotifyOutbidAsync`** — `outbid` notification for previous high bidder (if any).
+4. **`TriggerAutoBidsAsync`** — may recurse into auto-bids (each successful auto path also calls `ApplyBidHoldAsync` before inserting a bid).
+5. **`SaveChangesAsync`**.
 
 ### 8.2 Automatic Bidding
 
-```csharp
-private async Task TriggerAutoBids(Item item, int excludeUserId)
-{
-    var autoBids = await _db.AutoBids
-        .Where(ab => ab.ItemId == item.Id && ab.IsActive && ab.BidderId != excludeUserId)
-        .OrderByDescending(ab => ab.UpperLimit)
-        .ToListAsync();
+`TriggerAutoBidsAsync` loads active `AutoBids` for the item (excluding a specified user), ordered by descending `UpperLimit`. For each candidate, computes `needed = current_price + bid_increment`. If `needed ≤ upper_limit`, applies hold, adds auto `Bid`, updates price, notifies auto-bidder (`auto_bid_placed`), notifies prior high bidder if outbid, recurses; otherwise deactivates auto-bid and adds `auto_limit_reached`.
 
-    foreach (var ab in autoBids)
-    {
-        var needed = item.CurrentPrice + item.BidIncrement;
-        if (needed <= ab.UpperLimit)
-        {
-            _db.Bids.Add(new Bid
-            {
-                ItemId = item.Id, BidderId = ab.BidderId,
-                Amount = needed, IsAuto = true
-            });
-            item.CurrentPrice = needed;
-            await NotifyOtherBidders(item, ab.BidderId, NotificationType.Outbid);
-            await TriggerAutoBids(item, excludeUserId: ab.BidderId);
-            return;
-        }
-        else
-        {
-            ab.IsActive = false;
-            await CreateNotification(ab.BidderId, item.Id,
-                NotificationType.AutoLimitReached,
-                $"Your auto-bid limit was exceeded on \"{item.Title}\"");
-        }
-    }
-}
-```
+### 8.3 Auction Close Job (`AuctionCloseService`)
 
-### 8.3 Auction Close Job (BackgroundService)
+Registered in `Program.cs` as `AddHostedService<AuctionCloseService>()`. Each loop creates a scope, resolves `IAuctionService`, and calls **`CloseExpiredAsync()`** (see §6.4 for business rules).
+
+**Implementation sketch** (wallet + notifications; matches production code structure):
 
 ```csharp
-// Registered in Program.cs:
-// builder.Services.AddHostedService<AuctionCloseService>();
-
-public async Task CloseExpired()
+public async Task CloseExpiredAsync()
 {
     var expired = await _db.Items
         .Where(i => i.Status == ItemStatus.Active && i.CloseDateTime <= DateTime.UtcNow)
@@ -697,18 +722,24 @@ public async Task CloseExpired()
         {
             item.Status = ItemStatus.Sold;
             item.WinnerId = highestBid.BidderId;
-            await CreateNotification(highestBid.BidderId, item.Id,
-                NotificationType.AuctionWon,
-                $"You won the auction for \"{item.Title}\"!");
+            await _walletService.FinalizeSoldAuctionAsync(
+                item.Id, highestBid.BidderId, highestBid.Amount, item.SellerId);
+
+            // Notifications: seller (auction_sold), winner (auction_won),
+            // each other distinct bidder (auction_lost) — all WithWalletBalanceDisclaimer(...)
         }
         else
         {
+            await _walletService.ReleaseItemHoldAsync(item.Id);
             item.Status = ItemStatus.Closed;
+            // Notifications: seller + each distinct bidder (reserve_not_met) — WithWalletBalanceDisclaimer(...)
         }
     }
     await _db.SaveChangesAsync();
 }
 ```
+
+**Rep / moderation:** `RepService.DeleteBidAsync` and related paths call **`WalletService.SyncBidHoldForItemAsync`** so `bid_holds` and `current_price` stay aligned after bid removal.
 
 ---
 
@@ -910,6 +941,7 @@ CS527-Project/
 │       │   ├── CategoryField.cs
 │       │   ├── ItemFieldValue.cs
 │       │   ├── Bid.cs
+│       │   ├── BidHold.cs
 │       │   ├── AutoBid.cs
 │       │   ├── Alert.cs
 │       │   ├── Notification.cs
@@ -924,6 +956,7 @@ CS527-Project/
 │       │   ├── Auctions/
 │       │   ├── Alerts/
 │       │   ├── Admin/
+│       │   ├── Wallet/
 │       │   └── Questions/
 │       │
 │       ├── Controllers/
@@ -932,13 +965,16 @@ CS527-Project/
 │       │   ├── AlertsController.cs
 │       │   ├── NotificationsController.cs
 │       │   ├── QuestionsController.cs
+│       │   ├── WalletController.cs
 │       │   ├── RepController.cs
 │       │   └── AdminController.cs
 │       │
 │       ├── Services/
-│       │   ├── AuctionService.cs      # Bidding logic, auto-bid, close job
+│       │   ├── AuctionService.cs      # Bidding, auto-bid, CloseExpiredAsync + close notifications
+│       │   ├── AuctionCloseService.cs # BackgroundService → CloseExpiredAsync
+│       │   ├── WalletService.cs       # Holds, deposit/withdraw, finalize sale
 │       │   ├── AlertService.cs        # Alert matching
-│       │   ├── AuthService.cs         # JWT generation, password hashing
+│       │   ├── AuthService.cs         # JWT, profile incl. wallet snapshot
 │       │   └── ReportService.cs       # Admin report queries
 │       │
 │       └── Migrations/                # EF Core auto-generated migrations
@@ -968,11 +1004,15 @@ CS527-Project/
 │       ├── main.tsx                   # Entry, ChakraProvider, RouterProvider
 │       ├── App.tsx                    # Route definitions
 │       ├── api/
-│       │   └── client.ts             # Axios instance with JWT interceptor
+│       │   ├── client.ts             # Axios instance with JWT interceptor
+│       │   └── notifications.ts
+│       ├── utils/
+│       │   └── notificationMessage.ts # Split primary vs wallet disclaimer for UI
 │       ├── context/
 │       │   └── AuthContext.tsx        # Auth state, login/logout, token mgmt
 │       ├── components/
-│       │   ├── Layout.tsx             # Navbar + notification badge + outlet
+│       │   ├── Layout.tsx             # Navbar, wallet, notification polling/toasts
+│       │   ├── NavWallet.tsx          # Compact wallet + deposit presets in nav
 │       │   ├── ProtectedRoute.tsx     # Role-based route guard
 │       │   ├── AuctionCard.tsx
 │       │   ├── BidHistory.tsx
@@ -1173,7 +1213,8 @@ dotnet test
 |------|----------------|----------------|
 | 3 — Models & Data | `SeedDataTests` | Seed creates admin account; seed creates category hierarchy with 3+ levels; seed creates category fields for each subcategory |
 | 4 — Auth | `AuthServiceTests`, `AuthControllerTests` | Register creates user with hashed password; register rejects duplicate username/email; login returns valid JWT with correct claims; login rejects wrong password; login rejects inactive user; delete soft-deletes user |
-| 6 — Auctions | `AuctionServiceTests`, `AuctionsControllerTests` | Create auction persists item + field values; bid below increment is rejected; bid by seller is rejected; bid on closed auction is rejected; valid bid updates current price; auto-bid triggers cascade; auto-bid stops at upper limit and notifies; CloseExpired sets winner when reserve met; CloseExpired marks closed when reserve not met; similar items returns same subcategory within preceding month |
+| 6 — Auctions | `AuctionServiceTests`, `AuctionsControllerTests` | Create auction persists item + field values; bid below increment is rejected; bid by seller is rejected; bid on closed auction is rejected; valid bid updates current price; auto-bid triggers cascade; auto-bid stops at upper limit and notifies; **insufficient wallet** rejects bid with deterministic message; **outbid** releases prior leader hold; **CloseExpired** sold path debits winner / credits seller and clears hold; **CloseExpired** reserve-not-met releases hold; **notifications:** seller `auction_sold`, winner `auction_won`, losers `auction_lost`, reserve-not-met for all distinct bidders + seller; similar items returns same subcategory within preceding month |
+| 6b — Wallet | `WalletServiceTests`, `WalletE2ETests` | Deposit caps and balance updates; withdraw vs available balance; E2E deposit/withdraw flows where applicable |
 | 21 — Advanced Auction Cards (backend support) | `AuctionServiceTests` | Create without uploaded image resolves GT7 default once and persists source/match metadata; no-match create persists placeholder metadata; uploaded image path takes priority and bypasses GT7 resolver |
 | 7 — Alerts | `AlertServiceTests`, `AlertsControllerTests` | New item triggers matching alerts; alert with keyword filters correctly; alert with category filters correctly; notification created on match; user can only delete own alerts |
 | 8 — Q&A & Rep | `RepControllerTests`, `QuestionsControllerTests` | User posts question; rep replies to question; rep edits user; rep soft-deletes user; rep resets password; rep removes bid and recalculates current price; rep removes auction sets status to Removed |

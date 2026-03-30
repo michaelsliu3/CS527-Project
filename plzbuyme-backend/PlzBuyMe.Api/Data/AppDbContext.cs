@@ -22,6 +22,7 @@ public class AppDbContext : DbContext
     public DbSet<Question> Questions => Set<Question>();
     public DbSet<QuestionReply> QuestionReplies => Set<QuestionReply>();
     public DbSet<QuestionVote> QuestionVotes => Set<QuestionVote>();
+    public DbSet<BidHold> BidHolds => Set<BidHold>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -56,6 +57,7 @@ public class AppDbContext : DbContext
             e.Property(u => u.DisplayNameColor).HasMaxLength(7);
             e.Property(u => u.Email).HasMaxLength(128);
             e.Property(u => u.PasswordHash).HasMaxLength(256);
+            e.Property(u => u.WalletBalance).HasPrecision(12, 2);
         });
 
         // ── Category (self-ref) ──
@@ -136,6 +138,22 @@ public class AppDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(b => new { b.ItemId, b.CreatedAt }).HasDatabaseName("idx_bids_item");
             e.HasIndex(b => b.BidderId).HasDatabaseName("idx_bids_bidder");
+        });
+
+        // ── BidHold (one active hold per auction — current high bidder) ──
+        modelBuilder.Entity<BidHold>(e =>
+        {
+            e.Property(h => h.Amount).HasPrecision(12, 2);
+            e.HasOne(h => h.Item)
+                .WithMany()
+                .HasForeignKey(h => h.ItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(h => h.User)
+                .WithMany()
+                .HasForeignKey(h => h.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(h => h.ItemId).IsUnique().HasDatabaseName("idx_bid_holds_item");
+            e.HasIndex(h => h.UserId).HasDatabaseName("idx_bid_holds_user");
         });
 
         // ── AutoBid (unique item_id + bidder_id) ──

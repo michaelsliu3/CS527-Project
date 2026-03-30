@@ -11,11 +11,13 @@ public class RepService : IRepService
 {
     private readonly AppDbContext _db;
     private readonly IAuthService _authService;
+    private readonly IWalletService _walletService;
 
-    public RepService(AppDbContext db, IAuthService authService)
+    public RepService(AppDbContext db, IAuthService authService, IWalletService walletService)
     {
         _db = db;
         _authService = authService;
+        _walletService = walletService;
     }
 
     public async Task<PaginatedResultDto<UserSummaryDto>> GetUsersAsync(string? search, int page, int pageSize, bool isAdmin)
@@ -157,6 +159,8 @@ public class RepService : IRepService
 
         item.CurrentPrice = highestRemaining?.Amount ?? item.InitialPrice;
         await _db.SaveChangesAsync();
+
+        await _walletService.SyncBidHoldForItemAsync(item.Id);
 
         return true;
     }

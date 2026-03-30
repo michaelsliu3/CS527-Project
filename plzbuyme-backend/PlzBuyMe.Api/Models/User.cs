@@ -12,6 +12,8 @@ public class User
     public UserRole Role { get; set; } = UserRole.EndUser;
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Total wallet funds (held bids reduce spendable available balance).</summary>
+    public decimal WalletBalance { get; set; }
 
     public ICollection<Item> ItemsSold { get; set; } = new List<Item>();
     public ICollection<Item> ItemsWon { get; set; } = new List<Item>();

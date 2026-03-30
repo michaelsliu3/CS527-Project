@@ -8,4 +8,6 @@ public record ProfileDto
     public string? DisplayNameColor { get; init; }
     public string Email { get; init; } = string.Empty;
     public string Role { get; init; } = string.Empty;
+    public decimal WalletBalance { get; init; }
+    public decimal WalletAvailableBalance { get; init; }
 }

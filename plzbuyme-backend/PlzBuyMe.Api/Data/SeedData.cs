@@ -17,7 +17,8 @@ public static class SeedData
             Email = "admin@plzbuy.me",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"),
             Role = UserRole.Admin,
-            IsActive = true
+            IsActive = true,
+            WalletBalance = 0m
         };
         db.Users.Add(admin);
         db.SaveChanges();
@@ -66,7 +67,8 @@ public static class SeedData
             Email = "seller1@example.com",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("password"),
             Role = UserRole.EndUser,
-            IsActive = true
+            IsActive = true,
+            WalletBalance = 500_000m
         };
         db.Users.Add(seller);
         db.SaveChanges();
@@ -77,7 +79,8 @@ public static class SeedData
             Email = "bidder1@example.com",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("password"),
             Role = UserRole.EndUser,
-            IsActive = true
+            IsActive = true,
+            WalletBalance = 500_000m
         };
         db.Users.Add(bidder);
         db.SaveChanges();
@@ -127,7 +130,8 @@ public static class SeedData
             Email = "bidder2@example.com",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("password"),
             Role = UserRole.EndUser,
-            IsActive = true
+            IsActive = true,
+            WalletBalance = 500_000m
         };
         db.Users.Add(bidder2);
         db.SaveChanges();
@@ -135,6 +139,8 @@ public static class SeedData
         db.Bids.Add(new Bid { ItemId = item1.Id, BidderId = bidder.Id, Amount = 22500.00m, IsAuto = false });
         db.Bids.Add(new Bid { ItemId = item1.Id, BidderId = bidder2.Id, Amount = 23000.00m, IsAuto = false });
         db.SaveChanges();
+
+        db.BidHolds.Add(new BidHold { ItemId = item1.Id, UserId = bidder2.Id, Amount = 23000.00m });
 
         // ── Sample car listing 2: Honda Civic ──
         var item2 = new Item
@@ -164,6 +170,9 @@ public static class SeedData
             new ItemFieldValue { ItemId = item2.Id, FieldId = colorField.Id, Value = "Black" }
         );
         db.Bids.Add(new Bid { ItemId = item2.Id, BidderId = bidder.Id, Amount = 18500.00m, IsAuto = false });
+        db.SaveChanges();
+
+        db.BidHolds.Add(new BidHold { ItemId = item2.Id, UserId = bidder.Id, Amount = 18500.00m });
         db.SaveChanges();
     }
 
