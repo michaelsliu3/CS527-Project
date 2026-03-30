@@ -130,4 +130,72 @@ describe('AuctionDetailPage wallet', () => {
       expect(refreshProfile).toHaveBeenCalled()
     })
   })
+
+  it('uses step=any on auto-bid upper limit so values need not align to bid increment', async () => {
+    mockedUseAuth.mockReturnValue({
+      user: {
+        id: 1,
+        username: 'bidder',
+        avatarUrl: null,
+        displayNameColor: null,
+        email: 'b@b.com',
+        role: 'end_user',
+        walletBalance: 50_000,
+        walletAvailableBalance: 50_000,
+      },
+      loading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      updateDisplayNameColor: vi.fn(),
+      updateAvatarUrl: vi.fn(),
+      refreshProfile: vi.fn().mockResolvedValue(null),
+    })
+    vi.mocked(auctionsApi.getAuction).mockResolvedValue({ data: auctionDetail } as never)
+
+    renderDetail()
+
+    const upperInput = await screen.findByPlaceholderText('Upper limit')
+    expect(upperInput).toHaveAttribute('step', 'any')
+
+    const amountInput = screen.getByPlaceholderText('Amount')
+    expect(amountInput).toHaveAttribute('step', '100')
+  })
+
+  it('submits a non-increment-multiple auto-bid limit to the API', async () => {
+    const refreshProfile = vi.fn().mockResolvedValue(null)
+    mockedUseAuth.mockReturnValue({
+      user: {
+        id: 1,
+        username: 'bidder',
+        avatarUrl: null,
+        displayNameColor: null,
+        email: 'b@b.com',
+        role: 'end_user',
+        walletBalance: 50_000,
+        walletAvailableBalance: 50_000,
+      },
+      loading: false,
+      login: vi.fn(),
+      register: vi.fn(),
+      logout: vi.fn(),
+      updateDisplayNameColor: vi.fn(),
+      updateAvatarUrl: vi.fn(),
+      refreshProfile,
+    })
+    vi.mocked(auctionsApi.getAuction).mockResolvedValue({ data: auctionDetail } as never)
+    vi.mocked(auctionsApi.setAutoBid).mockResolvedValue({} as never)
+
+    const user = userEvent.setup()
+    renderDetail()
+
+    await screen.findByPlaceholderText('Upper limit')
+    await user.type(screen.getByPlaceholderText('Upper limit'), '1101')
+    await user.click(screen.getByRole('button', { name: 'Set auto-bid' }))
+
+    await waitFor(() => {
+      expect(auctionsApi.setAutoBid).toHaveBeenCalledWith(1, 1101)
+      expect(refreshProfile).toHaveBeenCalled()
+    })
+  })
 })

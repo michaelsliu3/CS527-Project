@@ -253,6 +253,36 @@ public class AuctionServiceTests
     }
 
     [Fact]
+    public async Task SetAutoBid_AcceptsUpperLimitNotOnBidIncrementMultiple_AndPlacesBidAtNextIncrement()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var item = db.Items.First(i => i.Title.Contains("Civic"));
+        var bidder = db.Users.Single(u => u.Username == "bidder2");
+        var minUpper = item.CurrentPrice + item.BidIncrement;
+        var upperNotOnGrid = minUpper + 1m;
+        var service = CreateService(db);
+        await service.SetAutoBidAsync(item.Id, bidder.Id, upperNotOnGrid);
+        db.Entry(item).Reload();
+        var stored = db.AutoBids.Single(ab => ab.ItemId == item.Id && ab.BidderId == bidder.Id);
+        stored.UpperLimit.Should().Be(upperNotOnGrid);
+        item.CurrentPrice.Should().Be(minUpper);
+        db.Bids.Should().Contain(b =>
+            b.ItemId == item.Id && b.BidderId == bidder.Id && b.IsAuto && b.Amount == minUpper);
+    }
+
+    [Fact]
+    public async Task SetAutoBid_RejectsUpperLimitBelowMinimumThreshold()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var item = db.Items.First(i => i.Title.Contains("Civic"));
+        var bidder = db.Users.Single(u => u.Username == "bidder2");
+        var service = CreateService(db);
+        var tooLow = item.CurrentPrice + item.BidIncrement - 0.01m;
+        var act = () => service.SetAutoBidAsync(item.Id, bidder.Id, tooLow);
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Upper limit must be at least*");
+    }
+
+    [Fact]
     public async Task CloseExpired_SetsWinnerWhenReserveMet()
     {
         var (db, _, _, _) = CreateSeededContext();

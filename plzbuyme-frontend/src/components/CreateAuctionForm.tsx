@@ -1027,16 +1027,15 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
   const minCloseTime = formatLocalTime(minClose)
 
   return (
-    <Stack
-      as="form"
+    <form
       noValidate
       onSubmit={handleSubmit(onSubmit, () => {
         setCustomErrors(validateCustomAuctionFields(getValues()).customErrors)
         setSubmitError(null)
       })}
-      gap={0}
-      width="100%"
+      style={{ width: '100%' }}
     >
+      <Stack gap={0} width="100%">
       {submitError && (
         <Text color="red.400" mb={4}>
           {submitError}
@@ -1658,6 +1657,7 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
           Create Auction
         </Button>
       </Flex>
-    </Stack>
+      </Stack>
+    </form>
   )
 }
