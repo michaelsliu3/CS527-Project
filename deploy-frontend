@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Build plzbuyme-frontend and publish dist/ to nginx static root, then reload nginx.
+# Run from anywhere: /path/to/CS527-Project/deploy-frontend
+#
+# Requires: npm, sudo for rm/cp/systemctl.
+# Override web root: DEPLOY_WWW_ROOT=/path ./deploy-frontend
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FRONTEND_DIR="$ROOT/plzbuyme-frontend"
+WWW_ROOT="${DEPLOY_WWW_ROOT:-/var/www/plzbuyme}"
+
+if [[ ! -f "$FRONTEND_DIR/package.json" ]]; then
+  echo "Expected plzbuyme-frontend at $FRONTEND_DIR" >&2
+  exit 1
+fi
+
+if [[ -z "$WWW_ROOT" || "$WWW_ROOT" == "/" ]]; then
+  echo "Refusing to deploy: invalid DEPLOY_WWW_ROOT / WWW_ROOT" >&2
+  exit 1
+fi
+
+cd "$FRONTEND_DIR"
+npm run build
+
+sudo rm -rf "${WWW_ROOT}"/*
+sudo cp -r "${FRONTEND_DIR}/dist/"* "${WWW_ROOT}/"
+sudo systemctl reload nginx
+
+echo "Deployed ${FRONTEND_DIR}/dist -> ${WWW_ROOT} (nginx reloaded)"
