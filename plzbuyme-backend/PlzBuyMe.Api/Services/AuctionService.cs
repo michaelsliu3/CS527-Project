@@ -149,6 +149,8 @@ public class AuctionService : IAuctionService
             throw new InvalidOperationException("Auction not found.");
         if (item.Status != ItemStatus.Active)
             throw new InvalidOperationException("Auction is not active.");
+        if (item.CloseDateTime <= DateTime.UtcNow)
+            throw new InvalidOperationException("This auction has ended.");
         if (item.SellerId == bidderId)
             throw new InvalidOperationException("Sellers cannot bid on their own items.");
         if (amount < item.CurrentPrice + item.BidIncrement)
@@ -175,6 +177,8 @@ public class AuctionService : IAuctionService
             throw new InvalidOperationException("Auction not found.");
         if (item.Status != ItemStatus.Active)
             throw new InvalidOperationException("Auction is not active.");
+        if (item.CloseDateTime <= DateTime.UtcNow)
+            throw new InvalidOperationException("This auction has ended.");
         if (item.SellerId == bidderId)
             throw new InvalidOperationException("Sellers cannot set auto-bid on their own items.");
         if (upperLimit < item.CurrentPrice + item.BidIncrement)
@@ -210,6 +214,9 @@ public class AuctionService : IAuctionService
 
     private async Task TriggerAutoBidsAsync(Item item, int? excludeUserId)
     {
+        if (item.Status != ItemStatus.Active || item.CloseDateTime <= DateTime.UtcNow)
+            return;
+
         var autoBids = await _db.AutoBids
             .Where(ab => ab.ItemId == item.Id && ab.IsActive && ab.BidderId != excludeUserId)
             .OrderByDescending(ab => ab.UpperLimit)
@@ -770,6 +777,7 @@ public class AuctionService : IAuctionService
                     return ("EndAuction must be natural, closed, or sold.", null);
             }
 
+            item.CloseDateTime = DateTime.UtcNow;
             await _db.SaveChangesAsync();
             _logger.LogWarning("Admin {AdminId} ended auction {ItemId} via {Mode}", adminUserId, itemId, dto.EndAuction);
             return (null, await GetByIdAsync(itemId));

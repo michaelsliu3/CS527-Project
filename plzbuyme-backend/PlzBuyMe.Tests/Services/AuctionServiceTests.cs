@@ -206,6 +206,19 @@ public class AuctionServiceTests
     }
 
     [Fact]
+    public async Task PlaceBid_AfterScheduledClose_Rejected()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var item = db.Items.First(i => i.Status == ItemStatus.Active);
+        var bidder = db.Users.Single(u => u.Username == "bidder1");
+        item.CloseDateTime = DateTime.UtcNow.AddSeconds(-1);
+        db.SaveChanges();
+        var service = CreateService(db);
+        var act = () => service.PlaceBidAsync(item.Id, bidder.Id, item.CurrentPrice + item.BidIncrement);
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*ended*");
+    }
+
+    [Fact]
     public async Task PlaceBid_ValidBid_UpdatesCurrentPrice()
     {
         var (db, _, _, _) = CreateSeededContext();

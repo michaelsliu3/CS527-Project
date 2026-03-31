@@ -22,6 +22,7 @@ import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
 import { APP_PAGE_PX } from '../theme/layout'
 import { resolveMediaUrl } from '../utils/mediaUrl'
+import { notifyAuctionListRefresh } from '../utils/auctionListRefresh'
 import { useScrollLock } from '../hooks/useScrollLock'
 
 function toUtcEpochMs(value: string): number {
@@ -168,10 +169,12 @@ export function AuctionDetailPage() {
       .catch(() => setSimilar([]))
   }, [id, auction?.id])
 
+  const closeEpochMs = auction ? toUtcEpochMs(auction.closeDateTime) : 0
   const canBid =
     user &&
     auction &&
     auction.status === 'active' &&
+    closeEpochMs > Date.now() &&
     user.id !== auction.sellerId
 
   const onPlaceBid = async (data: BidFormValues) => {
@@ -183,6 +186,7 @@ export function AuctionDetailPage() {
       const res = await getAuction(auction.id)
       setAuction(res.data)
       setValue('amount', String(res.data.currentPrice + res.data.bidIncrement))
+      notifyAuctionListRefresh()
       await refreshProfile()
     } catch (err) {
       const msg = isAxiosError(err) && err.response?.data
@@ -203,6 +207,7 @@ export function AuctionDetailPage() {
       await setAutoBid(auction.id, Number(data.autoLimit))
       const res = await getAuction(auction.id)
       setAuction(res.data)
+      notifyAuctionListRefresh()
       await refreshProfile()
     } catch (err) {
       const msg = isAxiosError(err) && err.response?.data
@@ -248,6 +253,7 @@ export function AuctionDetailPage() {
           setAuction(d)
           setCountdown(formatCountdown(d.closeDateTime))
           setValue('amount', String(d.currentPrice + d.bidIncrement))
+          notifyAuctionListRefresh()
         }}
       />
     ) : null

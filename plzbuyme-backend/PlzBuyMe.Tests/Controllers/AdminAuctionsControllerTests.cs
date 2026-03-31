@@ -47,8 +47,32 @@ public class AdminAuctionsControllerTests
         body!.Title.Should().Be("Admin renamed listing");
     }
 
+    [Fact]
+    public async Task Patch_AsAdmin_EndAuctionClosed_ReturnsOkAndClosedStatus()
+    {
+        var factory = new PlzBuyMeWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var loginResponse = await client.PostAsJsonAsync("api/auth/login", new { username = "admin", password = "admin123" });
+        var auth = await loginResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+        auth.Should().NotBeNull();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth!.Token);
+        var response = await client.PatchAsJsonAsync("api/admin/auctions/1", new { endAuction = "closed" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<StatusStub>();
+        body.Should().NotBeNull();
+        body!.Status.Should().Be("closed");
+    }
+
     private sealed class TitleStub
     {
         public string Title { get; set; } = string.Empty;
+    }
+
+    private sealed class StatusStub
+    {
+        public string Status { get; set; } = string.Empty;
     }
 }
