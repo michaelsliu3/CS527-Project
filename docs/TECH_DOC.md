@@ -686,18 +686,18 @@ These endpoints are **admin-only** (`AdminOnly` policy). They exist for **demos,
 
 | Method | Route | Description | Access |
 |--------|--------|-------------|--------|
-| POST | `api/admin/gm/auctions/seed` | Bulk-create auctions (optional synthetic bids); batch and bid caps enforced; typed confirmation when count &gt; 20 | Admin |
+| POST | `api/admin/gm/auctions/seed` | Bulk-create auctions (optional synthetic bids); batch and bid caps enforced | Admin |
 | POST | `api/admin/gm/auctions/seed-from-manifest` | Same as `scripts/create-auctions-temp.mjs`: GT7 manifest cars, category inference, image URLs; up to 100/request; `Gt7CarManifest:Path` or `plzbuyme-cdn` beside repo | Admin |
-| POST | `api/admin/gm/users/bulk` | Bulk-create end-user accounts (username prefix, optional wallet); confirmation when count &gt; 25 | Admin |
-| POST | `api/admin/gm/questions/seed` | Seed Q&amp;A threads (optional rep/admin replies); confirmation when count &gt; 15 | Admin |
-| POST | `api/admin/gm/wallets/top-up` | Deposit the same amount to many users; confirmation for large recipient lists or amounts | Admin |
+| POST | `api/admin/gm/users/bulk` | Bulk-create end-user accounts (username prefix, optional wallet) | Admin |
+| POST | `api/admin/gm/questions/seed` | Seed Q&amp;A threads (optional rep/admin replies) | Admin |
+| POST | `api/admin/gm/wallets/top-up` | Deposit the same amount to many users (recipient and amount caps enforced) | Admin |
 | POST | `api/admin/gm/alerts/sample` | Create keyword sample alerts for a user | Admin |
 | POST | `api/admin/gm/notifications/sample` | Insert sample in-app notifications for a user | Admin |
 | POST | `api/admin/gm/fixtures/sold-history` | Idempotently extend sold/closed history via existing `SeedData.SeedSoldItemsForReports` | Admin |
 
 **Audit:** each successful GM action is logged at **Warning** level with the admin user id and counts affected (Serilog).
 
-**Frontend:** “GM tools” opens from a **right-edge tab** (admins on any page); **slides in from the right** as a full-height panel with backdrop dismiss (confirmations for high-volume actions, error toasts). Legacy `/admin/gm` redirects to `/admin`.
+**Frontend:** “GM tools” opens from a **right-edge tab** (admins on any page); **slides in from the right** as a full-height panel with backdrop dismiss and error toasts. Legacy `/admin/gm` redirects to `/admin`.
 
 #### Admin auction edit — `api/admin/auctions`
 
@@ -920,7 +920,7 @@ Two items are "similar" if they share the same subcategory and were listed withi
 
 ### GM tools (bulk seeding)
 
-Admin-only **GM tools** (right-edge dock tab + slide-in panel, `api/admin/gm/*` API) bulk-generate auctions (including **GT7 manifest**-driven listings aligned with `create-auctions-temp.mjs`), users, Q&amp;A threads, wallet credits, sample alerts/notifications, and optional sold-history fixtures for **demos, load tests, and QA**. Batch sizes and typed confirmation (`CONFIRM_GM`) limit abuse. Successful GM actions are audit-logged at Warning level with the admin id and affected counts. Optional **`Gt7CarManifest:Path`** points at `gt7-car-thumbnails.manifest.json` when `plzbuyme-cdn` is not next to the API project.
+Admin-only **GM tools** (right-edge dock tab + slide-in panel, `api/admin/gm/*` API) bulk-generate auctions (including **GT7 manifest**-driven listings aligned with `create-auctions-temp.mjs`), users, Q&amp;A threads, wallet credits, sample alerts/notifications, and optional sold-history fixtures for **demos, load tests, and QA**. Batch sizes limit abuse. Successful GM actions are audit-logged at Warning level with the admin id and affected counts. Optional **`Gt7CarManifest:Path`** points at `gt7-car-thumbnails.manifest.json` when `plzbuyme-cdn` is not next to the API project.
 
 ### Report Queries (pseudocode)
 

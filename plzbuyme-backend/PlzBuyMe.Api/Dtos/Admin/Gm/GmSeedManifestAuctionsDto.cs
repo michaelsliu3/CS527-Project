@@ -21,7 +21,4 @@ public record GmSeedManifestAuctionsDto
 
     /// <summary>Prefer detail image URL from manifest when true.</summary>
     public bool UseDetailImage { get; init; } = true;
-
-    /// <summary>Required when Count &gt; 40.</summary>
-    public string? Confirmation { get; init; }
 }

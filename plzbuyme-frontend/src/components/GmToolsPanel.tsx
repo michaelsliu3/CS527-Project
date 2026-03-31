@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Box, Button, Checkbox, Flex, Input, Tabs, Text } from '@chakra-ui/react'
 import { isAxiosError } from 'axios'
 import {
-  GM_CONFIRM_PHRASE,
   bulkGmUsers,
   gmWalletTopUp,
   seedGmAuctions,
@@ -41,7 +40,6 @@ export function GmToolsPanel() {
   const [aCloseMax, setACloseMax] = useState('120')
   const [aBidMin, setABidMin] = useState('0')
   const [aBidMax, setABidMax] = useState('0')
-  const [aConfirm, setAConfirm] = useState('')
 
   const [mCount, setMCount] = useState('30')
   const [mKeyword, setMKeyword] = useState('')
@@ -52,22 +50,18 @@ export function GmToolsPanel() {
   const [mBidMax, setMBidMax] = useState('0')
   const [mSellerId, setMSellerId] = useState('')
   const [mUseDetail, setMUseDetail] = useState(true)
-  const [mConfirm, setMConfirm] = useState('')
 
   const [uPrefix, setUPrefix] = useState('gmuser')
   const [uCount, setUCount] = useState('3')
   const [uStart, setUStart] = useState('1')
   const [uPassword, setUPassword] = useState('')
   const [uWallet, setUWallet] = useState('')
-  const [uConfirm, setUConfirm] = useState('')
 
   const [qCount, setQCount] = useState('5')
   const [qRep, setQRep] = useState(true)
-  const [qConfirm, setQConfirm] = useState('')
 
   const [wIds, setWIds] = useState('2,3')
   const [wAmount, setWAmount] = useState('10000')
-  const [wConfirm, setWConfirm] = useState('')
 
   const [alUser, setAlUser] = useState('2')
   const [alCount, setAlCount] = useState('3')
@@ -96,7 +90,6 @@ export function GmToolsPanel() {
           closeHoursMax: Number.parseInt(aCloseMax, 10) || undefined,
           bidCountMin: Number.parseInt(aBidMin, 10) || 0,
           bidCountMax: Number.parseInt(aBidMax, 10) || 0,
-          confirmation: aConfirm.trim() || undefined,
         })
         showSuccessToast(
           'Auctions seeded',
@@ -126,7 +119,6 @@ export function GmToolsPanel() {
           bidCountMax: Number.parseInt(mBidMax, 10) || 0,
           sellerUserId: parseOptionalInt(mSellerId),
           useDetailImage: mUseDetail,
-          confirmation: mConfirm.trim() || undefined,
         })
         showSuccessToast(
           'Manifest auctions seeded',
@@ -155,7 +147,6 @@ export function GmToolsPanel() {
           startIndex,
           password: uPassword.trim() || undefined,
           walletBalanceEach,
-          confirmation: uConfirm.trim() || undefined,
         })
         showSuccessToast('Users created', `${data.createdCount} accounts.`)
       } catch (err) {
@@ -175,7 +166,6 @@ export function GmToolsPanel() {
         const { data } = await seedGmQuestions({
           count,
           includeRepReplies: qRep,
-          confirmation: qConfirm.trim() || undefined,
         })
         showSuccessToast(
           'Questions seeded',
@@ -199,7 +189,6 @@ export function GmToolsPanel() {
         const { data } = await gmWalletTopUp({
           userIds,
           amountEach,
-          confirmation: wConfirm.trim() || undefined,
         })
         showSuccessToast('Wallet top-up', `${data.usersAffected} users credited.`)
       } catch (err) {
@@ -280,7 +269,6 @@ export function GmToolsPanel() {
         borderColor={dark.borderSubtle}
         color="white"
         w="100%"
-        maxW="520px"
         _placeholder={{ color: dark.placeholder }}
       />
     </Box>
@@ -289,23 +277,7 @@ export function GmToolsPanel() {
   return (
     <Box>
       <Text fontSize="sm" color={dark.label} mb={4}>
-        Admin-only demo and QA utilities. High-volume actions require typing{' '}
-        <Text as="span" fontFamily="mono">
-          {GM_CONFIRM_PHRASE}
-        </Text>{' '}
-        where noted. GT7 manifest seeding matches{' '}
-        <Text as="span" fontFamily="mono">
-          scripts/create-auctions-temp.mjs
-        </Text>{' '}
-        (up to 100 cars per run); keep{' '}
-        <Text as="span" fontFamily="mono">
-          plzbuyme-cdn
-        </Text>{' '}
-        next to the repo or set{' '}
-        <Text as="span" fontFamily="mono">
-          Gt7CarManifest:Path
-        </Text>{' '}
-        on the API.
+        Admin-only demo and QA utilities.
       </Text>
 
       <Tabs.Root defaultValue="auctions" variant="line" colorPalette="brand">
@@ -366,7 +338,7 @@ export function GmToolsPanel() {
                 <Text fontSize="sm" color={dark.label} mb={3}>
                   Creates listings with realistic fields (aligned with seed categories). Optional synthetic bids use{' '}
                   <Text as="span" fontFamily="mono">PlaceBidAsync</Text> and large wallet credits for bidders. Max 50 per
-                  request; confirmation required if count &gt; 20.
+                  request.
                 </Text>
                 <Flex direction="column" gap={3}>
                   {field('Count', aCount, setACount)}
@@ -388,7 +360,6 @@ export function GmToolsPanel() {
                       {field('Bid count max', aBidMax, setABidMax)}
                     </Box>
                   </Flex>
-                  {field(`Confirmation (required if count &gt; 20): ${GM_CONFIRM_PHRASE}`, aConfirm, setAConfirm)}
                   <Button
                     data-testid="gm-seed-auctions"
                     bg="brand.500"
@@ -412,7 +383,7 @@ export function GmToolsPanel() {
                 <Text fontSize="sm" color={dark.label} mb={3}>
                   Picks random cars from <Text as="span" fontFamily="mono">gt7-car-thumbnails.manifest.json</Text> with
                   the same category inference as the Node script. Sets listing images from manifest URLs. Up to 100 per
-                  request; confirmation if count &gt; 40.
+                  request.
                 </Text>
                 <Flex direction="column" gap={3}>
                   {field('Count (max 100)', mCount, setMCount)}
@@ -440,7 +411,6 @@ export function GmToolsPanel() {
                     <Checkbox.Control />
                     <Checkbox.Label color={dark.label}>Use detail image URL when available</Checkbox.Label>
                   </Checkbox.Root>
-                  {field(`Confirmation (if count &gt; 40): ${GM_CONFIRM_PHRASE}`, mConfirm, setMConfirm)}
                   <Button
                     data-testid="gm-seed-manifest"
                     bg="brand.500"
@@ -464,7 +434,7 @@ export function GmToolsPanel() {
                 <Text fontSize="sm" color={dark.label} mb={3}>
                   Usernames <Text as="span" fontFamily="mono">{'{prefix}{index}'}</Text>, emails{' '}
                   <Text as="span" fontFamily="mono">{'{prefix}{index}@gm.plzbuy.test'}</Text>. Default password{' '}
-                  <Text as="span" fontFamily="mono">GmDemo123!</Text> if left blank. Confirmation if count &gt; 25.
+                  <Text as="span" fontFamily="mono">GmDemo123!</Text> if left blank.
                 </Text>
                 <Flex direction="column" gap={3}>
                   {field('Username prefix', uPrefix, setUPrefix)}
@@ -478,7 +448,6 @@ export function GmToolsPanel() {
                   </Flex>
                   {field('Password (optional)', uPassword, setUPassword, 'min 6 chars')}
                   {field('Wallet balance each (optional)', uWallet, setUWallet)}
-                  {field(`Confirmation (if count &gt; 25): ${GM_CONFIRM_PHRASE}`, uConfirm, setUConfirm)}
                   <Button
                     bg="brand.500"
                     color="white"
@@ -499,7 +468,7 @@ export function GmToolsPanel() {
                   Seed Q&amp;A
                 </Text>
                 <Text fontSize="sm" color={dark.label} mb={3}>
-                  Creates questions as existing end-users; optional rep/admin replies. Confirmation if count &gt; 15.
+                  Creates questions as existing end-users; optional rep/admin replies.
                 </Text>
                 <Flex direction="column" gap={3}>
                   {field('Count', qCount, setQCount)}
@@ -508,7 +477,6 @@ export function GmToolsPanel() {
                     <Checkbox.Control />
                     <Checkbox.Label color={dark.label}>Include rep replies (~50%)</Checkbox.Label>
                   </Checkbox.Root>
-                  {field(`Confirmation (if count &gt; 15): ${GM_CONFIRM_PHRASE}`, qConfirm, setQConfirm)}
                   <Button
                     bg="brand.500"
                     color="white"
@@ -529,12 +497,11 @@ export function GmToolsPanel() {
                     Wallet top-up
                   </Text>
                   <Text fontSize="sm" color={dark.label} mb={3}>
-                    Comma- or space-separated user IDs. Caps and confirmation apply for large batches or amounts.
+                    Comma- or space-separated user IDs. Up to 30 recipients per request; amount capped per API limits.
                   </Text>
                   <Flex direction="column" gap={3}>
                     {field('User IDs', wIds, setWIds)}
                     {field('Amount each', wAmount, setWAmount)}
-                    {field(`Confirmation (large batches): ${GM_CONFIRM_PHRASE}`, wConfirm, setWConfirm)}
                     <Button
                       bg="brand.500"
                       color="white"

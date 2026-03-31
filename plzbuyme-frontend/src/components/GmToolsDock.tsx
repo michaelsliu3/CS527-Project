@@ -63,7 +63,7 @@ export function GmToolsDockProvider({ enabled, children }: { enabled: boolean; c
             top={0}
             right={0}
             h="100dvh"
-            w={{ base: '100%', sm: 'min(800px, 100vw)' }}
+            w={{ base: '100%', sm: 'min(560px, 100vw)' }}
             maxW="100vw"
             bg="rgba(24, 24, 27, 0.12)"
             backdropFilter="blur(5px)"
@@ -80,15 +80,15 @@ export function GmToolsDockProvider({ enabled, children }: { enabled: boolean; c
             <Flex
               align="flex-start"
               justify="space-between"
-              gap={3}
-              px={3}
-              pt={3}
+              gap={2}
+              px={2.5}
+              pt={2.5}
               pb={2}
               flexShrink={0}
               borderBottomWidth="1px"
               borderColor={dark.borderSubtle}
             >
-              <Heading size="md" color="white" fontWeight="bold">
+              <Heading size="sm" color="white" fontWeight="bold">
                 GM tools
               </Heading>
               <CloseButton
@@ -98,7 +98,7 @@ export function GmToolsDockProvider({ enabled, children }: { enabled: boolean; c
                 aria-label="Close GM tools"
               />
             </Flex>
-            <Box flex={1} overflowY="auto" px={3} pb={5} pt={2}>
+            <Box flex={1} overflowY="auto" px={2.5} pb={4} pt={2}>
               <GmToolsPanel />
             </Box>
           </Box>

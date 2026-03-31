@@ -19,7 +19,4 @@ public record GmSeedAuctionsDto
 
     /// <summary>Maximum synthetic bids per auction (inclusive, capped at 12).</summary>
     public int BidCountMax { get; init; }
-
-    /// <summary>Required when Count &gt; 20; must equal CONFIRM_GM.</summary>
-    public string? Confirmation { get; init; }
 }

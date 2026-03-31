@@ -10,7 +10,6 @@ import * as gmApi from '../../api/gm'
 import { showErrorToast, showSuccessToast } from '../../components/ui/toaster'
 
 vi.mock('../../api/gm', () => ({
-  GM_CONFIRM_PHRASE: 'CONFIRM_GM',
   seedGmAuctions: vi.fn(),
   seedGmAuctionsFromManifest: vi.fn(),
   bulkGmUsers: vi.fn(),

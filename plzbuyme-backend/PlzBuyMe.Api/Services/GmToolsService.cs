@@ -16,10 +16,7 @@ namespace PlzBuyMe.Api.Services;
 
 public class GmToolsService : IGmToolsService
 {
-    public const string ConfirmationPhrase = "CONFIRM_GM";
-
     private const int MaxManifestAuctionsBatch = 100;
-    private const int ManifestConfirmThreshold = 40;
     private const int MaxAuctionsBatch = 50;
     private const int MaxUsersBatch = 50;
     private const int MaxQuestionsBatch = 30;
@@ -28,11 +25,6 @@ public class GmToolsService : IGmToolsService
     private const int MaxBidsPerAuction = 12;
     private const int MaxSampleAlerts = 10;
     private const int MaxSampleNotifications = 20;
-    private const int AuctionConfirmThreshold = 20;
-    private const int UsersConfirmThreshold = 25;
-    private const int QuestionsConfirmThreshold = 15;
-    private const int WalletRecipientsConfirmThreshold = 15;
-    private const decimal WalletAmountConfirmThreshold = 100_000m;
     private const string DefaultDemoPassword = "GmDemo123!";
 
     private static readonly string[] LeafCategoryNames =
@@ -91,9 +83,6 @@ public class GmToolsService : IGmToolsService
     {
         if (dto.Count < 1 || dto.Count > MaxAuctionsBatch)
             return ($"Count must be between 1 and {MaxAuctionsBatch}.", null);
-
-        if (dto.Count > AuctionConfirmThreshold && !string.Equals(dto.Confirmation, ConfirmationPhrase, StringComparison.Ordinal))
-            return ($"When count exceeds {AuctionConfirmThreshold}, Confirmation must be \"{ConfirmationPhrase}\".", null);
 
         if (dto.CloseHoursMin < 1 || dto.CloseHoursMax > 8760 || dto.CloseHoursMin > dto.CloseHoursMax)
             return ("CloseHoursMin and CloseHoursMax must satisfy 1 ≤ min ≤ max ≤ 8760.", null);
@@ -166,10 +155,6 @@ public class GmToolsService : IGmToolsService
     {
         if (dto.Count < 1 || dto.Count > MaxManifestAuctionsBatch)
             return ($"Count must be between 1 and {MaxManifestAuctionsBatch}.", null);
-
-        if (dto.Count > ManifestConfirmThreshold &&
-            !string.Equals(dto.Confirmation, ConfirmationPhrase, StringComparison.Ordinal))
-            return ($"When count exceeds {ManifestConfirmThreshold}, Confirmation must be \"{ConfirmationPhrase}\".", null);
 
         if (dto.CloseHoursMin < 1 || dto.CloseHoursMax > 8760 || dto.CloseHoursMin > dto.CloseHoursMax)
             return ("CloseHoursMin and CloseHoursMax must satisfy 1 ≤ min ≤ max ≤ 8760.", null);
@@ -312,9 +297,6 @@ public class GmToolsService : IGmToolsService
         if (dto.StartIndex < 0)
             return ("StartIndex must be non-negative.", null);
 
-        if (dto.Count > UsersConfirmThreshold && !string.Equals(dto.Confirmation, ConfirmationPhrase, StringComparison.Ordinal))
-            return ($"When count exceeds {UsersConfirmThreshold}, Confirmation must be \"{ConfirmationPhrase}\".", null);
-
         var password = string.IsNullOrWhiteSpace(dto.Password) ? DefaultDemoPassword : dto.Password!.Trim();
         if (password.Length < 6)
             return ("Password must be at least 6 characters.", null);
@@ -354,9 +336,6 @@ public class GmToolsService : IGmToolsService
     {
         if (dto.Count < 1 || dto.Count > MaxQuestionsBatch)
             return ($"Count must be between 1 and {MaxQuestionsBatch}.", null);
-
-        if (dto.Count > QuestionsConfirmThreshold && !string.Equals(dto.Confirmation, ConfirmationPhrase, StringComparison.Ordinal))
-            return ($"When count exceeds {QuestionsConfirmThreshold}, Confirmation must be \"{ConfirmationPhrase}\".", null);
 
         var authors = await _db.Users
             .AsNoTracking()
@@ -427,9 +406,6 @@ public class GmToolsService : IGmToolsService
             return ($"AmountEach must be positive and at most {MaxWalletAmountEach}.", null);
 
         var distinct = dto.UserIds.Distinct().ToList();
-        var needsConfirm = distinct.Count > WalletRecipientsConfirmThreshold || dto.AmountEach > WalletAmountConfirmThreshold;
-        if (needsConfirm && !string.Equals(dto.Confirmation, ConfirmationPhrase, StringComparison.Ordinal))
-            return ($"For this volume, Confirmation must be \"{ConfirmationPhrase}\".", null);
 
         var affected = 0;
         foreach (var uid in distinct)

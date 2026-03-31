@@ -1,8 +1,5 @@
 import { apiClient } from './client'
 
-/** Must match server `GmToolsService.ConfirmationPhrase` when high-volume confirmations are required. */
-export const GM_CONFIRM_PHRASE = 'CONFIRM_GM'
-
 export interface GmSeedManifestAuctionsPayload {
   count: number
   titleKeyword?: string
@@ -13,7 +10,6 @@ export interface GmSeedManifestAuctionsPayload {
   bidCountMax?: number
   sellerUserId?: number
   useDetailImage?: boolean
-  confirmation?: string
 }
 
 export function seedGmAuctionsFromManifest(payload: GmSeedManifestAuctionsPayload) {
@@ -28,7 +24,6 @@ export interface GmSeedAuctionsPayload {
   closeHoursMax?: number
   bidCountMin?: number
   bidCountMax?: number
-  confirmation?: string
 }
 
 export interface GmSeedAuctionsResult {
@@ -43,7 +38,6 @@ export interface GmBulkUsersPayload {
   startIndex?: number
   password?: string
   walletBalanceEach?: number
-  confirmation?: string
 }
 
 export interface GmBulkUsersResult {
@@ -54,7 +48,6 @@ export interface GmBulkUsersResult {
 export interface GmSeedQuestionsPayload {
   count: number
   includeRepReplies?: boolean
-  confirmation?: string
 }
 
 export interface GmSeedQuestionsResult {
@@ -65,7 +58,6 @@ export interface GmSeedQuestionsResult {
 export interface GmWalletTopUpPayload {
   userIds: number[]
   amountEach: number
-  confirmation?: string
 }
 
 export interface GmWalletTopUpResult {

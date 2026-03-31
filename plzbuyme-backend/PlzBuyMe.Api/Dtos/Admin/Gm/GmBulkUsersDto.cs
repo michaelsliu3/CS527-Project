@@ -13,7 +13,4 @@ public record GmBulkUsersDto
 
     /// <summary>Optional initial wallet balance per user.</summary>
     public decimal? WalletBalanceEach { get; init; }
-
-    /// <summary>Required when Count &gt; 25; must equal CONFIRM_GM.</summary>
-    public string? Confirmation { get; init; }
 }
