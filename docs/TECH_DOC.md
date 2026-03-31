@@ -697,7 +697,7 @@ These endpoints are **admin-only** (`AdminOnly` policy). They exist for **demos,
 
 **Audit:** each successful GM action is logged at **Warning** level with the admin user id and counts affected (Serilog).
 
-**Frontend:** `/admin/gm` — “GM tools” UI (confirmations for high-volume actions, error toasts).
+**Frontend:** “GM tools” opens from a **right-edge tab** (admins on any page); **slides in from the right** as a full-height panel with backdrop dismiss (confirmations for high-volume actions, error toasts). Legacy `/admin/gm` redirects to `/admin`.
 
 #### Admin auction edit — `api/admin/auctions`
 
@@ -920,7 +920,7 @@ Two items are "similar" if they share the same subcategory and were listed withi
 
 ### GM tools (bulk seeding)
 
-Admin-only **GM tools** (`/admin/gm` UI, `api/admin/gm/*` API) bulk-generate auctions (including **GT7 manifest**-driven listings aligned with `create-auctions-temp.mjs`), users, Q&amp;A threads, wallet credits, sample alerts/notifications, and optional sold-history fixtures for **demos, load tests, and QA**. Batch sizes and typed confirmation (`CONFIRM_GM`) limit abuse. Successful GM actions are audit-logged at Warning level with the admin id and affected counts. Optional **`Gt7CarManifest:Path`** points at `gt7-car-thumbnails.manifest.json` when `plzbuyme-cdn` is not next to the API project.
+Admin-only **GM tools** (right-edge dock tab + slide-in panel, `api/admin/gm/*` API) bulk-generate auctions (including **GT7 manifest**-driven listings aligned with `create-auctions-temp.mjs`), users, Q&amp;A threads, wallet credits, sample alerts/notifications, and optional sold-history fixtures for **demos, load tests, and QA**. Batch sizes and typed confirmation (`CONFIRM_GM`) limit abuse. Successful GM actions are audit-logged at Warning level with the admin id and affected counts. Optional **`Gt7CarManifest:Path`** points at `gt7-car-thumbnails.manifest.json` when `plzbuyme-cdn` is not next to the API project.
 
 ### Report Queries (pseudocode)
 
@@ -1058,6 +1058,8 @@ CS527-Project/
 │       │   ├── NavWallet.tsx          # Compact wallet + deposit presets in nav
 │       │   ├── ProtectedRoute.tsx     # Role-based route guard
 │       │   ├── AdminAuctionEditModal.tsx # Admin auction PATCH from detail view
+│       │   ├── GmToolsDock.tsx          # Admin GM tab + right slide-in panel (`GmToolsDockProvider`)
+│       │   ├── GmToolsPanel.tsx         # GM tools form tabs (used inside dock modal)
 │       │   ├── AuctionCard.tsx
 │       │   ├── BidHistory.tsx
 │       │   ├── SearchBar.tsx
@@ -1078,11 +1080,11 @@ CS527-Project/
 │       │   │   └── RepDashboard.tsx
 │       │   └── admin/
 │       │       ├── AdminDashboard.tsx
-│       │       ├── ReportsPage.tsx
-│       │       └── GmToolsPage.tsx        # GM bulk tools (/admin/gm)
+│       │       └── ReportsPage.tsx
 │       ├── __tests__/                # Vitest test files
 │       │   ├── components/
 │       │   │   ├── AuctionCard.test.tsx
+│       │   │   ├── GmToolsPanel.test.tsx
 │       │   │   ├── SearchBar.test.tsx
 │       │   │   └── ProtectedRoute.test.tsx
 │       │   ├── pages/

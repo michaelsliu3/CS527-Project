@@ -12,6 +12,7 @@ import { APP_PAGE_PX } from '../theme/layout'
 import { DisplayNameText } from './DisplayNameText'
 import { NavWallet } from './NavWallet'
 import { UserAvatar } from './UserAvatar'
+import { GmToolsDockProvider } from './GmToolsDock'
 
 /** How often to poll for new notifications while the user is logged in (used for badge + real-time toasts). */
 const NOTIFICATION_POLL_INTERVAL_MS = 5_000
@@ -112,6 +113,7 @@ export function Layout() {
   }
 
   return (
+    <GmToolsDockProvider enabled={user?.role === 'admin'}>
     <Box minH="100vh" bg={dark.bg} color="white">
       <Box as="nav" borderBottomWidth="1px" borderColor={dark.borderSubtle} py={3} bg={dark.navBg}>
         <Container maxW="container.xl" px={APP_PAGE_PX}>
@@ -203,5 +205,6 @@ export function Layout() {
         <Outlet />
       </Box>
     </Box>
+    </GmToolsDockProvider>
   )
 }

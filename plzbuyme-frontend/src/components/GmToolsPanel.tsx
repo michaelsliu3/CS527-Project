@@ -1,16 +1,6 @@
-import { useState, type ReactNode } from 'react'
-import {
-  Box,
-  Button,
-  Checkbox,
-  Container,
-  Flex,
-  Input,
-  Tabs,
-  Text,
-} from '@chakra-ui/react'
+import { useState } from 'react'
+import { Box, Button, Checkbox, Flex, Input, Tabs, Text } from '@chakra-ui/react'
 import { isAxiosError } from 'axios'
-import { Link } from 'react-router-dom'
 import {
   GM_CONFIRM_PHRASE,
   bulkGmUsers,
@@ -21,10 +11,9 @@ import {
   seedGmSampleAlerts,
   seedGmSampleNotifications,
   seedGmSoldHistoryFixture,
-} from '../../api/gm'
-import { showErrorToast, showSuccessToast } from '../../components/ui/toaster'
-import { dark } from '../../theme/colors'
-import { APP_PAGE_PX } from '../../theme/layout'
+} from '../api/gm'
+import { showErrorToast, showSuccessToast } from './ui/toaster'
+import { dark } from '../theme/colors'
 
 function parseOptionalInt(raw: string): number | undefined {
   const t = raw.trim()
@@ -42,7 +31,7 @@ function parseUserIds(raw: string): number[] {
     .filter((n) => Number.isFinite(n))
 }
 
-export function GmToolsPage() {
+export function GmToolsPanel() {
   const [busy, setBusy] = useState<string | null>(null)
 
   const [aCount, setACount] = useState('3')
@@ -278,86 +267,99 @@ export function GmToolsPage() {
     onChange: (v: string) => void,
     placeholder?: string
   ) => (
-    <Box>
-      <Text mb={1} color={dark.label} fontSize="sm">
+    <Box maxW="100%">
+      <Text mb={1} color={dark.label} fontSize="xs">
         {label}
       </Text>
       <Input
+        size="sm"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         bg={dark.inputBg}
         borderColor={dark.borderSubtle}
         color="white"
+        w="100%"
+        maxW="520px"
         _placeholder={{ color: dark.placeholder }}
       />
     </Box>
   )
 
-  const card = (children: ReactNode) => (
-    <Box
-      p={5}
-      bg={dark.cardBg}
-      borderRadius="md"
-      borderWidth="1px"
-      borderColor={dark.borderSubtle}
-    >
-      {children}
-    </Box>
-  )
-
   return (
-    <Container maxW="container.lg" py={6} px={APP_PAGE_PX}>
-      <Flex justify="space-between" align="flex-start" mb={4} gap={4} flexWrap="wrap">
-        <Box>
-          <Text fontSize="2xl" fontWeight="bold" color="white">
-            GM tools
-          </Text>
-          <Text fontSize="sm" color={dark.label} mt={1} maxW="xl">
-            Admin-only demo and QA utilities. High-volume actions require typing{' '}
-            <Text as="span" fontFamily="mono">{GM_CONFIRM_PHRASE}</Text> where noted. GT7 manifest seeding matches{' '}
-            <Text as="span" fontFamily="mono">scripts/create-auctions-temp.mjs</Text> (up to 100 cars per run); keep{' '}
-            <Text as="span" fontFamily="mono">plzbuyme-cdn</Text> next to the repo or set <Text as="span" fontFamily="mono">Gt7CarManifest:Path</Text> on the API.
-          </Text>
-        </Box>
-        <Button
-          asChild
-          size="sm"
-          variant="outline"
-          borderColor={dark.borderSubtle}
-          color="white"
-          _hover={{ bg: 'whiteAlpha.100' }}
-        >
-          <Link to="/admin">Back to Admin</Link>
-        </Button>
-      </Flex>
+    <Box>
+      <Text fontSize="sm" color={dark.label} mb={4}>
+        Admin-only demo and QA utilities. High-volume actions require typing{' '}
+        <Text as="span" fontFamily="mono">
+          {GM_CONFIRM_PHRASE}
+        </Text>{' '}
+        where noted. GT7 manifest seeding matches{' '}
+        <Text as="span" fontFamily="mono">
+          scripts/create-auctions-temp.mjs
+        </Text>{' '}
+        (up to 100 cars per run); keep{' '}
+        <Text as="span" fontFamily="mono">
+          plzbuyme-cdn
+        </Text>{' '}
+        next to the repo or set{' '}
+        <Text as="span" fontFamily="mono">
+          Gt7CarManifest:Path
+        </Text>{' '}
+        on the API.
+      </Text>
 
       <Tabs.Root defaultValue="auctions" variant="line" colorPalette="brand">
-        <Tabs.List borderColor={dark.borderSubtle} gap={2} flexWrap="wrap" color="white">
-          <Tabs.Trigger value="auctions" color="white">
-            Random auctions
-          </Tabs.Trigger>
-          <Tabs.Trigger value="manifest" color="white">
-            GT7 manifest
-          </Tabs.Trigger>
-          <Tabs.Trigger value="users" color="white">
-            Users
-          </Tabs.Trigger>
-          <Tabs.Trigger value="qa" color="white">
-            Q&amp;A
-          </Tabs.Trigger>
-          <Tabs.Trigger value="wallet" color="white">
-            Wallet / fixtures
-          </Tabs.Trigger>
-          <Tabs.Trigger value="samples" color="white">
-            Alerts / notifications
-          </Tabs.Trigger>
-        </Tabs.List>
+        <Box
+          minW={0}
+          overflowX="auto"
+          overflowY="hidden"
+          borderBottomWidth="1px"
+          borderColor={dark.borderSubtle}
+          css={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: `${dark.borderSubtle} transparent`,
+            WebkitOverflowScrolling: 'touch',
+            '&::-webkit-scrollbar': { height: '6px' },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: dark.borderSubtle,
+              borderRadius: '3px',
+            },
+          }}
+        >
+          <Tabs.List
+            borderBottomWidth={0}
+            borderColor="transparent"
+            gap={2}
+            flexWrap="nowrap"
+            color="white"
+            w="max-content"
+            minW="min-content"
+            pb={1}
+          >
+            <Tabs.Trigger value="auctions" color="white" flexShrink={0}>
+              Random auctions
+            </Tabs.Trigger>
+            <Tabs.Trigger value="manifest" color="white" flexShrink={0}>
+              GT7 manifest
+            </Tabs.Trigger>
+            <Tabs.Trigger value="users" color="white" flexShrink={0}>
+              Users
+            </Tabs.Trigger>
+            <Tabs.Trigger value="qa" color="white" flexShrink={0}>
+              Q&amp;A
+            </Tabs.Trigger>
+            <Tabs.Trigger value="wallet" color="white" flexShrink={0}>
+              Wallet / fixtures
+            </Tabs.Trigger>
+            <Tabs.Trigger value="samples" color="white" flexShrink={0}>
+              Alerts / notifications
+            </Tabs.Trigger>
+          </Tabs.List>
+        </Box>
 
         <Box pt={4}>
           <Tabs.Content value="auctions">
-            {card(
-              <>
+            <>
                 <Text fontWeight="semibold" color="white" mb={3}>
                   Seed auctions
                 </Text>
@@ -399,13 +401,11 @@ export function GmToolsPage() {
                     Run
                   </Button>
                 </Flex>
-              </>
-            )}
+            </>
           </Tabs.Content>
 
           <Tabs.Content value="manifest">
-            {card(
-              <>
+            <>
                 <Text fontWeight="semibold" color="white" mb={3}>
                   Seed from GT7 car manifest
                 </Text>
@@ -453,13 +453,11 @@ export function GmToolsPage() {
                     Run
                   </Button>
                 </Flex>
-              </>
-            )}
+            </>
           </Tabs.Content>
 
           <Tabs.Content value="users">
-            {card(
-              <>
+            <>
                 <Text fontWeight="semibold" color="white" mb={3}>
                   Bulk end-users
                 </Text>
@@ -492,13 +490,11 @@ export function GmToolsPage() {
                     Run
                   </Button>
                 </Flex>
-              </>
-            )}
+            </>
           </Tabs.Content>
 
           <Tabs.Content value="qa">
-            {card(
-              <>
+            <>
                 <Text fontWeight="semibold" color="white" mb={3}>
                   Seed Q&amp;A
                 </Text>
@@ -524,14 +520,11 @@ export function GmToolsPage() {
                     Run
                   </Button>
                 </Flex>
-              </>
-            )}
+            </>
           </Tabs.Content>
 
           <Tabs.Content value="wallet">
-            <Flex direction="column" gap={4}>
-              {card(
-                <>
+            <Flex direction="column" gap={8}>
                   <Text fontWeight="semibold" color="white" mb={3}>
                     Wallet top-up
                   </Text>
@@ -553,11 +546,7 @@ export function GmToolsPage() {
                       Run
                     </Button>
                   </Flex>
-                </>
-              )}
-              {card(
-                <>
-                  <Text fontWeight="semibold" color="white" mb={3}>
+                  <Text fontWeight="semibold" color="white" mb={3} mt={2}>
                     Sold / closed history fixture
                   </Text>
                   <Text fontSize="sm" color={dark.label} mb={3}>
@@ -574,14 +563,11 @@ export function GmToolsPage() {
                   >
                     Run fixture
                   </Button>
-                </>
-              )}
             </Flex>
           </Tabs.Content>
 
           <Tabs.Content value="samples">
-            {card(
-              <>
+            <>
                 <Text fontWeight="semibold" color="white" mb={3}>
                   Sample alerts &amp; notifications
                 </Text>
@@ -625,11 +611,10 @@ export function GmToolsPage() {
                     </Flex>
                   </Box>
                 </Flex>
-              </>
-            )}
+            </>
           </Tabs.Content>
         </Box>
       </Tabs.Root>
-    </Container>
+    </Box>
   )
 }

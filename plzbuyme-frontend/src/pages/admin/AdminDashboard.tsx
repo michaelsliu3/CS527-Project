@@ -47,16 +47,6 @@ export function AdminDashboard() {
         >
           <Link to="/admin/reports">View Reports</Link>
         </Button>
-        <Button
-          asChild
-          size="sm"
-          variant="outline"
-          borderColor={dark.borderSubtle}
-          color="white"
-          _hover={{ bg: 'whiteAlpha.100' }}
-        >
-          <Link to="/admin/gm">GM tools</Link>
-        </Button>
       </Flex>
       <Box
         p={6}

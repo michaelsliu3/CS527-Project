@@ -3,9 +3,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AxiosError } from 'axios'
 import { ChakraProvider } from '@chakra-ui/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import { GmToolsPage } from '../../pages/admin/GmToolsPage'
-import { AuthProvider } from '../../context/AuthContext'
+import { GmToolsPanel } from '../../components/GmToolsPanel'
+import { GmToolsDockProvider } from '../../components/GmToolsDock'
 import { system } from '../../theme'
 import * as gmApi from '../../api/gm'
 import { showErrorToast, showSuccessToast } from '../../components/ui/toaster'
@@ -27,33 +26,23 @@ vi.mock('../../components/ui/toaster', () => ({
   showErrorToast: vi.fn(),
 }))
 
-const adminToken = `header.${btoa(JSON.stringify({ sub: '1', unique_name: 'admin', role: 'admin', exp: 9999999999 }))}.sig`
-
-function renderGmPage() {
+function renderPanel() {
   return render(
     <ChakraProvider value={system}>
-      <MemoryRouter initialEntries={['/admin/gm']}>
-        <AuthProvider>
-          <Routes>
-            <Route path="/admin/gm" element={<GmToolsPage />} />
-          </Routes>
-        </AuthProvider>
-      </MemoryRouter>
-    </ChakraProvider>
+      <GmToolsPanel />
+    </ChakraProvider>,
   )
 }
 
-describe('GmToolsPage', () => {
+describe('GmToolsPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    localStorage.clear()
-    localStorage.setItem('token', adminToken)
   })
 
-  it('renders GM tools heading for admin context', () => {
-    renderGmPage()
-    expect(screen.getByText('GM tools')).toBeInTheDocument()
+  it('renders intro copy and auction tab', () => {
+    renderPanel()
     expect(screen.getByText(/Admin-only demo and QA utilities/i)).toBeInTheDocument()
+    expect(screen.getByText('Random auctions')).toBeInTheDocument()
   })
 
   it('seed auctions success shows success toast', async () => {
@@ -66,7 +55,7 @@ describe('GmToolsPage', () => {
       config: {} as never,
     })
 
-    renderGmPage()
+    renderPanel()
     await user.click(screen.getByTestId('gm-seed-auctions'))
 
     await waitFor(() => {
@@ -74,7 +63,7 @@ describe('GmToolsPage', () => {
     })
     expect(showSuccessToast).toHaveBeenCalledWith(
       'Auctions seeded',
-      expect.stringContaining('Created 2')
+      expect.stringContaining('Created 2'),
     )
   })
 
@@ -90,11 +79,33 @@ describe('GmToolsPage', () => {
     }
     vi.mocked(gmApi.seedGmAuctions).mockRejectedValue(axiosErr)
 
-    renderGmPage()
+    renderPanel()
     await user.click(screen.getByTestId('gm-seed-auctions'))
 
     await waitFor(() => {
       expect(showErrorToast).toHaveBeenCalledWith('GM tools', 'Count must be between 1 and 50.')
+    })
+  })
+})
+
+describe('GmToolsDockProvider', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('opens GM dialog when edge tab is clicked', async () => {
+    const user = userEvent.setup()
+    render(
+      <ChakraProvider value={system}>
+        <GmToolsDockProvider enabled>
+          <div>App</div>
+        </GmToolsDockProvider>
+      </ChakraProvider>,
+    )
+
+    await user.click(screen.getByRole('button', { name: /open gm tools/i }))
+    await waitFor(() => {
+      expect(screen.getByText(/Admin-only demo and QA utilities/i)).toBeInTheDocument()
     })
   })
 })

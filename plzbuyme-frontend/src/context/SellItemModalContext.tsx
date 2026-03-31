@@ -18,13 +18,13 @@ import { APP_PAGE_PX } from '../theme/layout'
 import { useScrollLock } from '../hooks/useScrollLock'
 
 const overlayFadeIn = keyframes`
-  from { opacity: 0; backdrop-filter: blur(0px); }
-  to { opacity: 1; backdrop-filter: blur(2px); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 `
 
 const overlayFadeOut = keyframes`
-  from { opacity: 1; backdrop-filter: blur(2px); }
-  to { opacity: 0; backdrop-filter: blur(0px); }
+  from { opacity: 1; }
+  to { opacity: 0; }
 `
 
 const panelScaleIn = keyframes`
@@ -154,8 +154,7 @@ export function SellItemModalProvider({ children }: { children: ReactNode }) {
         <Box
           position="fixed"
           inset={0}
-          bg="blackAlpha.700"
-          backdropFilter={isClosing ? 'blur(0px)' : 'blur(2px)'}
+          bg="blackAlpha.600"
           zIndex={1400}
           overflowY="auto"
           py={{ base: 4, md: 8 }}
@@ -170,12 +169,13 @@ export function SellItemModalProvider({ children }: { children: ReactNode }) {
               aria-labelledby="create-auction-modal-title"
               maxW="920px"
               mx="auto"
-              bg="rgba(24, 24, 27, 0.65)"
+              bg="rgba(24, 24, 27, 0.12)"
+              backdropFilter="blur(12px)"
               borderWidth="1px"
-              borderColor={dark.borderSubtle}
+              borderColor="whiteAlpha.200"
               borderRadius="xl"
               p={{ base: 4, md: 6 }}
-              boxShadow="0 18px 48px rgba(0,0,0,0.45)"
+              boxShadow="0 18px 48px rgba(0,0,0,0.35)"
               position="relative"
               onClick={(event) => event.stopPropagation()}
               animation={`${isClosing ? panelScaleOut : panelScaleIn} 0.18s ease-out forwards`}

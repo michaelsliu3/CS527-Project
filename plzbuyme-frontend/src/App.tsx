@@ -18,7 +18,6 @@ import { QuestionsPage } from './pages/QuestionsPage'
 import { RepDashboard } from './pages/rep/RepDashboard'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { ReportsPage } from './pages/admin/ReportsPage'
-import { GmToolsPage } from './pages/admin/GmToolsPage'
 
 function App() {
   const navigate = useNavigate()
@@ -111,7 +110,7 @@ function App() {
             >
               <Route index element={<AdminDashboard />} />
               <Route path="reports" element={<ReportsPage />} />
-              <Route path="gm" element={<GmToolsPage />} />
+              <Route path="gm" element={<Navigate to="/admin" replace />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
