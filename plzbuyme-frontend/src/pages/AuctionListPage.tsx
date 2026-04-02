@@ -123,16 +123,24 @@ export function AuctionListPage() {
 
   return (
     <Container maxW="container.xl" px={APP_PAGE_PX}>
-      <SearchBar variant="top" />
+      <SearchBar variant="top" topMarginBottom={0} />
 
       <Flex direction={{ base: 'column', lg: 'row' }} gap={4} align="flex-start">
         <Box w={{ base: '100%', lg: '320px' }} flexShrink={0}>
           <SearchBar variant="filters" />
         </Box>
 
-        <Box flex="1" w="100%">
+        <Box flex="1" w="100%" position="relative">
           {canCreateAuctions(user?.role) && (
-            <Flex justify="flex-end" mb={4}>
+            <Flex
+              justify={{ base: 'flex-start', lg: 'flex-end' }}
+              position={{ base: 'static', lg: 'absolute' }}
+              top={{ lg: 0 }}
+              right={{ lg: 0 }}
+              transform={{ lg: 'translateY(calc(-100% - 14px))' }}
+              mb={{ base: 3, lg: 0 }}
+              zIndex={1}
+            >
               <Button
                 size="sm"
                 bg="brand.500"

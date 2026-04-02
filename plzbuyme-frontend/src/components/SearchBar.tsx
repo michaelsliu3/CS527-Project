@@ -17,6 +17,7 @@ import {
 import { HiChevronDown } from 'react-icons/hi'
 import {
   LuCalendar,
+  LuChevronLeft,
   LuChevronRight,
 } from 'react-icons/lu'
 import { useSearchParams } from 'react-router-dom'
@@ -112,6 +113,7 @@ type FilterSectionKey =
 
 interface SearchBarProps {
   variant?: SearchBarVariant
+  topMarginBottom?: number
 }
 
 function flattenCategoryNodes(roots: CategoryDto[]): CategoryDto[] {
@@ -268,7 +270,7 @@ function DateFilterPicker({
   )
 }
 
-export function SearchBar({ variant = 'full' }: SearchBarProps) {
+export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   const hasInitializedDefaultStatus = useRef(false)
   const previousPriceQuery = useRef<{ min: string | null; max: string | null } | null>(null)
@@ -282,6 +284,10 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     const fromQuery = searchParams.get('categoryId')
     return fromQuery ? Number(fromQuery) : ''
   })
+  const [hoveredTopCategoryId, setHoveredTopCategoryId] = useState<number | null>(null)
+  const topBarScrollRef = useRef<HTMLDivElement | null>(null)
+  const [canScrollTopBarLeft, setCanScrollTopBarLeft] = useState(false)
+  const [canScrollTopBarRight, setCanScrollTopBarRight] = useState(false)
   const [makeSuggestions, setMakeSuggestions] = useState<string[]>([])
   const [modelSuggestions, setModelSuggestions] = useState<string[]>([])
   const [makeInput, setMakeInput] = useState(searchParams.get('make') ?? '')
@@ -677,17 +683,53 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
   const showFilters = variant !== 'top'
   const formColumns = variant === 'filters' ? 1 : { base: 1, md: 2, lg: 4 }
   const carFilterColumns = variant === 'filters' ? 1 : { base: 1, md: 2, lg: 4 }
+  const topBarScrollStep = 220
+
+  const syncTopBarScrollState = useCallback(() => {
+    const container = topBarScrollRef.current
+    if (!container) {
+      setCanScrollTopBarLeft(false)
+      setCanScrollTopBarRight(false)
+      return
+    }
+    const maxScrollLeft = container.scrollWidth - container.clientWidth
+    const hasOverflow = maxScrollLeft > 2
+    if (!hasOverflow) {
+      setCanScrollTopBarLeft(false)
+      setCanScrollTopBarRight(false)
+      return
+    }
+    setCanScrollTopBarLeft(container.scrollLeft > 2)
+    setCanScrollTopBarRight(container.scrollLeft < maxScrollLeft - 2)
+  }, [])
+
+  const scrollTopBar = useCallback((direction: 'left' | 'right') => {
+    const container = topBarScrollRef.current
+    if (!container) return
+    container.scrollBy({
+      left: direction === 'left' ? -topBarScrollStep : topBarScrollStep,
+      behavior: 'smooth',
+    })
+  }, [])
+
+  useEffect(() => {
+    syncTopBarScrollState()
+    window.addEventListener('resize', syncTopBarScrollState)
+    return () => window.removeEventListener('resize', syncTopBarScrollState)
+  }, [syncTopBarScrollState, topBarCategories])
 
   return (
-    <Box mb={variant === 'top' ? 3 : 0}>
+    <Box mb={variant === 'top' ? topMarginBottom : 0}>
       {showTopBar && (
       <Box mb={showFilters ? 3 : 0} w="full" position="relative" overflow="hidden">
         <Box
+          ref={topBarScrollRef}
           overflowX="auto"
           overflowY="hidden"
           py={4}
-          pl={4}
-          pr={{ base: 10, md: 12 }}
+          pl={{ base: canScrollTopBarLeft ? 10 : 4, md: canScrollTopBarLeft ? 12 : 4 }}
+          pr={{ base: canScrollTopBarRight ? 10 : 4, md: canScrollTopBarRight ? 12 : 4 }}
+          onScroll={syncTopBarScrollState}
           css={{
             scrollbarWidth: 'thin',
             scrollbarColor: 'rgba(255, 255, 255, 0.2) transparent',
@@ -707,10 +749,12 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
             align="flex-start"
             justify="flex-start"
             w="max-content"
-            minH="76px"
+            mx="auto"
+            minH="86px"
           >
             {topBarCategories.map((category) => {
               const isActive = activeTopCategoryId === category.id
+              const isHovered = hoveredTopCategoryId === category.id
               const TabIcon = resolveLucideIconForKey(category.lucideIconKey)
               return (
                 <Button
@@ -724,19 +768,20 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                   gap={2.5}
                   flexShrink={0}
                   w="auto"
-                  minW="72px"
-                  maxW="100px"
+                  minW={{ base: '82px', md: '92px' }}
+                  maxW={{ base: '108px', md: '120px' }}
                   h="auto"
-                  minH="68px"
-                  px={2}
-                  py={1}
+                  minH={{ base: '78px', md: '84px' }}
+                  px={2.5}
+                  py={1.5}
                   borderRadius="md"
                   bg="transparent"
                   color="inherit"
-                  transition="color 0.2s ease, background 0.2s ease"
+                  transition="color 0.2s ease, background 0.2s ease, transform 0.2s ease"
                   title={category.name}
                   _hover={{
                     bg: 'whiteAlpha.50',
+                    transform: 'translateY(-1px)',
                   }}
                   _focus={{ boxShadow: 'none', outline: 'none' }}
                   _focusVisible={{
@@ -744,23 +789,31 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                     outline: 'none',
                     bg: 'whiteAlpha.50',
                   }}
+                  onMouseEnter={() => setHoveredTopCategoryId(category.id)}
+                  onMouseLeave={() => setHoveredTopCategoryId((current) => (current === category.id ? null : current))}
                   onClick={() => handleTopCategorySelect(category.id)}
                   disabled={categoriesLoading || !!categoriesError}
                 >
                   <Icon
                     as={TabIcon}
-                    boxSize={7}
+                    boxSize={{ base: 7.5, md: 8 }}
                     flexShrink={0}
-                    color={isActive ? 'brand.400' : 'whiteAlpha.400'}
                     aria-hidden
-                    transition="color 0.2s ease"
+                    transition="color 0.2s ease, filter 0.2s ease, transform 0.2s ease"
+                    filter={
+                      isActive || isHovered
+                        ? 'drop-shadow(0 0 8px rgba(129, 140, 248, 0.8))'
+                        : 'drop-shadow(0 0 0 rgba(129, 140, 248, 0))'
+                    }
+                    transform={isHovered ? 'scale(1.04)' : 'scale(1)'}
+                    color={isActive ? 'brand.400' : isHovered ? 'brand.300' : 'whiteAlpha.400'}
                   />
                   <Text
                     as="span"
                     fontSize="10px"
                     fontWeight={isActive ? 'bold' : 'medium'}
                     textTransform="uppercase"
-                    letterSpacing="0.08em"
+                    letterSpacing="0.1em"
                     lineHeight="1.25"
                     textAlign="center"
                     color={isActive ? 'white' : 'whiteAlpha.500'}
@@ -773,32 +826,90 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
                   >
                     {category.name}
                   </Text>
+                  <Box
+                    h="3px"
+                    w={isActive || isHovered ? '50px' : '28px'}
+                    borderRadius="full"
+                    transition="width 0.24s ease, opacity 0.2s ease, filter 0.2s ease"
+                    bg={
+                      isActive || isHovered
+                        ? 'linear-gradient(90deg, rgba(129, 140, 248, 0.2) 0%, rgba(129, 140, 248, 1) 50%, rgba(129, 140, 248, 0.2) 100%)'
+                        : 'linear-gradient(90deg, rgba(148, 163, 184, 0) 0%, rgba(148, 163, 184, 0.55) 50%, rgba(148, 163, 184, 0) 100%)'
+                    }
+                    opacity={isActive ? 1 : isHovered ? 1 : 0.68}
+                    filter={isActive || isHovered ? 'drop-shadow(0 0 10px rgba(129, 140, 248, 0.8))' : 'none'}
+                  />
                 </Button>
               )
             })}
           </Flex>
         </Box>
-        <Flex
-          aria-hidden
-          position="absolute"
-          right={0}
-          top={0}
-          bottom={0}
-          w={{ base: '48px', md: '56px' }}
-          align="center"
-          justify="center"
-          pointerEvents="none"
-          css={{
-            background: `linear-gradient(to left, ${dark.bg} 52%, transparent)`,
-          }}
-        >
-          <Icon
-            as={LuChevronRight}
-            boxSize={5}
-            color="whiteAlpha.400"
-            opacity={0.9}
-          />
-        </Flex>
+        {canScrollTopBarLeft && (
+          <Flex
+            aria-hidden
+            position="absolute"
+            left={0}
+            top={0}
+            bottom={0}
+            w={{ base: '52px', md: '60px' }}
+            align="center"
+            justify="center"
+            pointerEvents="none"
+            css={{
+              background: `linear-gradient(to right, ${dark.bg} 52%, transparent)`,
+            }}
+          >
+            <Button
+              size="sm"
+              borderRadius="full"
+              minW="30px"
+              h="30px"
+              p={0}
+              pointerEvents="auto"
+              bg="whiteAlpha.200"
+              color="white"
+              _hover={{ bg: 'whiteAlpha.300' }}
+              _active={{ bg: 'whiteAlpha.350' }}
+              onClick={() => scrollTopBar('left')}
+              aria-label="Scroll categories left"
+            >
+              <Icon as={LuChevronLeft} boxSize={4} />
+            </Button>
+          </Flex>
+        )}
+        {canScrollTopBarRight && (
+          <Flex
+            aria-hidden
+            position="absolute"
+            right={0}
+            top={0}
+            bottom={0}
+            w={{ base: '52px', md: '60px' }}
+            align="center"
+            justify="center"
+            pointerEvents="none"
+            css={{
+              background: `linear-gradient(to left, ${dark.bg} 52%, transparent)`,
+            }}
+          >
+            <Button
+              size="sm"
+              borderRadius="full"
+              minW="30px"
+              h="30px"
+              p={0}
+              pointerEvents="auto"
+              bg="whiteAlpha.200"
+              color="white"
+              _hover={{ bg: 'whiteAlpha.300' }}
+              _active={{ bg: 'whiteAlpha.350' }}
+              onClick={() => scrollTopBar('right')}
+              aria-label="Scroll categories right"
+            >
+              <Icon as={LuChevronRight} boxSize={4} />
+            </Button>
+          </Flex>
+        )}
       </Box>
       )}
 
