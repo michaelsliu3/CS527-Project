@@ -50,3 +50,12 @@ public record GmRunCloseSweepResultDto
 {
     public bool Ran { get; init; } = true;
 }
+
+public record GmDeleteAllAuctionsResultDto
+{
+    public int ItemsDeleted { get; init; }
+    public int BidsDeleted { get; init; }
+    public int AutoBidsDeleted { get; init; }
+    public int BidHoldsDeleted { get; init; }
+    public int NotificationsDeleted { get; init; }
+}

@@ -5,6 +5,7 @@ import { apiClient } from '../api/client'
 import {
   bulkGmUsers,
   gmBulkCloseActiveAuctions,
+  gmDeleteAllAuctions,
   gmRunCloseSweep,
   gmWalletTopUp,
   seedGmAuctionsFromManifest,
@@ -309,6 +310,33 @@ export function GmToolsPanel() {
       }
     })
 
+  const onDeleteAllAuctions = () =>
+    run('deleteAll', async () => {
+      if (
+        !window.confirm(
+          'Permanently DELETE every auction from the database?\n\n' +
+            'All rows for listings, bids, auto-bids, bid holds, and auction-tied notifications will be removed. This cannot be undone.',
+        )
+      ) {
+        return
+      }
+      try {
+        const { data } = await gmDeleteAllAuctions()
+        showSuccessToast(
+          'Auctions removed',
+          `Deleted ${data.itemsDeleted} listings, ${data.bidsDeleted} bids, ${data.autoBidsDeleted} auto-bids.`,
+        )
+        notifyAuctionListRefresh()
+      } catch (err) {
+        if (isAxiosError(err) && err.response?.data) {
+          const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
+          showErrorToast('GM tools', msg)
+        } else {
+          showErrorToast('GM tools', 'Request failed.')
+        }
+      }
+    })
+
   const field = (
     label: string,
     value: string,
@@ -437,6 +465,23 @@ export function GmToolsPanel() {
                   alignSelf="flex-start"
                 >
                   End all active (no sale)
+                </Button>
+                <Text fontSize="xs" color={dark.muted} mt={2} maxW="md">
+                  To wipe listings entirely (including sold/closed), use delete below — that removes rows from the database,
+                  not just status changes.
+                </Text>
+                <Button
+                  data-testid="gm-delete-all-auctions"
+                  mt={3}
+                  variant="outline"
+                  borderColor="red.500"
+                  color="red.200"
+                  _hover={{ bg: 'whiteAlpha.100', borderColor: 'red.400' }}
+                  loading={busy === 'deleteAll'}
+                  onClick={onDeleteAllAuctions}
+                  alignSelf="flex-start"
+                >
+                  Delete all auctions from database
                 </Button>
               </Flex>
 

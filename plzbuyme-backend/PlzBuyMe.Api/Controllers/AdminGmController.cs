@@ -132,6 +132,15 @@ public class AdminGmController : ControllerBase
         return Ok(data);
     }
 
+    [HttpPost("auctions/delete-all")]
+    public async Task<IActionResult> DeleteAllAuctions()
+    {
+        var (error, data) = await _gmToolsService.DeleteAllAuctionsAsync(GetAdminUserId());
+        if (error != null)
+            return BadRequest(error);
+        return Ok(data);
+    }
+
     private int GetAdminUserId()
     {
         return int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);

@@ -20,6 +20,7 @@ vi.mock('../../api/gm', () => ({
   seedGmSoldHistoryFixture: vi.fn(),
   gmBulkCloseActiveAuctions: vi.fn(),
   gmRunCloseSweep: vi.fn(),
+  gmDeleteAllAuctions: vi.fn(),
 }))
 
 vi.mock('../../components/ui/toaster', () => ({

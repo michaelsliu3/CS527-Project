@@ -521,6 +521,20 @@ public class GmToolsService : IGmToolsService
         return (null, new GmRunCloseSweepResultDto());
     }
 
+    public async Task<(string? Error, GmDeleteAllAuctionsResultDto? Data)> DeleteAllAuctionsAsync(int adminUserId)
+    {
+        var (error, result) = await _auctionService.GmDeleteAllAuctionsAsync();
+        if (error != null || result == null)
+            return (error, null);
+
+        _logger.LogWarning(
+            "GM tools: admin {AdminId} deleted all auctions ({Items} items, {Bids} bids)",
+            adminUserId,
+            result.ItemsDeleted,
+            result.BidsDeleted);
+        return (null, result);
+    }
+
     private async Task<User?> ResolveSellerAsync(int? sellerUserId)
     {
         if (sellerUserId.HasValue)

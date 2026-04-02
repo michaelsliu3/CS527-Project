@@ -131,3 +131,15 @@ export function gmBulkCloseActiveAuctions(payload: GmBulkCloseAuctionsPayload) {
 export function gmRunCloseSweep() {
   return apiClient.post<{ ran: boolean }>('admin/gm/auctions/run-close-sweep')
 }
+
+export interface GmDeleteAllAuctionsResult {
+  itemsDeleted: number
+  bidsDeleted: number
+  autoBidsDeleted: number
+  bidHoldsDeleted: number
+  notificationsDeleted: number
+}
+
+export function gmDeleteAllAuctions() {
+  return apiClient.post<GmDeleteAllAuctionsResult>('admin/gm/auctions/delete-all')
+}

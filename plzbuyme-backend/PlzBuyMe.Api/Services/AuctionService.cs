@@ -1275,4 +1275,94 @@ public class AuctionService : IAuctionService
             ClosedWithoutSaleCount = closedNoSale
         });
     }
+
+    public async Task<(string? Error, GmDeleteAllAuctionsResultDto? Result)> GmDeleteAllAuctionsAsync()
+    {
+        if (_db.Database.IsInMemory())
+            return await GmDeleteAllAuctionsInMemoryAsync();
+
+        await using var tx = await _db.Database.BeginTransactionAsync();
+        try
+        {
+            var holdsDeleted = await _db.BidHolds.ExecuteDeleteAsync();
+            var bidsDeleted = await _db.Bids.ExecuteDeleteAsync();
+            var autoBidsDeleted = await _db.AutoBids.ExecuteDeleteAsync();
+            var notificationsDeleted = await _db.Notifications.Where(n => n.ItemId != null).ExecuteDeleteAsync();
+            var itemsDeleted = await _db.Items.ExecuteDeleteAsync();
+
+            await tx.CommitAsync();
+
+            _logger.LogWarning(
+                "GM delete-all auctions: removed {Items} items, {Bids} bids, {Auto} auto-bids, {Holds} bid holds, {Notif} notifications",
+                itemsDeleted,
+                bidsDeleted,
+                autoBidsDeleted,
+                holdsDeleted,
+                notificationsDeleted);
+
+            return (null, new GmDeleteAllAuctionsResultDto
+            {
+                ItemsDeleted = itemsDeleted,
+                BidsDeleted = bidsDeleted,
+                AutoBidsDeleted = autoBidsDeleted,
+                BidHoldsDeleted = holdsDeleted,
+                NotificationsDeleted = notificationsDeleted
+            });
+        }
+        catch (Exception ex)
+        {
+            await tx.RollbackAsync();
+            _logger.LogError(ex, "GM delete-all auctions failed.");
+            return ("Failed to delete auctions. See server logs.", null);
+        }
+    }
+
+    // InMemory provider has no ExecuteDelete; mirror the relational delete order with tracked removes.
+    private async Task<(string? Error, GmDeleteAllAuctionsResultDto? Result)> GmDeleteAllAuctionsInMemoryAsync()
+    {
+        try
+        {
+            var holds = await _db.BidHolds.ToListAsync();
+            var bids = await _db.Bids.ToListAsync();
+            var autoBids = await _db.AutoBids.ToListAsync();
+            var notifications = await _db.Notifications.Where(n => n.ItemId != null).ToListAsync();
+            var items = await _db.Items.ToListAsync();
+
+            _db.BidHolds.RemoveRange(holds);
+            _db.Bids.RemoveRange(bids);
+            _db.AutoBids.RemoveRange(autoBids);
+            _db.Notifications.RemoveRange(notifications);
+            _db.Items.RemoveRange(items);
+
+            await _db.SaveChangesAsync();
+
+            var holdsDeleted = holds.Count;
+            var bidsDeleted = bids.Count;
+            var autoBidsDeleted = autoBids.Count;
+            var notificationsDeleted = notifications.Count;
+            var itemsDeleted = items.Count;
+
+            _logger.LogWarning(
+                "GM delete-all auctions: removed {Items} items, {Bids} bids, {Auto} auto-bids, {Holds} bid holds, {Notif} notifications",
+                itemsDeleted,
+                bidsDeleted,
+                autoBidsDeleted,
+                holdsDeleted,
+                notificationsDeleted);
+
+            return (null, new GmDeleteAllAuctionsResultDto
+            {
+                ItemsDeleted = itemsDeleted,
+                BidsDeleted = bidsDeleted,
+                AutoBidsDeleted = autoBidsDeleted,
+                BidHoldsDeleted = holdsDeleted,
+                NotificationsDeleted = notificationsDeleted
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GM delete-all auctions failed.");
+            return ("Failed to delete auctions. See server logs.", null);
+        }
+    }
 }

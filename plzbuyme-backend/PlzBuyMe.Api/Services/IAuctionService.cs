@@ -23,4 +23,7 @@ public interface IAuctionService
 
     /// <summary>GM: close every active listing in one batch (natural reserve rules vs no-sale).</summary>
     Task<(string? Error, GmBulkCloseAuctionsResultDto? Result)> GmBulkCloseActiveAuctionsAsync(string mode);
+
+    /// <summary>GM: permanently delete every auction (items) and dependent rows (bids, auto-bids, holds, item-linked notifications).</summary>
+    Task<(string? Error, GmDeleteAllAuctionsResultDto? Result)> GmDeleteAllAuctionsAsync();
 }

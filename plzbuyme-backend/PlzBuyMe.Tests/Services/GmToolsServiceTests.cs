@@ -131,4 +131,30 @@ public class GmToolsServiceTests
         data!.Ran.Should().BeTrue();
         auctionMock.Verify(a => a.CloseExpiredAsync(), Times.Once);
     }
+
+    [Fact]
+    public async Task DeleteAllAuctions_DelegatesToAuctionService()
+    {
+        await using var db = CreateDb();
+        var auctionMock = new Mock<IAuctionService>();
+        auctionMock
+            .Setup(a => a.GmDeleteAllAuctionsAsync())
+            .ReturnsAsync((null, new GmDeleteAllAuctionsResultDto
+            {
+                ItemsDeleted = 2,
+                BidsDeleted = 5,
+                AutoBidsDeleted = 0,
+                BidHoldsDeleted = 1,
+                NotificationsDeleted = 0
+            }));
+        var svc = CreateService(db, auctionMock);
+
+        var (error, data) = await svc.DeleteAllAuctionsAsync(1);
+
+        error.Should().BeNull();
+        data.Should().NotBeNull();
+        data!.ItemsDeleted.Should().Be(2);
+        data.BidsDeleted.Should().Be(5);
+        auctionMock.Verify(a => a.GmDeleteAllAuctionsAsync(), Times.Once);
+    }
 }

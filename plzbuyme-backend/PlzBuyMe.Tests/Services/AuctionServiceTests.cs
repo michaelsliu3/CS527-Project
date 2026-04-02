@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -123,6 +124,28 @@ public class AuctionServiceTests
         item.ImageStorageKey.Should().Be("137");
         resolverMock.Verify(r => r.ResolveAsync("Honda", "Beat", 1991, It.IsAny<CancellationToken>()), Times.Once);
         resolverMock.Verify(r => r.ResolveByExternalIdAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GmDeleteAllAuctionsAsync_RemovesAllItemsBidsAndRelatedRows()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var itemsBefore = await db.Items.CountAsync();
+        var bidsBefore = await db.Bids.CountAsync();
+        itemsBefore.Should().BeGreaterThan(0);
+        bidsBefore.Should().BeGreaterThan(0);
+
+        var (error, result) = await service.GmDeleteAllAuctionsAsync();
+
+        error.Should().BeNull();
+        result.Should().NotBeNull();
+        result!.ItemsDeleted.Should().Be(itemsBefore);
+        result.BidsDeleted.Should().Be(bidsBefore);
+        (await db.Items.CountAsync()).Should().Be(0);
+        (await db.Bids.CountAsync()).Should().Be(0);
+        (await db.AutoBids.CountAsync()).Should().Be(0);
+        (await db.BidHolds.CountAsync()).Should().Be(0);
     }
 
     [Fact]

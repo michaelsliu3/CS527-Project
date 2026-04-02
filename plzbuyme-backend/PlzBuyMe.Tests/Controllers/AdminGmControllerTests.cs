@@ -107,6 +107,44 @@ public class AdminGmControllerTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
+    [Fact]
+    public async Task DeleteAllAuctions_AsEndUser_ReturnsForbidden()
+    {
+        var factory = new PlzBuyMeWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var loginResponse = await client.PostAsJsonAsync("api/auth/login", new { username = "seller1", password = "password" });
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var auth = await loginResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+        auth.Should().NotBeNull();
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/admin/gm/auctions/delete-all");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", auth!.Token);
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task DeleteAllAuctions_AsAdmin_ReturnsOk()
+    {
+        var factory = new PlzBuyMeWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var loginResponse = await client.PostAsJsonAsync("api/auth/login", new { username = "admin", password = "admin123" });
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var auth = await loginResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+        auth.Should().NotBeNull();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth!.Token);
+        var response = await client.PostAsync("api/admin/gm/auctions/delete-all", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<DeleteAllAuctionsResponseStub>();
+        body.Should().NotBeNull();
+        body!.ItemsDeleted.Should().BeGreaterThan(0);
+    }
+
     private sealed class SeedAuctionsResponseStub
     {
         public int CreatedCount { get; set; }
@@ -115,5 +153,11 @@ public class AdminGmControllerTests
     private sealed class BulkCloseResponseStub
     {
         public int ProcessedCount { get; set; }
+    }
+
+    private sealed class DeleteAllAuctionsResponseStub
+    {
+        public int ItemsDeleted { get; set; }
+        public int BidsDeleted { get; set; }
     }
 }

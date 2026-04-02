@@ -23,4 +23,6 @@ public interface IGmToolsService
     Task<(string? Error, GmBulkCloseAuctionsResultDto? Data)> BulkCloseActiveAuctionsAsync(int adminUserId, GmBulkCloseAuctionsDto dto);
 
     Task<(string? Error, GmRunCloseSweepResultDto? Data)> RunCloseSweepAsync(int adminUserId);
+
+    Task<(string? Error, GmDeleteAllAuctionsResultDto? Data)> DeleteAllAuctionsAsync(int adminUserId);
 }
