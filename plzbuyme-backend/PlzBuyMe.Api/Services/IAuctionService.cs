@@ -1,5 +1,6 @@
 using PlzBuyMe.Api.Dtos;
 using PlzBuyMe.Api.Dtos.Admin;
+using PlzBuyMe.Api.Dtos.Admin.Gm;
 using PlzBuyMe.Api.Dtos.Auctions;
 
 namespace PlzBuyMe.Api.Services;
@@ -19,4 +20,7 @@ public interface IAuctionService
 
     /// <summary>Admin GM / moderation: patch listing or end auction early.</summary>
     Task<(string? Error, AuctionDetailDto? Detail)> AdminPatchAuctionAsync(int itemId, AdminPatchAuctionDto dto, int adminUserId);
+
+    /// <summary>GM: close every active listing in one batch (natural reserve rules vs no-sale).</summary>
+    Task<(string? Error, GmBulkCloseAuctionsResultDto? Result)> GmBulkCloseActiveAuctionsAsync(string mode);
 }

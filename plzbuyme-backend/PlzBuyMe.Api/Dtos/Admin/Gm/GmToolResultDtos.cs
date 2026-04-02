@@ -38,3 +38,15 @@ public record GmSoldHistoryFixtureResultDto
 {
     public int SoldAuctionCount { get; init; }
 }
+
+public record GmBulkCloseAuctionsResultDto
+{
+    public int ProcessedCount { get; init; }
+    public int SoldCount { get; init; }
+    public int ClosedWithoutSaleCount { get; init; }
+}
+
+public record GmRunCloseSweepResultDto
+{
+    public bool Ran { get; init; } = true;
+}

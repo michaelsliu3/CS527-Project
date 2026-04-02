@@ -1,16 +1,19 @@
 import { useState } from 'react'
 import { Box, Button, Checkbox, Flex, Input, Tabs, Text } from '@chakra-ui/react'
 import { isAxiosError } from 'axios'
+import { apiClient } from '../api/client'
 import {
   bulkGmUsers,
+  gmBulkCloseActiveAuctions,
+  gmRunCloseSweep,
   gmWalletTopUp,
-  seedGmAuctions,
   seedGmAuctionsFromManifest,
   seedGmQuestions,
   seedGmSampleAlerts,
   seedGmSampleNotifications,
   seedGmSoldHistoryFixture,
 } from '../api/gm'
+import { notifyAuctionListRefresh } from '../utils/auctionListRefresh'
 import { showErrorToast, showSuccessToast } from './ui/toaster'
 import { dark } from '../theme/colors'
 
@@ -33,23 +36,14 @@ function parseUserIds(raw: string): number[] {
 export function GmToolsPanel() {
   const [busy, setBusy] = useState<string | null>(null)
 
-  const [aCount, setACount] = useState('3')
-  const [aCategoryId, setACategoryId] = useState('')
-  const [aSellerId, setASellerId] = useState('')
-  const [aCloseMin, setACloseMin] = useState('6')
-  const [aCloseMax, setACloseMax] = useState('120')
-  const [aBidMin, setABidMin] = useState('0')
-  const [aBidMax, setABidMax] = useState('0')
-
-  const [mCount, setMCount] = useState('30')
-  const [mKeyword, setMKeyword] = useState('')
-  const [mCategoryMode, setMCategoryMode] = useState('auto')
-  const [mCloseMin, setMCloseMin] = useState('6')
-  const [mCloseMax, setMCloseMax] = useState('120')
-  const [mBidMin, setMBidMin] = useState('0')
-  const [mBidMax, setMBidMax] = useState('0')
-  const [mSellerId, setMSellerId] = useState('')
-  const [mUseDetail, setMUseDetail] = useState(true)
+  const [seedCount, setSeedCount] = useState('5')
+  const [manifestKeyword, setManifestKeyword] = useState('')
+  const [manifestCategoryMode, setManifestCategoryMode] = useState('auto')
+  const [seedSellerId, setSeedSellerId] = useState('')
+  const [seedCloseMin, setSeedCloseMin] = useState('6')
+  const [seedCloseMax, setSeedCloseMax] = useState('120')
+  const [seedBidMin, setSeedBidMin] = useState('0')
+  const [seedBidMax, setSeedBidMax] = useState('0')
 
   const [uPrefix, setUPrefix] = useState('gmuser')
   const [uCount, setUCount] = useState('3')
@@ -79,51 +73,30 @@ export function GmToolsPanel() {
   }
 
   const onSeedAuctions = () =>
-    run('auctions', async () => {
+    run('seed', async () => {
       try {
-        const count = Number.parseInt(aCount, 10) || 0
-        const { data } = await seedGmAuctions({
-          count,
-          categoryId: parseOptionalInt(aCategoryId),
-          sellerUserId: parseOptionalInt(aSellerId),
-          closeHoursMin: Number.parseInt(aCloseMin, 10) || undefined,
-          closeHoursMax: Number.parseInt(aCloseMax, 10) || undefined,
-          bidCountMin: Number.parseInt(aBidMin, 10) || 0,
-          bidCountMax: Number.parseInt(aBidMax, 10) || 0,
-        })
-        showSuccessToast(
-          'Auctions seeded',
-          `Created ${data.createdCount}, bids placed: ${data.totalBidsPlaced}.`
-        )
-      } catch (err) {
-        if (isAxiosError(err) && err.response?.data) {
-          const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
-          showErrorToast('GM tools', msg)
-        } else {
-          showErrorToast('GM tools', 'Request failed.')
-        }
-      }
-    })
+        const count = Number.parseInt(seedCount, 10) || 0
+        const closeHoursMin = Number.parseInt(seedCloseMin, 10) || undefined
+        const closeHoursMax = Number.parseInt(seedCloseMax, 10) || undefined
+        const bidCountMin = Number.parseInt(seedBidMin, 10) || 0
+        const bidCountMax = Number.parseInt(seedBidMax, 10) || 0
+        const sellerUserId = parseOptionalInt(seedSellerId)
 
-  const onSeedManifest = () =>
-    run('manifest', async () => {
-      try {
-        const count = Number.parseInt(mCount, 10) || 0
         const { data } = await seedGmAuctionsFromManifest({
           count,
-          titleKeyword: mKeyword.trim() || undefined,
-          categoryMode: mCategoryMode.trim() || 'auto',
-          closeHoursMin: Number.parseInt(mCloseMin, 10) || undefined,
-          closeHoursMax: Number.parseInt(mCloseMax, 10) || undefined,
-          bidCountMin: Number.parseInt(mBidMin, 10) || 0,
-          bidCountMax: Number.parseInt(mBidMax, 10) || 0,
-          sellerUserId: parseOptionalInt(mSellerId),
-          useDetailImage: mUseDetail,
+          titleKeyword: manifestKeyword.trim() || undefined,
+          categoryMode: manifestCategoryMode.trim() || 'auto',
+          closeHoursMin,
+          closeHoursMax,
+          bidCountMin,
+          bidCountMax,
+          sellerUserId,
         })
         showSuccessToast(
-          'Manifest auctions seeded',
-          `Created ${data.createdCount}, bids: ${data.totalBidsPlaced}.`
+          'Random listings added',
+          `Created ${data.createdCount}, bids: ${data.totalBidsPlaced}.`,
         )
+        notifyAuctionListRefresh()
       } catch (err) {
         if (isAxiosError(err) && err.response?.data) {
           const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
@@ -250,6 +223,92 @@ export function GmToolsPanel() {
       }
     })
 
+  const onRunCloseSweep = () =>
+    run('sweep', async () => {
+      try {
+        await gmRunCloseSweep()
+        showSuccessToast('Close sweep', 'Processed listings whose end time has passed.')
+        notifyAuctionListRefresh()
+      } catch (err) {
+        if (isAxiosError(err) && err.response?.data) {
+          const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
+          showErrorToast('GM tools', msg)
+        } else {
+          showErrorToast('GM tools', 'Request failed.')
+        }
+      }
+    })
+
+  const onEndAllNatural = () =>
+    run('endNatural', async () => {
+      if (
+        !window.confirm(
+          'End ALL active auctions using normal rules (reserve met → sold; otherwise closed)? This cannot be undone.',
+        )
+      ) {
+        return
+      }
+      try {
+        const { data } = await gmBulkCloseActiveAuctions({ mode: 'natural' })
+        showSuccessToast(
+          'Auctions ended',
+          `Processed ${data.processedCount}: ${data.soldCount} sold, ${data.closedWithoutSaleCount} closed without sale.`,
+        )
+        notifyAuctionListRefresh()
+      } catch (err) {
+        if (isAxiosError(err) && err.response?.data) {
+          const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
+          showErrorToast('GM tools', msg)
+        } else {
+          showErrorToast('GM tools', 'Request failed.')
+        }
+      }
+    })
+
+  const onRefreshBrowseListings = () => {
+    notifyAuctionListRefresh()
+    showSuccessToast(
+      'Browse listings refresh',
+      'Subscribers to the auction list will reload data (e.g. after a close sweep).',
+    )
+  }
+
+  const onCopyApiBaseUrl = async () => {
+    const url = String(apiClient.defaults.baseURL ?? '').trim() || '(not set)'
+    try {
+      await navigator.clipboard.writeText(url)
+      showSuccessToast('API base URL copied', url)
+    } catch {
+      showErrorToast('GM tools', 'Could not copy to clipboard.')
+    }
+  }
+
+  const onEndAllNoSale = () =>
+    run('endClosed', async () => {
+      if (
+        !window.confirm(
+          'End ALL active auctions WITHOUT selling (release bid holds, no winners)? Demo reset — cannot be undone.',
+        )
+      ) {
+        return
+      }
+      try {
+        const { data } = await gmBulkCloseActiveAuctions({ mode: 'closed' })
+        showSuccessToast(
+          'Auctions closed (no sale)',
+          `Processed ${data.processedCount} listings.`,
+        )
+        notifyAuctionListRefresh()
+      } catch (err) {
+        if (isAxiosError(err) && err.response?.data) {
+          const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
+          showErrorToast('GM tools', msg)
+        } else {
+          showErrorToast('GM tools', 'Request failed.')
+        }
+      }
+    })
+
   const field = (
     label: string,
     value: string,
@@ -280,7 +339,7 @@ export function GmToolsPanel() {
         Admin-only demo and QA utilities.
       </Text>
 
-      <Tabs.Root defaultValue="auctions" variant="line" colorPalette="brand">
+      <Tabs.Root defaultValue="general" variant="line" colorPalette="brand">
         <Box
           minW={0}
           overflowX="auto"
@@ -308,11 +367,11 @@ export function GmToolsPanel() {
             minW="min-content"
             pb={1}
           >
-            <Tabs.Trigger value="auctions" color="white" flexShrink={0}>
-              Random auctions
+            <Tabs.Trigger value="general" color="white" flexShrink={0}>
+              General
             </Tabs.Trigger>
-            <Tabs.Trigger value="manifest" color="white" flexShrink={0}>
-              GT7 manifest
+            <Tabs.Trigger value="seed" color="white" flexShrink={0}>
+              Seed auctions
             </Tabs.Trigger>
             <Tabs.Trigger value="users" color="white" flexShrink={0}>
               Users
@@ -330,99 +389,145 @@ export function GmToolsPanel() {
         </Box>
 
         <Box pt={4}>
-          <Tabs.Content value="auctions">
+          <Tabs.Content value="general">
             <>
-                <Text fontWeight="semibold" color="white" mb={3}>
-                  Seed auctions
+              <Text fontWeight="semibold" color="white" mb={3}>
+                Global auction actions
+              </Text>
+              <Text fontSize="sm" color={dark.label} mb={3}>
+                For demos and QA. Prefer <Text as="span" fontFamily="mono">Run close sweep</Text> to match normal
+                expiry behavior; use bulk end when you need every active listing to finish immediately. Max 500 active
+                listings per bulk request.
+              </Text>
+              <Flex direction="column" gap={3} maxW="md">
+                <Button
+                  data-testid="gm-run-close-sweep"
+                  variant="outline"
+                  borderColor={dark.borderSubtle}
+                  color="white"
+                  _hover={{ bg: 'whiteAlpha.100' }}
+                  loading={busy === 'sweep'}
+                  onClick={onRunCloseSweep}
+                  alignSelf="flex-start"
+                >
+                  Run close sweep now
+                </Button>
+                <Text fontSize="xs" color={dark.muted}>
+                  Same logic as the background job: closes active items whose scheduled end time is already in the past.
                 </Text>
-                <Text fontSize="sm" color={dark.label} mb={3}>
-                  Creates listings with realistic fields (aligned with seed categories). Optional synthetic bids use{' '}
-                  <Text as="span" fontFamily="mono">PlaceBidAsync</Text> and large wallet credits for bidders. Max 50 per
-                  request.
-                </Text>
-                <Flex direction="column" gap={3}>
-                  {field('Count', aCount, setACount)}
-                  {field('Category ID (optional)', aCategoryId, setACategoryId, 'e.g. Sedans leaf id')}
-                  {field('Seller user ID (optional)', aSellerId, setASellerId)}
-                  <Flex gap={3} flexWrap="wrap">
-                    <Box flex="1" minW="120px">
-                      {field('Close hours min', aCloseMin, setACloseMin)}
-                    </Box>
-                    <Box flex="1" minW="120px">
-                      {field('Close hours max', aCloseMax, setACloseMax)}
-                    </Box>
-                  </Flex>
-                  <Flex gap={3} flexWrap="wrap">
-                    <Box flex="1" minW="120px">
-                      {field('Bid count min', aBidMin, setABidMin, '0 = none')}
-                    </Box>
-                    <Box flex="1" minW="120px">
-                      {field('Bid count max', aBidMax, setABidMax)}
-                    </Box>
-                  </Flex>
-                  <Button
-                    data-testid="gm-seed-auctions"
-                    bg="brand.500"
-                    color="white"
-                    _hover={{ bg: 'brand.400' }}
-                    loading={busy === 'auctions'}
-                    onClick={onSeedAuctions}
-                    alignSelf="flex-start"
-                  >
-                    Run
-                  </Button>
-                </Flex>
+                <Button
+                  data-testid="gm-end-all-natural"
+                  bg="orange.600"
+                  color="white"
+                  _hover={{ bg: 'orange.500' }}
+                  loading={busy === 'endNatural'}
+                  onClick={onEndAllNatural}
+                  alignSelf="flex-start"
+                >
+                  End all active (natural / reserve rules)
+                </Button>
+                <Button
+                  data-testid="gm-end-all-no-sale"
+                  variant="outline"
+                  borderColor="red.400"
+                  color="red.300"
+                  _hover={{ bg: 'whiteAlpha.100', borderColor: 'red.300' }}
+                  loading={busy === 'endClosed'}
+                  onClick={onEndAllNoSale}
+                  alignSelf="flex-start"
+                >
+                  End all active (no sale)
+                </Button>
+              </Flex>
+
+              <Text fontWeight="semibold" color="white" mb={2} mt={8}>
+                Quick utilities
+              </Text>
+              <Text fontSize="sm" color={dark.label} mb={2}>
+                Handy while demoing or testing without leaving this panel.
+              </Text>
+              <Text fontSize="xs" color={dark.muted} mb={3} fontFamily="mono">
+                Vite mode: {import.meta.env.MODE}
+              </Text>
+              <Flex direction="row" gap={2} flexWrap="wrap" maxW="lg">
+                <Button
+                  data-testid="gm-refresh-browse"
+                  size="sm"
+                  variant="outline"
+                  borderColor={dark.borderSubtle}
+                  color="white"
+                  _hover={{ bg: 'whiteAlpha.100' }}
+                  onClick={onRefreshBrowseListings}
+                >
+                  Refresh browse listings
+                </Button>
+                <Button
+                  data-testid="gm-copy-api-base"
+                  size="sm"
+                  variant="outline"
+                  borderColor={dark.borderSubtle}
+                  color="white"
+                  _hover={{ bg: 'whiteAlpha.100' }}
+                  onClick={() => void onCopyApiBaseUrl()}
+                >
+                  Copy API base URL
+                </Button>
+              </Flex>
+              <Text fontSize="xs" color={dark.muted} mt={2} maxW="md">
+                Refresh notifies in-app listeners only; use after close sweep or bulk end if the grid still looks stale.
+              </Text>
             </>
           </Tabs.Content>
 
-          <Tabs.Content value="manifest">
+          <Tabs.Content value="seed">
             <>
-                <Text fontWeight="semibold" color="white" mb={3}>
-                  Seed from GT7 car manifest
+              <Text fontWeight="semibold" color="white" mb={3}>
+                Add random listings
+              </Text>
+              <Text fontSize="sm" color={dark.label} mb={3}>
+                Same behavior as <Text as="span" fontFamily="mono">plzbuyme-backend/scripts/create-auctions-temp.mjs</Text>
+                : shuffled picks from the car thumbnail manifest under <Text as="span" fontFamily="mono">plzbuyme-cdn</Text>,
+                category from car metadata (or set category mode). Max 100 per run. Optional bids use{' '}
+                <Text as="span" fontFamily="mono">PlaceBidAsync</Text> with large wallet credits.
+              </Text>
+              <Flex direction="column" gap={3}>
+                {field('Count', seedCount, setSeedCount, 'max 100')}
+                {field('Title keyword filter (optional)', manifestKeyword, setManifestKeyword)}
+                {field('Category mode', manifestCategoryMode, setManifestCategoryMode, 'auto or Sedans, SUVs, …')}
+                <Text fontSize="xs" color={dark.muted}>
+                  Thumbnails are served from your media CDN (<Text as="span" fontFamily="mono">MediaStorage:ServiceBaseUrl</Text>
+                  ), which mirrors car images on first request. Run <Text as="span" fontFamily="mono">plzbuyme-cdn</Text> beside
+                  the API and keep the manifest path configured so resolution can match make/model/year.
                 </Text>
-                <Text fontSize="sm" color={dark.label} mb={3}>
-                  Picks random cars from <Text as="span" fontFamily="mono">gt7-car-thumbnails.manifest.json</Text> with
-                  the same category inference as the Node script. Sets listing images from manifest URLs. Up to 100 per
-                  request.
-                </Text>
-                <Flex direction="column" gap={3}>
-                  {field('Count (max 100)', mCount, setMCount)}
-                  {field('Title keyword filter (optional)', mKeyword, setMKeyword)}
-                  {field('Category mode', mCategoryMode, setMCategoryMode, 'auto or Sedans, SUVs, …')}
-                  {field('Seller user ID (optional)', mSellerId, setMSellerId)}
-                  <Flex gap={3} flexWrap="wrap">
-                    <Box flex="1" minW="120px">
-                      {field('Close hours min', mCloseMin, setMCloseMin)}
-                    </Box>
-                    <Box flex="1" minW="120px">
-                      {field('Close hours max', mCloseMax, setMCloseMax)}
-                    </Box>
-                  </Flex>
-                  <Flex gap={3} flexWrap="wrap">
-                    <Box flex="1" minW="120px">
-                      {field('Bid count min', mBidMin, setMBidMin)}
-                    </Box>
-                    <Box flex="1" minW="120px">
-                      {field('Bid count max', mBidMax, setMBidMax)}
-                    </Box>
-                  </Flex>
-                  <Checkbox.Root checked={mUseDetail} onCheckedChange={(d) => setMUseDetail(!!d.checked)}>
-                    <Checkbox.HiddenInput />
-                    <Checkbox.Control />
-                    <Checkbox.Label color={dark.label}>Use detail image URL when available</Checkbox.Label>
-                  </Checkbox.Root>
-                  <Button
-                    data-testid="gm-seed-manifest"
-                    bg="brand.500"
-                    color="white"
-                    _hover={{ bg: 'brand.400' }}
-                    loading={busy === 'manifest'}
-                    onClick={onSeedManifest}
-                    alignSelf="flex-start"
-                  >
-                    Run
-                  </Button>
+                {field('Seller user ID (optional)', seedSellerId, setSeedSellerId)}
+                <Flex gap={3} flexWrap="wrap">
+                  <Box flex="1" minW="120px">
+                    {field('Close hours min', seedCloseMin, setSeedCloseMin)}
+                  </Box>
+                  <Box flex="1" minW="120px">
+                    {field('Close hours max', seedCloseMax, setSeedCloseMax)}
+                  </Box>
                 </Flex>
+                <Flex gap={3} flexWrap="wrap">
+                  <Box flex="1" minW="120px">
+                    {field('Bid count min', seedBidMin, setSeedBidMin, '0 = none')}
+                  </Box>
+                  <Box flex="1" minW="120px">
+                    {field('Bid count max', seedBidMax, setSeedBidMax)}
+                  </Box>
+                </Flex>
+                <Button
+                  data-testid="gm-seed-auctions"
+                  bg="brand.500"
+                  color="white"
+                  _hover={{ bg: 'brand.400' }}
+                  loading={busy === 'seed'}
+                  onClick={onSeedAuctions}
+                  alignSelf="flex-start"
+                >
+                  Run
+                </Button>
+              </Flex>
             </>
           </Tabs.Content>
 

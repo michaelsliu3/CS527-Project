@@ -9,7 +9,6 @@ export interface GmSeedManifestAuctionsPayload {
   bidCountMin?: number
   bidCountMax?: number
   sellerUserId?: number
-  useDetailImage?: boolean
 }
 
 export function seedGmAuctionsFromManifest(payload: GmSeedManifestAuctionsPayload) {
@@ -112,4 +111,23 @@ export function seedGmSampleNotifications(payload: GmSampleNotificationsPayload)
 
 export function seedGmSoldHistoryFixture() {
   return apiClient.post<GmSoldHistoryFixtureResult>('admin/gm/fixtures/sold-history')
+}
+
+export interface GmBulkCloseAuctionsPayload {
+  /** natural = reserve rules; closed = no sale, release holds */
+  mode: 'natural' | 'closed'
+}
+
+export interface GmBulkCloseAuctionsResult {
+  processedCount: number
+  soldCount: number
+  closedWithoutSaleCount: number
+}
+
+export function gmBulkCloseActiveAuctions(payload: GmBulkCloseAuctionsPayload) {
+  return apiClient.post<GmBulkCloseAuctionsResult>('admin/gm/auctions/close-active', payload)
+}
+
+export function gmRunCloseSweep() {
+  return apiClient.post<{ ran: boolean }>('admin/gm/auctions/run-close-sweep')
 }

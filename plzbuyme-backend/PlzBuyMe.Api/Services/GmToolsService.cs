@@ -210,8 +210,7 @@ public class GmToolsService : IGmToolsService
                 asset,
                 category,
                 dto.CloseHoursMin,
-                dto.CloseHoursMax,
-                dto.UseDetailImage);
+                dto.CloseHoursMax);
             var detail = await _auctionService.CreateAuctionAsync(createDto, seller.Id);
             if (detail == null)
                 continue;
@@ -495,6 +494,31 @@ public class GmToolsService : IGmToolsService
         _logger.LogWarning("GM tools: admin {AdminId} ran sold-history fixture; sold count = {Count}", adminUserId, sold);
         return Task.FromResult<(string? Error, GmSoldHistoryFixtureResultDto? Data)>(
             (null, new GmSoldHistoryFixtureResultDto { SoldAuctionCount = sold }));
+    }
+
+    public async Task<(string? Error, GmBulkCloseAuctionsResultDto? Data)> BulkCloseActiveAuctionsAsync(
+        int adminUserId,
+        GmBulkCloseAuctionsDto dto)
+    {
+        var (error, result) = await _auctionService.GmBulkCloseActiveAuctionsAsync(dto.Mode);
+        if (error == null && result != null)
+        {
+            _logger.LogWarning(
+                "GM tools: admin {AdminId} bulk-closed active auctions (processed={Processed}, sold={Sold}, closedNoSale={Closed})",
+                adminUserId,
+                result.ProcessedCount,
+                result.SoldCount,
+                result.ClosedWithoutSaleCount);
+        }
+
+        return (error, result);
+    }
+
+    public async Task<(string? Error, GmRunCloseSweepResultDto? Data)> RunCloseSweepAsync(int adminUserId)
+    {
+        await _auctionService.CloseExpiredAsync();
+        _logger.LogWarning("GM tools: admin {AdminId} ran CloseExpired sweep", adminUserId);
+        return (null, new GmRunCloseSweepResultDto());
     }
 
     private async Task<User?> ResolveSellerAsync(int? sellerUserId)

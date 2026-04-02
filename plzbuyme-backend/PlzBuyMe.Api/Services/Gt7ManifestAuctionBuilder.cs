@@ -9,6 +9,7 @@ public static class Gt7ManifestAuctionBuilder
 {
     private static readonly Regex TwoDigitYearRegex = new(@"'(\d{2})(?!.*'\d{2})", RegexOptions.Compiled);
     private static readonly Regex FullYearRegex = new(@"\b(19\d{2}|20\d{2})\b", RegexOptions.Compiled);
+    private static readonly Regex ManifestCatalogExternalIdRegex = new(@"^\d{3,8}$", RegexOptions.Compiled);
 
     public const string CategorySedans = "Sedans";
     public const string CategorySuvs = "SUVs";
@@ -85,12 +86,16 @@ public static class Gt7ManifestAuctionBuilder
         return CategorySedans;
     }
 
+    /// <summary>
+    /// Sets <see cref="CreateAuctionDto.ImageStorageKey"/> to the manifest <c>externalId</c> when it is numeric so
+    /// <see cref="AuctionService.CreateAuctionAsync"/> can persist CDN paths without calling the resolve HTTP API.
+    /// Never copies manifest image URLs into the DTO.
+    /// </summary>
     public static CreateAuctionDto BuildCreateDto(
         Gt7ManifestAsset asset,
         Category category,
         int closeHoursMin,
-        int closeHoursMax,
-        bool useDetailImage)
+        int closeHoursMax)
     {
         var fields = category.CategoryFields.ToList();
         int FieldId(string name) => fields.First(f => f.FieldName == name).Id;
@@ -105,18 +110,17 @@ public static class Gt7ManifestAuctionBuilder
         var make = asset.Make!.Trim();
         var model = asset.Model!.Trim();
         var color = string.IsNullOrWhiteSpace(asset.Color) ? "Unknown" : asset.Color.Trim();
-
-        var imageUrl = useDetailImage && !string.IsNullOrWhiteSpace(asset.DetailSourceUrl)
-            ? asset.DetailSourceUrl!.Trim()
-            : (asset.SourceUrl ?? "").Trim();
-        var storageKey = string.IsNullOrWhiteSpace(asset.ExternalId) ? null : asset.ExternalId.Trim();
+        var extId = asset.ExternalId?.Trim();
+        var catalogKey = !string.IsNullOrEmpty(extId) && ManifestCatalogExternalIdRegex.IsMatch(extId)
+            ? extId
+            : null;
 
         return new CreateAuctionDto
         {
             Title = $"{make} {model} {year}",
-            Description = $"GT7 manifest car (externalId {asset.ExternalId}). GM seed.",
-            ImageUrl = string.IsNullOrEmpty(imageUrl) ? null : imageUrl,
-            ImageStorageKey = storageKey,
+            Description = $"GM seed listing (catalog id {asset.ExternalId}).",
+            ImageUrl = null,
+            ImageStorageKey = catalogKey,
             CategoryId = category.Id,
             InitialPrice = initialPrice,
             BidIncrement = bidIncrement,

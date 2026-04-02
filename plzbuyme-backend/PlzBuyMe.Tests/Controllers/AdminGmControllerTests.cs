@@ -70,8 +70,50 @@ public class AdminGmControllerTests
         body!.CreatedCount.Should().Be(1);
     }
 
+    [Fact]
+    public async Task BulkCloseActive_AsAdmin_ReturnsOk()
+    {
+        var factory = new PlzBuyMeWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var loginResponse = await client.PostAsJsonAsync("api/auth/login", new { username = "admin", password = "admin123" });
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var auth = await loginResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+        auth.Should().NotBeNull();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth!.Token);
+        var response = await client.PostAsJsonAsync("api/admin/gm/auctions/close-active", new { mode = "closed" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<BulkCloseResponseStub>();
+        body.Should().NotBeNull();
+        body!.ProcessedCount.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task RunCloseSweep_AsAdmin_ReturnsOk()
+    {
+        var factory = new PlzBuyMeWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var loginResponse = await client.PostAsJsonAsync("api/auth/login", new { username = "admin", password = "admin123" });
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var auth = await loginResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+        auth.Should().NotBeNull();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth!.Token);
+        var response = await client.PostAsync("api/admin/gm/auctions/run-close-sweep", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
     private sealed class SeedAuctionsResponseStub
     {
         public int CreatedCount { get; set; }
+    }
+
+    private sealed class BulkCloseResponseStub
+    {
+        public int ProcessedCount { get; set; }
     }
 }

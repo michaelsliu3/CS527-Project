@@ -19,6 +19,4 @@ public record GmSeedManifestAuctionsDto
 
     public int? SellerUserId { get; init; }
 
-    /// <summary>Prefer detail image URL from manifest when true.</summary>
-    public bool UseDetailImage { get; init; } = true;
 }

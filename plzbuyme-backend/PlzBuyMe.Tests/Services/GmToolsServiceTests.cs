@@ -92,4 +92,43 @@ public class GmToolsServiceTests
         error.Should().Be("UserIds is required.");
         data.Should().BeNull();
     }
+
+    [Fact]
+    public async Task BulkCloseActiveAuctions_DelegatesToAuctionService()
+    {
+        await using var db = CreateDb();
+        var auctionMock = new Mock<IAuctionService>();
+        auctionMock
+            .Setup(a => a.GmBulkCloseActiveAuctionsAsync("natural"))
+            .ReturnsAsync((null, new GmBulkCloseAuctionsResultDto
+            {
+                ProcessedCount = 3,
+                SoldCount = 1,
+                ClosedWithoutSaleCount = 2
+            }));
+        var svc = CreateService(db, auctionMock);
+
+        var (error, data) = await svc.BulkCloseActiveAuctionsAsync(1, new GmBulkCloseAuctionsDto { Mode = "natural" });
+
+        error.Should().BeNull();
+        data.Should().NotBeNull();
+        data!.ProcessedCount.Should().Be(3);
+        auctionMock.Verify(a => a.GmBulkCloseActiveAuctionsAsync("natural"), Times.Once);
+    }
+
+    [Fact]
+    public async Task RunCloseSweep_CallsCloseExpired()
+    {
+        await using var db = CreateDb();
+        var auctionMock = new Mock<IAuctionService>();
+        auctionMock.Setup(a => a.CloseExpiredAsync()).Returns(Task.CompletedTask);
+        var svc = CreateService(db, auctionMock);
+
+        var (error, data) = await svc.RunCloseSweepAsync(1);
+
+        error.Should().BeNull();
+        data.Should().NotBeNull();
+        data!.Ran.Should().BeTrue();
+        auctionMock.Verify(a => a.CloseExpiredAsync(), Times.Once);
+    }
 }

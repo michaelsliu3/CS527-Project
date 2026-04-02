@@ -7,10 +7,10 @@ import { GmToolsPanel } from '../../components/GmToolsPanel'
 import { GmToolsDockProvider } from '../../components/GmToolsDock'
 import { system } from '../../theme'
 import * as gmApi from '../../api/gm'
+import * as auctionListRefresh from '../../utils/auctionListRefresh'
 import { showErrorToast, showSuccessToast } from '../../components/ui/toaster'
 
 vi.mock('../../api/gm', () => ({
-  seedGmAuctions: vi.fn(),
   seedGmAuctionsFromManifest: vi.fn(),
   bulkGmUsers: vi.fn(),
   seedGmQuestions: vi.fn(),
@@ -18,11 +18,17 @@ vi.mock('../../api/gm', () => ({
   seedGmSampleAlerts: vi.fn(),
   seedGmSampleNotifications: vi.fn(),
   seedGmSoldHistoryFixture: vi.fn(),
+  gmBulkCloseActiveAuctions: vi.fn(),
+  gmRunCloseSweep: vi.fn(),
 }))
 
 vi.mock('../../components/ui/toaster', () => ({
   showSuccessToast: vi.fn(),
   showErrorToast: vi.fn(),
+}))
+
+vi.mock('../../utils/auctionListRefresh', () => ({
+  notifyAuctionListRefresh: vi.fn(),
 }))
 
 function renderPanel() {
@@ -38,15 +44,16 @@ describe('GmToolsPanel', () => {
     vi.clearAllMocks()
   })
 
-  it('renders intro copy and auction tab', () => {
+  it('renders intro copy, General tab, and Seed auctions tab', () => {
     renderPanel()
     expect(screen.getByText(/Admin-only demo and QA utilities/i)).toBeInTheDocument()
-    expect(screen.getByText('Random auctions')).toBeInTheDocument()
+    expect(screen.getByText('General')).toBeInTheDocument()
+    expect(screen.getByText('Seed auctions')).toBeInTheDocument()
   })
 
   it('seed auctions success shows success toast', async () => {
     const user = userEvent.setup()
-    vi.mocked(gmApi.seedGmAuctions).mockResolvedValue({
+    vi.mocked(gmApi.seedGmAuctionsFromManifest).mockResolvedValue({
       data: { createdCount: 2, auctionIds: [1, 2], totalBidsPlaced: 0 },
       status: 200,
       statusText: 'OK',
@@ -55,14 +62,27 @@ describe('GmToolsPanel', () => {
     })
 
     renderPanel()
+    await user.click(screen.getByRole('tab', { name: /^Seed auctions$/i }))
     await user.click(screen.getByTestId('gm-seed-auctions'))
 
     await waitFor(() => {
-      expect(gmApi.seedGmAuctions).toHaveBeenCalled()
+      expect(gmApi.seedGmAuctionsFromManifest).toHaveBeenCalled()
     })
     expect(showSuccessToast).toHaveBeenCalledWith(
-      'Auctions seeded',
+      'Random listings added',
       expect.stringContaining('Created 2'),
+    )
+    expect(auctionListRefresh.notifyAuctionListRefresh).toHaveBeenCalled()
+  })
+
+  it('refresh browse listings notifies subscribers and shows toast', async () => {
+    const user = userEvent.setup()
+    renderPanel()
+    await user.click(screen.getByTestId('gm-refresh-browse'))
+    expect(auctionListRefresh.notifyAuctionListRefresh).toHaveBeenCalled()
+    expect(showSuccessToast).toHaveBeenCalledWith(
+      'Browse listings refresh',
+      expect.stringContaining('Subscribers'),
     )
   })
 
@@ -70,19 +90,20 @@ describe('GmToolsPanel', () => {
     const user = userEvent.setup()
     const axiosErr = new AxiosError('bad request')
     axiosErr.response = {
-      data: 'Count must be between 1 and 50.',
+      data: 'Count must be between 1 and 100.',
       status: 400,
       statusText: 'Bad Request',
       headers: {},
       config: {} as never,
     }
-    vi.mocked(gmApi.seedGmAuctions).mockRejectedValue(axiosErr)
+    vi.mocked(gmApi.seedGmAuctionsFromManifest).mockRejectedValue(axiosErr)
 
     renderPanel()
+    await user.click(screen.getByRole('tab', { name: /^Seed auctions$/i }))
     await user.click(screen.getByTestId('gm-seed-auctions'))
 
     await waitFor(() => {
-      expect(showErrorToast).toHaveBeenCalledWith('GM tools', 'Count must be between 1 and 50.')
+      expect(showErrorToast).toHaveBeenCalledWith('GM tools', 'Count must be between 1 and 100.')
     })
   })
 })

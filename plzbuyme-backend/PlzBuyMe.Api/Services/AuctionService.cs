@@ -1,9 +1,12 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos;
 using PlzBuyMe.Api.Dtos.Admin;
+using PlzBuyMe.Api.Dtos.Admin.Gm;
 using PlzBuyMe.Api.Dtos.Auctions;
 using PlzBuyMe.Api.Models;
 
@@ -14,6 +17,11 @@ public class AuctionService : IAuctionService
     private const string UploadedImageSource = "uploaded";
     private const string Gt7DefaultImageSource = "gt7-default";
     private const string PlaceholderImageSource = "placeholder";
+    private const int GmBulkCloseActiveMax = 500;
+
+    private static readonly Regex CatalogCarExternalIdRegex = new(
+        @"car(\d{3,7})",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     /// <summary>Second paragraph appended to close-out messages; UI renders it in smaller text after a blank line.</summary>
     private const string WalletBalanceDisclaimerParagraph =
@@ -27,12 +35,14 @@ public class AuctionService : IAuctionService
     private readonly ICdnGt7ThumbnailResolver _cdnGt7ThumbnailResolver;
     private readonly IWalletService _walletService;
     private readonly ILogger<AuctionService> _logger;
+    private readonly string _mediaPublicBaseUrl;
 
     public AuctionService(
         AppDbContext db,
         IAlertService alertService,
         ICdnGt7ThumbnailResolver cdnGt7ThumbnailResolver,
         IWalletService walletService,
+        IConfiguration configuration,
         ILogger<AuctionService> logger)
     {
         _db = db;
@@ -40,6 +50,7 @@ public class AuctionService : IAuctionService
         _cdnGt7ThumbnailResolver = cdnGt7ThumbnailResolver;
         _walletService = walletService;
         _logger = logger;
+        _mediaPublicBaseUrl = (configuration["MediaStorage:ServiceBaseUrl"] ?? "http://localhost:5090").TrimEnd('/');
     }
 
     public async Task<AuctionDetailDto?> CreateAuctionAsync(CreateAuctionDto dto, int sellerId)
@@ -50,31 +61,60 @@ public class AuctionService : IAuctionService
         if (category == null)
             return null;
 
-        var uploadedImageValue = NormalizeMediaKey(dto.ImageStorageKey, dto.ImageUrl);
-        var hasUploadedImage = !string.IsNullOrWhiteSpace(uploadedImageValue);
-        var imageUrl = uploadedImageValue;
-        var imageStorageKey = hasUploadedImage ? uploadedImageValue : null;
-        var imageSource = hasUploadedImage ? UploadedImageSource : null;
-        string? imageMatchLevel = null;
+        string? imageUrl;
+        string? imageStorageKey;
+        string? imageSource;
+        string? imageMatchLevel;
 
-        if (!hasUploadedImage)
+        var manifestCatalogId = HintManifestCatalogExternalId(dto.ImageStorageKey, dto.ImageUrl);
+        if (manifestCatalogId != null)
         {
-            var defaultResolution = await ResolveDefaultImageForCreateAsync(category, dto.FieldValues);
-            if (defaultResolution.Found && !string.IsNullOrWhiteSpace(defaultResolution.Url))
+            imageUrl = $"{_mediaPublicBaseUrl}/media/cars/gt7/car{manifestCatalogId}.png";
+            imageStorageKey = manifestCatalogId;
+            imageSource = Gt7DefaultImageSource;
+            imageMatchLevel = "manifest";
+        }
+        else
+        {
+            var uploadedImageValue = NormalizeMediaKey(dto.ImageStorageKey, dto.ImageUrl);
+            var hasUploadedImage = !string.IsNullOrWhiteSpace(uploadedImageValue);
+            imageUrl = uploadedImageValue;
+            imageStorageKey = hasUploadedImage ? uploadedImageValue : null;
+            imageSource = hasUploadedImage ? UploadedImageSource : null;
+            imageMatchLevel = null;
+
+            if (!hasUploadedImage)
             {
-                imageUrl = defaultResolution.Url;
-                imageStorageKey = defaultResolution.ExternalId;
-                imageSource = Gt7DefaultImageSource;
-                imageMatchLevel = defaultResolution.MatchLevel;
-            }
-            else
-            {
-                imageUrl = null;
-                imageStorageKey = null;
-                imageSource = PlaceholderImageSource;
-                imageMatchLevel = "none";
+                var defaultResolution = await ResolveDefaultImageForCreateAsync(category, dto.FieldValues);
+                if (defaultResolution.Found)
+                {
+                    var extId = ResolveCatalogCarIdForCreate(defaultResolution);
+                    if (extId != null)
+                    {
+                        imageUrl = $"{_mediaPublicBaseUrl}/media/cars/gt7/car{extId}.png";
+                        imageStorageKey = extId;
+                        imageSource = Gt7DefaultImageSource;
+                        imageMatchLevel = defaultResolution.MatchLevel;
+                    }
+                    else
+                    {
+                        imageUrl = null;
+                        imageStorageKey = null;
+                        imageSource = PlaceholderImageSource;
+                        imageMatchLevel = "none";
+                    }
+                }
+                else
+                {
+                    imageUrl = null;
+                    imageStorageKey = null;
+                    imageSource = PlaceholderImageSource;
+                    imageMatchLevel = "none";
+                }
             }
         }
+
+        SanitizeGranTurismoBeforePersist(ref imageUrl, ref imageStorageKey, ref imageSource, ref imageMatchLevel);
 
         var item = new Item
         {
@@ -119,6 +159,145 @@ public class AuctionService : IAuctionService
             return fallbackValue.Trim();
         return null;
     }
+
+    /// <summary>Matches <c>car####</c> in thumbnail/detail paths (CDN or third-party).</summary>
+    private static string? TryExtractCatalogCarIdFromImagePath(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+        var m = CatalogCarExternalIdRegex.Match(text);
+        return m.Success ? m.Groups[1].Value : null;
+    }
+
+    /// <summary>
+    /// GM manifest seed: numeric <c>externalId</c> only, no <see cref="CreateAuctionDto.ImageUrl"/> — not a user upload key.
+    /// </summary>
+    private static string? HintManifestCatalogExternalId(string? imageStorageKey, string? imageUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(imageUrl))
+            return null;
+        if (string.IsNullOrWhiteSpace(imageStorageKey))
+            return null;
+        var k = imageStorageKey.Trim();
+        return Regex.IsMatch(k, @"^\d{3,8}$") ? k : null;
+    }
+
+    private void SanitizeGranTurismoBeforePersist(
+        ref string? imageUrl,
+        ref string? imageStorageKey,
+        ref string? imageSource,
+        ref string? imageMatchLevel)
+    {
+        static bool IsGranTurismoHost(string? s) =>
+            !string.IsNullOrWhiteSpace(s) && s.Contains("gran-turismo.com", StringComparison.OrdinalIgnoreCase);
+
+        if (!IsGranTurismoHost(imageUrl) && !IsGranTurismoHost(imageStorageKey))
+            return;
+
+        var id = TryExtractCatalogCarIdFromImagePath(imageUrl) ?? TryExtractCatalogCarIdFromImagePath(imageStorageKey);
+        if (id == null)
+            return;
+
+        imageUrl = $"{_mediaPublicBaseUrl}/media/cars/gt7/car{id}.png";
+        imageStorageKey = id;
+        imageSource = Gt7DefaultImageSource;
+        if (string.IsNullOrWhiteSpace(imageMatchLevel))
+            imageMatchLevel = "sanitized";
+    }
+
+    private static string? ResolveCatalogCarIdForCreate(CdnGt7ThumbnailResolveResult resolution)
+    {
+        if (!string.IsNullOrWhiteSpace(resolution.ExternalId))
+        {
+            var t = resolution.ExternalId.Trim();
+            if (Regex.IsMatch(t, @"^\d{3,7}$"))
+                return t;
+        }
+
+        return TryExtractCatalogCarIdFromImagePath(resolution.Url)
+            ?? TryExtractCatalogCarIdFromImagePath(resolution.DetailUrl);
+    }
+
+    private static string? TryExtractCatalogCarExternalIdFromThirdPartyUrl(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+        if (!text.Contains("gran-turismo.com", StringComparison.OrdinalIgnoreCase))
+            return null;
+        return TryExtractCatalogCarIdFromImagePath(text);
+    }
+
+    /// <summary>
+    /// Catalog listings use a numeric storage key; legacy rows may only have third-party image URLs.
+    /// Resolved paths use <c>MediaStorage:ServiceBaseUrl</c> so clients load mirrored CDN assets.
+    /// </summary>
+    private string? TryResolveCatalogCarExternalId(string? imageUrl, string? imageStorageKey, string? imageSource)
+    {
+        if (string.Equals(imageSource, Gt7DefaultImageSource, StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(imageStorageKey))
+        {
+            var key = imageStorageKey.Trim();
+            if (Regex.IsMatch(key, @"^\d{3,7}$"))
+                return key;
+        }
+
+        return TryExtractCatalogCarExternalIdFromThirdPartyUrl(imageUrl)
+            ?? TryExtractCatalogCarExternalIdFromThirdPartyUrl(imageStorageKey);
+    }
+
+    private string? NormalizeCatalogListingImage(string? imageUrl, string? imageStorageKey, string? imageSource)
+    {
+        var id = TryResolveCatalogCarExternalId(imageUrl, imageStorageKey, imageSource);
+        if (id != null)
+            return $"{_mediaPublicBaseUrl}/media/cars/gt7/car{id}.png";
+        return imageUrl;
+    }
+
+    private (string? ImageUrl, string? DetailImageUrl) NormalizeCatalogDisplayImages(
+        string? imageUrl,
+        string? imageStorageKey,
+        string? imageSource)
+    {
+        var id = TryResolveCatalogCarExternalId(imageUrl, imageStorageKey, imageSource);
+        if (id != null)
+        {
+            return (
+                $"{_mediaPublicBaseUrl}/media/cars/gt7/car{id}.png",
+                $"{_mediaPublicBaseUrl}/media/cars/gt7/detail/car{id}.jpg");
+        }
+
+        return (imageUrl, imageUrl);
+    }
+
+    private AuctionListDto ToAuctionListDto(
+        int id,
+        string title,
+        string? imageUrl,
+        string? imageStorageKey,
+        string? imageSource,
+        string? imageMatchLevel,
+        decimal currentPrice,
+        DateTime closeDateTime,
+        string statusLower,
+        string categoryName,
+        string sellerUsername,
+        string? sellerDisplayNameColor,
+        int bidCount) =>
+        new()
+        {
+            Id = id,
+            Title = title,
+            ImageUrl = NormalizeCatalogListingImage(imageUrl, imageStorageKey, imageSource),
+            ImageSource = imageSource,
+            ImageMatchLevel = imageMatchLevel,
+            CurrentPrice = currentPrice,
+            CloseDateTime = closeDateTime,
+            Status = statusLower,
+            CategoryName = categoryName,
+            SellerUsername = sellerUsername,
+            SellerDisplayNameColor = sellerDisplayNameColor,
+            BidCount = bidCount
+        };
 
     private async Task<CdnGt7ThumbnailResolveResult> ResolveDefaultImageForCreateAsync(Category category, List<FieldValueDto>? fieldValues)
     {
@@ -366,51 +545,85 @@ public class AuctionService : IAuctionService
             var idsForPage = orderedIds.Skip((page - 1) * pageSize).Take(pageSize).ToList();
             if (idsForPage.Count == 0)
                 return new PaginatedResultDto<AuctionListDto> { Items = new List<AuctionListDto>(), TotalCount = total, Page = page, PageSize = pageSize };
-            items = await _db.Items
+            var rows = await _db.Items
                 .Include(i => i.Category)
                 .Include(i => i.Seller)
                 .Where(i => idsForPage.Contains(i.Id))
-                .Select(i => new AuctionListDto
+                .Select(i => new
                 {
-                    Id = i.Id,
-                    Title = i.Title,
-                    ImageUrl = i.ImageUrl,
-                    ImageSource = i.ImageSource,
-                    ImageMatchLevel = i.ImageMatchLevel,
-                    CurrentPrice = i.CurrentPrice,
-                    CloseDateTime = i.CloseDateTime,
-                    Status = i.Status.ToString().ToLowerInvariant(),
+                    i.Id,
+                    i.Title,
+                    i.ImageUrl,
+                    i.ImageStorageKey,
+                    i.ImageSource,
+                    i.ImageMatchLevel,
+                    i.CurrentPrice,
+                    i.CloseDateTime,
+                    i.Status,
                     CategoryName = i.Category.Name,
                     SellerUsername = i.Seller.Username,
                     SellerDisplayNameColor = i.Seller.DisplayNameColor,
                     BidCount = i.Bids.Count
                 })
                 .ToListAsync();
-            items = idsForPage.Select(id => items.First(i => i.Id == id)).ToList();
+            var byId = rows.ToDictionary(r => r.Id);
+            items = idsForPage.Select(id =>
+            {
+                var r = byId[id];
+                return ToAuctionListDto(
+                    r.Id,
+                    r.Title,
+                    r.ImageUrl,
+                    r.ImageStorageKey,
+                    r.ImageSource,
+                    r.ImageMatchLevel,
+                    r.CurrentPrice,
+                    r.CloseDateTime,
+                    r.Status.ToString().ToLowerInvariant(),
+                    r.CategoryName,
+                    r.SellerUsername,
+                    r.SellerDisplayNameColor,
+                    r.BidCount);
+            }).ToList();
         }
         else
         {
             q = ApplySort(q, query.Sort, null, null);
             total = await q.CountAsync();
-            items = await q
+            var pageRows = await q
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(i => new AuctionListDto
+                .Select(i => new
                 {
-                    Id = i.Id,
-                    Title = i.Title,
-                    ImageUrl = i.ImageUrl,
-                    ImageSource = i.ImageSource,
-                    ImageMatchLevel = i.ImageMatchLevel,
-                    CurrentPrice = i.CurrentPrice,
-                    CloseDateTime = i.CloseDateTime,
-                    Status = i.Status.ToString().ToLowerInvariant(),
+                    i.Id,
+                    i.Title,
+                    i.ImageUrl,
+                    i.ImageStorageKey,
+                    i.ImageSource,
+                    i.ImageMatchLevel,
+                    i.CurrentPrice,
+                    i.CloseDateTime,
+                    i.Status,
                     CategoryName = i.Category.Name,
                     SellerUsername = i.Seller.Username,
                     SellerDisplayNameColor = i.Seller.DisplayNameColor,
                     BidCount = i.Bids.Count
                 })
                 .ToListAsync();
+            items = pageRows.Select(r => ToAuctionListDto(
+                r.Id,
+                r.Title,
+                r.ImageUrl,
+                r.ImageStorageKey,
+                r.ImageSource,
+                r.ImageMatchLevel,
+                r.CurrentPrice,
+                r.CloseDateTime,
+                r.Status.ToString().ToLowerInvariant(),
+                r.CategoryName,
+                r.SellerUsername,
+                r.SellerDisplayNameColor,
+                r.BidCount)).ToList();
         }
 
         return new PaginatedResultDto<AuctionListDto> { Items = items, TotalCount = total, Page = page, PageSize = pageSize };
@@ -579,22 +792,17 @@ public class AuctionService : IAuctionService
             })
             .ToList();
 
-        var detailImageUrl = item.ImageUrl;
-        if (item.ImageSource == Gt7DefaultImageSource && !string.IsNullOrWhiteSpace(item.ImageStorageKey))
-        {
-            var resolved = await _cdnGt7ThumbnailResolver.ResolveByExternalIdAsync(item.ImageStorageKey);
-            if (resolved.Found && !string.IsNullOrWhiteSpace(resolved.DetailUrl))
-            {
-                detailImageUrl = resolved.DetailUrl;
-            }
-        }
+        var (displayImageUrl, detailImageUrl) = NormalizeCatalogDisplayImages(
+            item.ImageUrl,
+            item.ImageStorageKey,
+            item.ImageSource);
 
         return new AuctionDetailDto
         {
             Id = item.Id,
             Title = item.Title,
             Description = item.Description,
-            ImageUrl = item.ImageUrl,
+            ImageUrl = displayImageUrl,
             DetailImageUrl = detailImageUrl,
             ImageSource = item.ImageSource,
             ImageMatchLevel = item.ImageMatchLevel,
@@ -627,24 +835,39 @@ public class AuctionService : IAuctionService
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<ItemStatus>(status, true, out var statusEnum))
             q = q.Where(i => i.Status == statusEnum);
 
-        return await q
+        var mineRows = await q
             .OrderByDescending(i => i.CreatedAt)
-            .Select(i => new AuctionListDto
+            .Select(i => new
             {
-                Id = i.Id,
-                Title = i.Title,
-                ImageUrl = i.ImageUrl,
-                ImageSource = i.ImageSource,
-                ImageMatchLevel = i.ImageMatchLevel,
-                CurrentPrice = i.CurrentPrice,
-                CloseDateTime = i.CloseDateTime,
-                Status = i.Status.ToString().ToLowerInvariant(),
+                i.Id,
+                i.Title,
+                i.ImageUrl,
+                i.ImageStorageKey,
+                i.ImageSource,
+                i.ImageMatchLevel,
+                i.CurrentPrice,
+                i.CloseDateTime,
+                i.Status,
                 CategoryName = i.Category.Name,
                 SellerUsername = i.Seller.Username,
                 SellerDisplayNameColor = i.Seller.DisplayNameColor,
                 BidCount = i.Bids.Count
             })
             .ToListAsync();
+        return mineRows.Select(r => ToAuctionListDto(
+            r.Id,
+            r.Title,
+            r.ImageUrl,
+            r.ImageStorageKey,
+            r.ImageSource,
+            r.ImageMatchLevel,
+            r.CurrentPrice,
+            r.CloseDateTime,
+            r.Status.ToString().ToLowerInvariant(),
+            r.CategoryName,
+            r.SellerUsername,
+            r.SellerDisplayNameColor,
+            r.BidCount)).ToList();
     }
 
     public async Task<List<AuctionListDto>> GetSimilarAsync(int itemId, int limit = 10)
@@ -670,21 +893,20 @@ public class AuctionService : IAuctionService
             .OrderByDescending(x => x.Score)
             .ThenByDescending(x => x.Item.CreatedAt)
             .Take(limit)
-            .Select(x => new AuctionListDto
-            {
-                Id = x.Item.Id,
-                Title = x.Item.Title,
-                ImageUrl = x.Item.ImageUrl,
-                ImageSource = x.Item.ImageSource,
-                ImageMatchLevel = x.Item.ImageMatchLevel,
-                CurrentPrice = x.Item.CurrentPrice,
-                CloseDateTime = x.Item.CloseDateTime,
-                Status = x.Item.Status.ToString().ToLowerInvariant(),
-                CategoryName = x.Item.Category.Name,
-                SellerUsername = x.Item.Seller.Username,
-                SellerDisplayNameColor = x.Item.Seller.DisplayNameColor,
-                BidCount = x.Item.Bids.Count
-            })
+            .Select(x => ToAuctionListDto(
+                x.Item.Id,
+                x.Item.Title,
+                x.Item.ImageUrl,
+                x.Item.ImageStorageKey,
+                x.Item.ImageSource,
+                x.Item.ImageMatchLevel,
+                x.Item.CurrentPrice,
+                x.Item.CloseDateTime,
+                x.Item.Status.ToString().ToLowerInvariant(),
+                x.Item.Category.Name,
+                x.Item.Seller.Username,
+                x.Item.Seller.DisplayNameColor,
+                x.Item.Bids.Count))
             .ToList();
 
         return scored;
@@ -698,27 +920,42 @@ public class AuctionService : IAuctionService
         if (allIds.Count == 0)
             return new List<AuctionListDto>();
 
-        return await _db.Items
+        var histRows = await _db.Items
             .Include(i => i.Category)
             .Include(i => i.Seller)
             .Where(i => allIds.Contains(i.Id))
             .OrderByDescending(i => i.CreatedAt)
-            .Select(i => new AuctionListDto
+            .Select(i => new
             {
-                Id = i.Id,
-                Title = i.Title,
-                ImageUrl = i.ImageUrl,
-                ImageSource = i.ImageSource,
-                ImageMatchLevel = i.ImageMatchLevel,
-                CurrentPrice = i.CurrentPrice,
-                CloseDateTime = i.CloseDateTime,
-                Status = i.Status.ToString().ToLowerInvariant(),
+                i.Id,
+                i.Title,
+                i.ImageUrl,
+                i.ImageStorageKey,
+                i.ImageSource,
+                i.ImageMatchLevel,
+                i.CurrentPrice,
+                i.CloseDateTime,
+                i.Status,
                 CategoryName = i.Category.Name,
                 SellerUsername = i.Seller.Username,
                 SellerDisplayNameColor = i.Seller.DisplayNameColor,
                 BidCount = i.Bids.Count
             })
             .ToListAsync();
+        return histRows.Select(r => ToAuctionListDto(
+            r.Id,
+            r.Title,
+            r.ImageUrl,
+            r.ImageStorageKey,
+            r.ImageSource,
+            r.ImageMatchLevel,
+            r.CurrentPrice,
+            r.CloseDateTime,
+            r.Status.ToString().ToLowerInvariant(),
+            r.CategoryName,
+            r.SellerUsername,
+            r.SellerDisplayNameColor,
+            r.BidCount)).ToList();
     }
 
     public async Task<IReadOnlyList<string>> GetFieldValuesAsync(string fieldName, int? categoryId, string? prefix, int maxCount = 50)
@@ -992,5 +1229,50 @@ public class AuctionService : IAuctionService
         }
 
         return null;
+    }
+
+    public async Task<(string? Error, GmBulkCloseAuctionsResultDto? Result)> GmBulkCloseActiveAuctionsAsync(string mode)
+    {
+        var m = mode?.Trim().ToLowerInvariant();
+        if (m != "natural" && m != "closed")
+            return ("Mode must be natural or closed.", null);
+
+        var items = await _db.Items.Where(i => i.Status == ItemStatus.Active).ToListAsync();
+        if (items.Count > GmBulkCloseActiveMax)
+            return ($"Too many active auctions ({items.Count}). Maximum {GmBulkCloseActiveMax} per request.", null);
+
+        var sold = 0;
+        var closedNoSale = 0;
+
+        foreach (var item in items)
+        {
+            if (m == "natural")
+            {
+                await ProcessActiveAuctionCloseByRulesAsync(item);
+                if (item.Status == ItemStatus.Sold)
+                    sold++;
+                else if (item.Status == ItemStatus.Closed)
+                    closedNoSale++;
+            }
+            else
+            {
+                await ForceCloseActiveWithoutSaleAsync(item);
+                closedNoSale++;
+            }
+
+            item.CloseDateTime = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync();
+        _logger.LogWarning(
+            "GM bulk closed {Count} active auctions via {Mode} (sold={Sold}, closedNoSale={Closed})",
+            items.Count, m, sold, closedNoSale);
+
+        return (null, new GmBulkCloseAuctionsResultDto
+        {
+            ProcessedCount = items.Count,
+            SoldCount = sold,
+            ClosedWithoutSaleCount = closedNoSale
+        });
     }
 }

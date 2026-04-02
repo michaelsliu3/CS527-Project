@@ -694,10 +694,12 @@ These endpoints are **admin-only** (`AdminOnly` policy). They exist for **demos,
 | POST | `api/admin/gm/alerts/sample` | Create keyword sample alerts for a user | Admin |
 | POST | `api/admin/gm/notifications/sample` | Insert sample in-app notifications for a user | Admin |
 | POST | `api/admin/gm/fixtures/sold-history` | Idempotently extend sold/closed history via existing `SeedData.SeedSoldItemsForReports` | Admin |
+| POST | `api/admin/gm/auctions/close-active` | Body `{ "mode": "natural" \| "closed" }`: end every **active** listing in one batch (natural = reserve rules; closed = no sale). Max 500 active per request | Admin |
+| POST | `api/admin/gm/auctions/run-close-sweep` | Run the same **expired** close pass as the background job (active + `close_datetime` in the past) | Admin |
 
 **Audit:** each successful GM action is logged at **Warning** level with the admin user id and counts affected (Serilog).
 
-**Frontend:** “GM tools” opens from a **right-edge tab** (admins on any page); **slides in from the right** as a full-height panel with backdrop dismiss and error toasts. Legacy `/admin/gm` redirects to `/admin`.
+**Frontend:** “GM tools” opens from a **right-edge tab** (admins on any page); **slides in from the right** as a full-height panel with backdrop dismiss and error toasts. The **Seed auctions** tab combines **random/synthetic** and **GT7 manifest** sources behind one form. Legacy `/admin/gm` redirects to `/admin`.
 
 #### Admin auction edit — `api/admin/auctions`
 
