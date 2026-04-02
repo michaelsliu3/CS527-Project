@@ -14,24 +14,16 @@ import {
   Wrap,
   WrapItem,
 } from '@chakra-ui/react'
-import type { IconType } from 'react-icons'
 import { HiChevronDown } from 'react-icons/hi'
 import {
-  LuBattery,
   LuCalendar,
-  LuCar,
-  LuCarFront,
   LuChevronRight,
-  LuGauge,
-  LuLayoutGrid,
-  LuSparkles,
-  LuTruck,
-  LuZap,
 } from 'react-icons/lu'
 import { useSearchParams } from 'react-router-dom'
 import { getFieldValues } from '../api/auctions'
 import { dark } from '../theme/colors'
 import { fetchCategories, type CategoryDto } from '../api/categories'
+import { resolveLucideIconForKey } from '../constants/categoryLucideIcons'
 
 const SORT_OPTIONS = [
   { value: '', label: 'Default' },
@@ -122,13 +114,6 @@ interface SearchBarProps {
   variant?: SearchBarVariant
 }
 
-function compareCategoryOrder(a: CategoryDto, b: CategoryDto): number {
-  const ao = a.sortOrder ?? 0
-  const bo = b.sortOrder ?? 0
-  if (ao !== bo) return ao - bo
-  return a.name.localeCompare(b.name)
-}
-
 function flattenCategoryNodes(roots: CategoryDto[]): CategoryDto[] {
   const out: CategoryDto[] = []
   const walk = (nodes: CategoryDto[]) => {
@@ -141,38 +126,15 @@ function flattenCategoryNodes(roots: CategoryDto[]): CategoryDto[] {
   return out
 }
 
-/** True if `categoryId` is the hub root or any of its descendants (by parent chain). */
-function categoryIsUnderHub(
-  flat: CategoryDto[],
-  categoryId: number | '',
-  hubId: number,
-): boolean {
-  if (categoryId === '' || typeof categoryId !== 'number') return false
-  const byId = new Map(flat.map((c) => [c.id, c]))
-  let current: CategoryDto | undefined = byId.get(categoryId)
-  while (current) {
-    if (current.id === hubId) return true
-    if (current.parentId == null) return false
-    current = byId.get(current.parentId)
-  }
-  return false
+function normalizeKey(s: string | null | undefined): string {
+  return s?.trim().toLowerCase() ?? ''
 }
 
-function categoryTabIcon(categoryName: string): IconType {
-  const key = categoryName.trim().toLowerCase()
-  if (key === 'all cars' || key === 'cars') return LuLayoutGrid
-  if (key.includes('sedan')) return LuCarFront
-  if (key.includes('suv')) return LuTruck
-  if (key.includes('sport')) return LuGauge
-  if (key.includes('electric') || key.includes(' ev') || key === 'ev') return LuBattery
-  if (key.includes('hybrid') || key.includes('plug')) return LuZap
-  if (key.includes('truck')) return LuTruck
-  if (key.includes('van')) return LuTruck
-  if (key.includes('convertible')) return LuSparkles
-  if (key.includes('coupe')) return LuCarFront
-  if (key.includes('hatch')) return LuCarFront
-  if (key.includes('wagon') || key.includes('estate')) return LuCarFront
-  return LuCar
+function pickCarsSearchHubRoot(roots: CategoryDto[]): CategoryDto | undefined {
+  // Prefer the explicit `stringKey` marker when present.
+  const byStringKey = roots.find((c) => normalizeKey(c.stringKey) === 'cars')
+  if (byStringKey) return byStringKey
+  return roots.find((c) => normalizeKey(c.name) === 'cars')
 }
 
 interface DateFilterPickerProps {
@@ -371,7 +333,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
         setCategories(data)
 
         const rootCategories = data.filter((c) => c.parentId === null)
-        const searchHubRoot = [...rootCategories].sort(compareCategoryOrder).find((c) => c.isSearchHub === true)
+        const searchHubRoot = pickCarsSearchHubRoot(rootCategories)
         const flatFromResponse = flattenCategoryNodes(data)
         const existing = searchParams.get('categoryId')
         if (existing) {
@@ -443,18 +405,27 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
   }, [searchParams])
 
   const rootCategories = categories.filter((c) => c.parentId === null)
-  const searchHubRoot = [...rootCategories].sort(compareCategoryOrder).find((c) => c.isSearchHub === true)
-  const flatCategoryNodes = flattenCategoryNodes(categories)
-  const topBarCategories =
+  const searchHubRoot = pickCarsSearchHubRoot(rootCategories)
+
+  type TopBarCategoryTab = { id: number; name: string; lucideIconKey?: string | null }
+  const topBarCategories: TopBarCategoryTab[] =
     searchHubRoot?.children?.length
       ? [
-          { id: searchHubRoot.id, name: `All ${searchHubRoot.name}` },
-          ...[...searchHubRoot.children].sort(compareCategoryOrder).map((child) => ({
+          {
+            id: searchHubRoot.id,
+            name: `All ${searchHubRoot.name}`,
+            lucideIconKey: searchHubRoot.lucideIconKey,
+          },
+          ...searchHubRoot.children.map((child) => ({
             id: child.id,
             name: child.name,
+            lucideIconKey: child.lucideIconKey,
           })),
+          ...rootCategories
+            .filter((root) => root.id !== searchHubRoot.id)
+            .map((root) => ({ id: root.id, name: root.name, lucideIconKey: root.lucideIconKey })),
         ]
-      : [...rootCategories].sort(compareCategoryOrder).map((root) => ({ id: root.id, name: root.name }))
+      : rootCategories.map((root) => ({ id: root.id, name: root.name, lucideIconKey: root.lucideIconKey }))
 
   const selectedRoot: CategoryDto | undefined =
     typeof selectedRootId === 'number'
@@ -475,7 +446,11 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
 
   const handleTopCategorySelect = (categoryId: number) => {
     const next = new URLSearchParams(searchParams)
-    if (searchHubRoot && categoryId === searchHubRoot.id) {
+    const isCarsHub = !!searchHubRoot && categoryId === searchHubRoot.id
+    const isCarsChild =
+      !!searchHubRoot && searchHubRoot.children.some((child) => child.id === categoryId)
+
+    if (isCarsHub) {
       next.delete('categoryId')
     } else {
       next.set('categoryId', String(categoryId))
@@ -483,13 +458,20 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     next.set('page', '1')
     setSearchParams(next)
 
-    if (searchHubRoot && categoryId !== searchHubRoot.id) {
+    if (isCarsHub) {
+      setSelectedRootId(searchHubRoot.id)
+      setSelectedCategoryId('')
+      return
+    }
+
+    if (isCarsChild) {
       setSelectedRootId(searchHubRoot.id)
       setSelectedCategoryId(categoryId)
-    } else {
-      setSelectedRootId(categoryId)
-      setSelectedCategoryId('')
+      return
     }
+
+    setSelectedRootId(categoryId)
+    setSelectedCategoryId(categoryId)
   }
 
   const fetchMakeSuggestions = useCallback(async (prefix: string) => {
@@ -690,12 +672,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     setClosingBefore('')
   }
 
-  const browsingUnderSearchHub =
-    !!searchHubRoot &&
-    (selectedRootId === searchHubRoot.id ||
-      categoryIsUnderHub(flatCategoryNodes, selectedCategoryId, searchHubRoot.id))
-  const hubExtraSorts = browsingUnderSearchHub ? searchHubRoot?.extraSortOptions ?? [] : []
-  const allSortOptions = [...SORT_OPTIONS, ...hubExtraSorts]
+  const allSortOptions = SORT_OPTIONS
   const showTopBar = variant !== 'filters'
   const showFilters = variant !== 'top'
   const formColumns = variant === 'filters' ? 1 : { base: 1, md: 2, lg: 4 }
@@ -734,7 +711,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
           >
             {topBarCategories.map((category) => {
               const isActive = activeTopCategoryId === category.id
-              const TabIcon = categoryTabIcon(category.name)
+              const TabIcon = resolveLucideIconForKey(category.lucideIconKey)
               return (
                 <Button
                   key={category.id}

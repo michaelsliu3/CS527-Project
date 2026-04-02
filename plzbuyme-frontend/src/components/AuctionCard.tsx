@@ -101,6 +101,23 @@ function normalizeCategoryName(value?: string): string {
   return (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
+function hashString(value: string): number {
+  // Simple deterministic hash (stable across renders).
+  let hash = 0
+  for (let i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) | 0
+  return Math.abs(hash)
+}
+
+function getRandomCategoryGradient(normalizedCategoryName: string): string {
+  // Generate a stable, high-contrast gradient for any unknown category.
+  const h = hashString(normalizedCategoryName)
+  const hue1 = h % 360
+  const hue2 = (hue1 + 50 + (h % 80)) % 360
+
+  // Use HSL with fairly saturated, mid-bright colors so it's easy to see.
+  return `linear-gradient(92deg, hsl(${hue1} 88% 58%) 0%, hsl(${hue2} 90% 46%) 100%)`
+}
+
 function getCategoryGradient(categoryName?: string): string {
   const normalized = normalizeCategoryName(categoryName)
 
@@ -120,7 +137,9 @@ function getCategoryGradient(categoryName?: string): string {
     return 'linear-gradient(92deg, #a78bfa 0%, #7c3aed 100%)'
   }
 
-  return 'linear-gradient(92deg, #94a3b8 0%, #475569 100%)'
+  // New/unrecognized categories: random but stable gradient (instead of a single default).
+  if (!normalized) return 'linear-gradient(92deg, #94a3b8 0%, #475569 100%)'
+  return getRandomCategoryGradient(normalized)
 }
 
 export interface AuctionCardProps {

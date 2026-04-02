@@ -1,19 +1,10 @@
 import { apiClient } from './client'
-
-export interface CategoryExtraSortOptionDto {
-  value: string
-  label: string
-}
-
 export interface CategoryDto {
   id: number
   name: string
   stringKey?: string | null
-  /** Display / API ordering; default 0 when omitted (older clients). */
-  sortOrder?: number
-  /** When true, search top bar uses “All {name}” + direct children as tabs. */
-  isSearchHub?: boolean
-  extraSortOptions?: CategoryExtraSortOptionDto[] | null
+  /** Lucide icon key (react-icons/lu name without Lu); omit/null uses platform default. */
+  lucideIconKey?: string | null
   parentId: number | null
   children: CategoryDto[]
 }

@@ -37,18 +37,11 @@ describe('SearchBar', () => {
           id: 1,
           name: 'Cars',
           parentId: null,
-          sortOrder: 0,
-          isSearchHub: true,
-          stringKey: 'cars',
-          extraSortOptions: [
-            { value: 'year_newest', label: 'Year: newest' },
-            { value: 'year_oldest', label: 'Year: oldest' },
-            { value: 'mileage_low', label: 'Mileage: low to high' },
-            { value: 'mileage_high', label: 'Mileage: high to low' },
-          ],
+          // Intentionally different casing to ensure hub-root detection is case-insensitive.
+          stringKey: 'Cars',
           children: [
-            { id: 2, name: 'Sedans', parentId: 1, children: [], sortOrder: 10 },
-            { id: 3, name: 'SUVs', parentId: 1, children: [], sortOrder: 20 },
+            { id: 2, name: 'Sedans', parentId: 1, children: [] },
+            { id: 3, name: 'SUVs', parentId: 1, children: [] },
           ],
         },
       ],
@@ -100,12 +93,12 @@ describe('SearchBar', () => {
     })
   })
 
-  it('appends hub sort options from API when browsing under a search hub category', async () => {
+  it('uses only default sort options when hub has no extraSortOptions', async () => {
     renderSearchBar('/auctions?categoryId=2')
     await waitFor(() => {
-      expect(screen.getByRole('option', { name: /Year: newest/i })).toBeInTheDocument()
+      expect(screen.getAllByRole('option', { name: /Newest/i }).length).toBeGreaterThan(0)
     })
-    expect(screen.getByRole('option', { name: /Mileage: low to high/i })).toBeInTheDocument()
+    expect(screen.queryAllByRole('option', { name: /Year: newest/i })).toHaveLength(0)
   })
 
   it('shows top category bar and applies selection', async () => {

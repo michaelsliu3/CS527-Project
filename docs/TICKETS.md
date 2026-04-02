@@ -516,7 +516,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-29 — Multi-tag car subtypes (Electric + Sports Car, etc.)
+## ![1775108197598](image/TICKETS/1775108197598.png) — Multi-tag car subtypes (Electric + Sports Car, etc.)
 
 **Layer:** Backend + Frontend  
 **Branch:** `PBM-29/multi-tag-car-subtypes`  
@@ -524,11 +524,11 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 **Shipped in this PR (category platform + UX):**
 
-- **Schema & API:** `categories` gains `string_key` (unique, nullable), `sort_order`, `is_search_hub`, `extra_sort_options_json`. `GET /api/categories` returns the full tree with parsed `extraSortOptions`, ordered by `sortOrder` then name. Migrations: `20260402120000_CategorySearchMetadata`, `20260402140000_RenameCategorySlugToStringKey` (Pomelo-safe raw SQL rename `Slug` → `StringKey` on upgrade paths).
-- **Seed:** Cars root is a search hub with default extra sort JSON; subcategories carry string keys aligned with GT7 inference (`sedans`, `suvs`, `electric`, etc.).
-- **SearchBar:** Hub tabs and extra sort options come from API (`isSearchHub`, `extraSortOptions`), not hardcoded `CAR_CATEGORIES`. Flattened tree for URL `categoryId` sync; effect dependencies avoid refetch loops. Top bar polish (tabs, spacing, behavior) retained/improved.
-- **Create Auction / Alerts:** Category ordering uses `sortOrder`; alerts page loads category tree from API (removed `constants/categories.ts`).
-- **GM tools:** Admin-only create/update/delete categories (`POST/PATCH/DELETE api/admin/gm/categories`); panel **Categories** tab with validation/error surfacing; manifest category mode documents string key vs name; `Gt7ManifestAuctionBuilder` uses `InferCategoryStringKey` and `StringKey*` constants.
+- **Schema & API:** `categories` gains `string_key` (unique, nullable) and `lucide_icon_key` (nullable) for UI rendering. `GET /api/categories` returns the full hierarchy (roots + nested `children`) including `stringKey` and `lucideIconKey`. Migrations: `20260402120000_CategorySearchMetadata`, `20260402140000_RenameCategorySlugToStringKey` (Pomelo-safe raw SQL rename `Slug` → `StringKey`), plus `20260402180000_CategoryLucideIconKey`, `20260402190000_SetCarsCategoryLucideIconToCar`, `20260402200000_ClearCarsExtraSortOptionsJson`, and `20260402220000_RemoveCategorySortOrderIsSearchHubExtraSortOptionsJson` (clean up legacy hub/sort columns).
+- **Seed:** Cars root and common subcategories are seeded with `lucideIconKey` mappings (e.g. `cars` → `Car`, `electric` → `Battery`), while subcategories carry string keys aligned with GT7 inference (`sedans`, `suvs`, `electric`, etc.).
+- **SearchBar:** “Cars hub” tabs are derived from the category tree by inferring the hub root via `stringKey === 'cars'` (fallback: name). Tab icons use `lucideIconKey`; selecting hub/root/child updates `categoryId` + `page` query params with no refetch loops. Top bar polish (tabs, spacing, behavior) retained/improved.
+- **Create Auction / Alerts:** Category dropdowns/selects are driven by `GET /api/categories` (removed `constants/categories.ts`); UI ordering is name-based (client-side flatten/sort), consistent across SearchBar and create/alerts flows.
+- **GM tools:** Admin-only create/update/delete categories (`POST/PATCH/DELETE api/admin/gm/categories`), including setting `lucideIconKey`; panel **Categories** tab with validation/error surfacing; manifest category mode documents string key vs name; `Gt7ManifestAuctionBuilder` uses `InferCategoryStringKey` and `StringKey*` constants.
 - **Reliability:** `Program.cs` rethrows migration/seed failures in **Development** so schema drift does not leave a running API with broken `/api/categories`. GM category load errors show HTTP detail in toasts.
 - **Tests:** `SeedDataTests`, `GmToolsServiceTests`, `Gt7ManifestAuctionBuilderTests`, `SearchBar.test.tsx`, `AlertsPage.test.tsx`, and related fixture updates.
 

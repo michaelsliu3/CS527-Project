@@ -65,6 +65,7 @@ public class AppDbContext : DbContext
         {
             e.Property(c => c.Name).HasMaxLength(64);
             e.Property(c => c.StringKey).HasMaxLength(64);
+            e.Property(c => c.LucideIconKey).HasMaxLength(64);
             e.HasIndex(c => c.StringKey).IsUnique();
             e.HasOne(c => c.Parent)
                 .WithMany(c => c.Children)

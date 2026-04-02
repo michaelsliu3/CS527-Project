@@ -5,18 +5,16 @@ public record GmCreateCategoryDto
     public string Name { get; init; } = string.Empty;
     public int? ParentId { get; init; }
     public string? StringKey { get; init; }
-    public int? SortOrder { get; init; }
-    public bool? IsSearchHub { get; init; }
-    public string? ExtraSortOptionsJson { get; init; }
+    /// <summary>Lucide icon key; omit or empty uses platform default (Car).</summary>
+    public string? LucideIconKey { get; init; }
 }
 
 public record GmUpdateCategoryDto
 {
     public string? Name { get; init; }
     public string? StringKey { get; init; }
-    public int? SortOrder { get; init; }
-    public bool? IsSearchHub { get; init; }
-    public string? ExtraSortOptionsJson { get; init; }
+    /// <summary>When set, empty string clears to platform default (null in DB).</summary>
+    public string? LucideIconKey { get; init; }
 }
 
 public record GmCategoryMutationResultDto

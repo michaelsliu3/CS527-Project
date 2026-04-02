@@ -148,17 +148,15 @@ export interface GmCreateCategoryPayload {
   name: string
   parentId?: number | null
   stringKey?: string | null
-  sortOrder?: number
-  isSearchHub?: boolean
-  extraSortOptionsJson?: string | null
+  /** Omit or empty: backend stores platform default (Car). */
+  lucideIconKey?: string | null
 }
 
 export interface GmUpdateCategoryPayload {
   name?: string
   stringKey?: string | null
-  sortOrder?: number
-  isSearchHub?: boolean
-  extraSortOptionsJson?: string | null
+  /** Empty string clears to platform default (null in DB). Omit to leave unchanged. */
+  lucideIconKey?: string | null
 }
 
 export interface GmCategoryMutationResult {

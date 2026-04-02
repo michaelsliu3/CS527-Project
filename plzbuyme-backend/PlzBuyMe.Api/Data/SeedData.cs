@@ -24,25 +24,51 @@ public static class SeedData
         db.SaveChanges();
 
         // ── Category hierarchy: Cars → Sedans, SUVs, Trucks, Sports Cars, Electric ──
-        const string carHubExtraSortJson =
-            """[{"value":"year_newest","label":"Year: newest"},{"value":"year_oldest","label":"Year: oldest"},{"value":"mileage_low","label":"Mileage: low to high"},{"value":"mileage_high","label":"Mileage: high to low"}]""";
         var cars = new Category
         {
             Name = "Cars",
             ParentId = null,
             StringKey = "cars",
-            SortOrder = 0,
-            IsSearchHub = true,
-            ExtraSortOptionsJson = carHubExtraSortJson,
+            LucideIconKey = "Car",
         };
         db.Categories.Add(cars);
         db.SaveChanges();
 
-        var sedans = new Category { Name = "Sedans", ParentId = cars.Id, StringKey = "sedans", SortOrder = 10 };
-        var suvs = new Category { Name = "SUVs", ParentId = cars.Id, StringKey = "suvs", SortOrder = 20 };
-        var trucks = new Category { Name = "Trucks", ParentId = cars.Id, StringKey = "trucks", SortOrder = 30 };
-        var sportsCars = new Category { Name = "Sports Cars", ParentId = cars.Id, StringKey = "sports-cars", SortOrder = 40 };
-        var electric = new Category { Name = "Electric", ParentId = cars.Id, StringKey = "electric", SortOrder = 50 };
+        var sedans = new Category
+        {
+            Name = "Sedans",
+            ParentId = cars.Id,
+            StringKey = "sedans",
+            LucideIconKey = "CarFront",
+        };
+        var suvs = new Category
+        {
+            Name = "SUVs",
+            ParentId = cars.Id,
+            StringKey = "suvs",
+            LucideIconKey = "Truck",
+        };
+        var trucks = new Category
+        {
+            Name = "Trucks",
+            ParentId = cars.Id,
+            StringKey = "trucks",
+            LucideIconKey = "Truck",
+        };
+        var sportsCars = new Category
+        {
+            Name = "Sports Cars",
+            ParentId = cars.Id,
+            StringKey = "sports-cars",
+            LucideIconKey = "Gauge",
+        };
+        var electric = new Category
+        {
+            Name = "Electric",
+            ParentId = cars.Id,
+            StringKey = "electric",
+            LucideIconKey = "Battery",
+        };
         db.Categories.AddRange(sedans, suvs, trucks, sportsCars, electric);
         db.SaveChanges();
 
@@ -52,14 +78,14 @@ public static class SeedData
             Name = "Compact Sedans",
             ParentId = sedans.Id,
             StringKey = "compact-sedans",
-            SortOrder = 60,
+            LucideIconKey = "CarFront",
         };
         var fullSizeSedans = new Category
         {
             Name = "Full-Size Sedans",
             ParentId = sedans.Id,
             StringKey = "full-size-sedans",
-            SortOrder = 70,
+            LucideIconKey = "CarFront",
         };
         db.Categories.AddRange(compactSedans, fullSizeSedans);
         db.SaveChanges();

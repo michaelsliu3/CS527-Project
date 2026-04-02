@@ -6,11 +6,8 @@ public class Category
     public string Name { get; set; } = string.Empty;
     /// <summary>Stable string key for integrations (e.g. GT7 manifest routing). Unique when set.</summary>
     public string? StringKey { get; set; }
-    public int SortOrder { get; set; }
-    /// <summary>When true, search UI shows this root as a hub: &quot;All {name}&quot; plus one tab per direct child.</summary>
-    public bool IsSearchHub { get; set; }
-    /// <summary>Optional JSON array: [{&quot;value&quot;:&quot;year_newest&quot;,&quot;label&quot;:&quot;Year: newest&quot;}, ...]</summary>
-    public string? ExtraSortOptionsJson { get; set; }
+    /// <summary>Lucide icon key for search tabs (react-icons/lu name without Lu prefix), e.g. Car. Null uses platform default.</summary>
+    public string? LucideIconKey { get; set; }
     public int? ParentId { get; set; }
 
     public Category? Parent { get; set; }

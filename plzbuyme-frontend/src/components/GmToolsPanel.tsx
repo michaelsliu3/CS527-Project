@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Box, Button, Checkbox, Flex, Input, Tabs, Text, Textarea } from '@chakra-ui/react'
+import { Box, Button, Checkbox, Flex, Icon, Input, Menu, Tabs, Text, Textarea } from '@chakra-ui/react'
 import { isAxiosError } from 'axios'
 import { apiClient } from '../api/client'
 import { fetchCategories, type CategoryDto } from '../api/categories'
@@ -18,6 +18,14 @@ import {
   seedGmSampleNotifications,
   seedGmSoldHistoryFixture,
 } from '../api/gm'
+import {
+  DEFAULT_CATEGORY_LUCIDE_ICON_KEY,
+  GM_CATEGORY_LUCIDE_OPTIONS,
+  GM_CUSTOM_LUCIDE_VALUE,
+  isGmPresetLucideKey,
+  normalizeLucideIconKeyForApi,
+  resolveLucideIconForKey,
+} from '../constants/categoryLucideIcons'
 import { notifyAuctionListRefresh } from '../utils/auctionListRefresh'
 import { showErrorToast, showSuccessToast } from './ui/toaster'
 import { dark } from '../theme/colors'
@@ -69,6 +77,180 @@ function formatCategoriesLoadError(err: unknown): string {
   return 'Could not load categories.'
 }
 
+function lucideKeyForGmCreate(preset: string, custom: string): string | null {
+  if (preset === GM_CUSTOM_LUCIDE_VALUE) {
+    const t = custom.trim()
+    return t.length > 0 ? normalizeLucideIconKeyForApi(custom) : null
+  }
+  return preset
+}
+
+function lucideKeyForGmUpdate(preset: string, custom: string): string {
+  if (preset === '') return ''
+  if (preset === GM_CUSTOM_LUCIDE_VALUE) return normalizeLucideIconKeyForApi(custom)
+  return preset
+}
+
+function GmLucideIconPicker({
+  preset,
+  custom,
+  onPresetChange,
+  onCustomChange,
+  showPlatformDefaultOption,
+}: {
+  preset: string
+  custom: string
+  onPresetChange: (v: string) => void
+  onCustomChange: (v: string) => void
+  showPlatformDefaultOption: boolean
+}) {
+  const effectiveDisplayKey = useMemo(() => {
+    if (showPlatformDefaultOption && preset === '') return null
+    if (preset === GM_CUSTOM_LUCIDE_VALUE) {
+      const t = custom.trim()
+      return t.length > 0 ? normalizeLucideIconKeyForApi(custom) : null
+    }
+    return preset
+  }, [preset, custom, showPlatformDefaultOption])
+
+  const triggerLabel = useMemo(() => {
+    if (showPlatformDefaultOption && preset === '') return 'Platform default (car)'
+    if (preset === GM_CUSTOM_LUCIDE_VALUE) {
+      const t = custom.trim()
+      if (!t) return 'Custom (type icon name)'
+      return `Custom: ${normalizeLucideIconKeyForApi(custom)}`
+    }
+    return GM_CATEGORY_LUCIDE_OPTIONS.find((o) => o.key === preset)?.label ?? preset
+  }, [preset, custom, showPlatformDefaultOption])
+
+  const TriggerIcon = resolveLucideIconForKey(effectiveDisplayKey)
+
+  const menuItemProps = {
+    cursor: 'pointer' as const,
+    bg: 'transparent',
+    color: dark.label,
+    _hover: { bg: 'whiteAlpha.100', color: 'white' },
+    _focus: { bg: 'whiteAlpha.100', color: 'white' },
+  }
+
+  return (
+    <Flex direction="column" gap={2}>
+      <Menu.Root>
+        <Menu.Trigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            borderColor={dark.borderSubtle}
+            bg={dark.inputBg}
+            color={dark.label}
+            justifyContent="flex-start"
+            gap={3}
+            fontWeight="normal"
+            h="auto"
+            py={2}
+            _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+          >
+            <Icon as={TriggerIcon} boxSize={5} flexShrink={0} color="brand.400" />
+            <Text flex={1} textAlign="left" fontSize="sm" color="inherit">
+              {triggerLabel}
+            </Text>
+          </Button>
+        </Menu.Trigger>
+        <Menu.Positioner>
+          <Menu.Content
+            bg={dark.cardBg}
+            borderColor={dark.borderSubtle}
+            borderWidth="1px"
+            borderRadius="md"
+            minW="260px"
+            maxH="320px"
+            overflowY="auto"
+            zIndex={2500}
+            color={dark.label}
+            css={{
+              '& [data-highlighted]': {
+                background: 'rgba(255, 255, 255, 0.12)',
+                color: '#fafafa',
+              },
+            }}
+          >
+            {showPlatformDefaultOption && (
+              <Menu.Item
+                value="platform-default"
+                onClick={() => {
+                  onPresetChange('')
+                  onCustomChange('')
+                }}
+                {...menuItemProps}
+              >
+                <Flex align="center" gap={3} py={1}>
+                  <Icon
+                    as={resolveLucideIconForKey(DEFAULT_CATEGORY_LUCIDE_ICON_KEY)}
+                    boxSize={5}
+                    flexShrink={0}
+                    color="brand.400"
+                  />
+                  <Text fontSize="sm" color="inherit">
+                    Platform default (car)
+                  </Text>
+                </Flex>
+              </Menu.Item>
+            )}
+            {GM_CATEGORY_LUCIDE_OPTIONS.map((o) => (
+              <Menu.Item
+                key={o.key}
+                value={o.key}
+                onClick={() => {
+                  onPresetChange(o.key)
+                  onCustomChange('')
+                }}
+                {...menuItemProps}
+              >
+                <Flex align="center" gap={3} py={1}>
+                  <Icon as={resolveLucideIconForKey(o.key)} boxSize={5} flexShrink={0} color="brand.400" />
+                  <Text fontSize="sm" color="inherit">
+                    {o.label}
+                  </Text>
+                </Flex>
+              </Menu.Item>
+            ))}
+            <Menu.Item
+              value={GM_CUSTOM_LUCIDE_VALUE}
+              onClick={() => onPresetChange(GM_CUSTOM_LUCIDE_VALUE)}
+              {...menuItemProps}
+            >
+              <Flex align="center" gap={3} py={1}>
+                <Icon as={resolveLucideIconForKey('Pencil')} boxSize={5} flexShrink={0} color="brand.400" />
+                <Text fontSize="sm" color="inherit">
+                  Custom…
+                </Text>
+              </Flex>
+            </Menu.Item>
+          </Menu.Content>
+        </Menu.Positioner>
+      </Menu.Root>
+      {preset === GM_CUSTOM_LUCIDE_VALUE && (
+        <Box>
+          <Text mb={1} color={dark.muted} fontSize="xs">
+            Lucide name without Lu prefix; matching is case-insensitive. Unknown names preview as the default car
+            icon.
+          </Text>
+          <Input
+            value={custom}
+            onChange={(e) => onCustomChange(e.target.value)}
+            placeholder="e.g. Bike, Plane, Wrench"
+            size="sm"
+            bg={dark.inputBg}
+            borderColor={dark.borderSubtle}
+            color="white"
+            _placeholder={{ color: dark.placeholder }}
+          />
+        </Box>
+      )}
+    </Flex>
+  )
+}
+
 export function GmToolsPanel() {
   const [busy, setBusy] = useState<string | null>(null)
 
@@ -105,16 +287,14 @@ export function GmToolsPanel() {
   const [cName, setCName] = useState('')
   const [cParentId, setCParentId] = useState('')
   const [cStringKey, setCStringKey] = useState('')
-  const [cSort, setCSort] = useState('0')
-  const [cHub, setCHub] = useState(false)
-  const [cExtraJson, setCExtraJson] = useState('')
+  const [cLucidePreset, setCLucidePreset] = useState(DEFAULT_CATEGORY_LUCIDE_ICON_KEY)
+  const [cLucideCustom, setCLucideCustom] = useState('')
 
   const [uCatId, setUCatId] = useState('')
   const [uName, setUName] = useState('')
   const [uStringKey, setUStringKey] = useState('')
-  const [uSort, setUSort] = useState('0')
-  const [uHub, setUHub] = useState(false)
-  const [uExtraJson, setUExtraJson] = useState('')
+  const [uLucidePreset, setULucidePreset] = useState('')
+  const [uLucideCustom, setULucideCustom] = useState('')
 
   const [dCatId, setDCatId] = useState('')
 
@@ -427,20 +607,28 @@ export function GmToolsPanel() {
     if (!idStr) {
       setUName('')
       setUStringKey('')
-      setUSort('0')
-      setUHub(false)
-      setUExtraJson('')
+      setULucidePreset('')
+      setULucideCustom('')
       return
     }
     const c = flatCategories.find((x) => x.id === Number(idStr))
     if (!c) return
     setUName(c.name)
     setUStringKey(c.stringKey ?? '')
-    setUSort(String(c.sortOrder ?? 0))
-    setUHub(c.isSearchHub === true)
-    setUExtraJson(
-      c.extraSortOptions?.length ? JSON.stringify(c.extraSortOptions) : '',
-    )
+    const iconKey = c.lucideIconKey ?? ''
+    if (!iconKey.trim()) {
+      setULucidePreset('')
+      setULucideCustom('')
+    } else {
+      const canon = normalizeLucideIconKeyForApi(iconKey)
+      if (isGmPresetLucideKey(canon)) {
+        setULucidePreset(canon)
+        setULucideCustom('')
+      } else {
+        setULucidePreset(GM_CUSTOM_LUCIDE_VALUE)
+        setULucideCustom(canon)
+      }
+    }
   }
 
   const onCreateCategory = () =>
@@ -450,22 +638,18 @@ export function GmToolsPanel() {
         return
       }
       try {
-        const sortOrder = Number.parseInt(cSort, 10)
         await gmCreateCategory({
           name: cName.trim(),
           parentId: cParentId === '' ? null : Number.parseInt(cParentId, 10),
           stringKey: cStringKey.trim() || null,
-          sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
-          isSearchHub: cHub,
-          extraSortOptionsJson: cExtraJson.trim() || null,
+          lucideIconKey: lucideKeyForGmCreate(cLucidePreset, cLucideCustom),
         })
         showSuccessToast('Category created', cName.trim())
         setCName('')
         setCParentId('')
         setCStringKey('')
-        setCSort('0')
-        setCHub(false)
-        setCExtraJson('')
+        setCLucidePreset(DEFAULT_CATEGORY_LUCIDE_ICON_KEY)
+        setCLucideCustom('')
         await loadGmCategories()
         notifyAuctionListRefresh()
       } catch (err) {
@@ -489,9 +673,7 @@ export function GmToolsPanel() {
         await gmUpdateCategory(id, {
           name: uName.trim(),
           stringKey: uStringKey.trim(),
-          sortOrder: Number.parseInt(uSort, 10) || 0,
-          isSearchHub: uHub,
-          extraSortOptionsJson: uExtraJson.trim(),
+          lucideIconKey: lucideKeyForGmUpdate(uLucidePreset, uLucideCustom),
         })
         showSuccessToast('Category updated', `#${id} ${uName.trim()}`)
         await loadGmCategories()
@@ -822,8 +1004,8 @@ export function GmToolsPanel() {
                     flatCategories.map((c) => (
                       <Text key={c.id} mb={0.5}>
                         #{c.id} {c.name}
-                        {c.stringKey ? ` [${c.stringKey}]` : ''} parent={c.parentId ?? '—'} sort={c.sortOrder ?? 0}
-                        {c.isSearchHub ? ' hub' : ''}
+                        {c.stringKey ? ` [${c.stringKey}]` : ''} icon=
+                        {c.lucideIconKey ?? 'default'} parent={c.parentId ?? '—'}
                       </Text>
                     ))
                   )}
@@ -836,6 +1018,18 @@ export function GmToolsPanel() {
                 </Text>
                 <Flex direction="column" gap={2} maxW="md">
                   {field('Name', cName, setCName, 'required')}
+                  <Box>
+                    <Text mb={1} color={dark.label} fontSize="xs">
+                      Tab icon (Lucide)
+                    </Text>
+                    <GmLucideIconPicker
+                      preset={cLucidePreset}
+                      custom={cLucideCustom}
+                      onPresetChange={setCLucidePreset}
+                      onCustomChange={setCLucideCustom}
+                      showPlatformDefaultOption={false}
+                    />
+                  </Box>
                   <Box>
                     <Text mb={1} color={dark.label} fontSize="xs">
                       Parent
@@ -854,30 +1048,6 @@ export function GmToolsPanel() {
                     </select>
                   </Box>
                   {field('String key (optional, unique)', cStringKey, setCStringKey, 'e.g. boats')}
-                  {field('Sort order', cSort, setCSort, '0')}
-                  <Checkbox.Root checked={cHub} onCheckedChange={(d) => setCHub(!!d.checked)}>
-                    <Checkbox.HiddenInput />
-                    <Checkbox.Control />
-                    <Checkbox.Label color={dark.label}>Search hub (All + child tabs, extra sort options)</Checkbox.Label>
-                  </Checkbox.Root>
-                  <Box>
-                    <Text mb={1} color={dark.label} fontSize="xs">
-                      Extra sort options JSON (optional)
-                    </Text>
-                    <Textarea
-                      value={cExtraJson}
-                      onChange={(e) => setCExtraJson(e.target.value)}
-                      placeholder='[{"value":"year_newest","label":"Year: newest"}]'
-                      rows={3}
-                      size="sm"
-                      bg={dark.inputBg}
-                      borderColor={dark.borderSubtle}
-                      color="white"
-                      fontFamily="mono"
-                      fontSize="xs"
-                      _placeholder={{ color: dark.placeholder }}
-                    />
-                  </Box>
                   <Button
                     bg="brand.500"
                     color="white"
@@ -896,7 +1066,7 @@ export function GmToolsPanel() {
                   Update category
                 </Text>
                 <Text fontSize="sm" color={dark.label} mb={2}>
-                  Pick a row to load fields. Empty string key clears the key. Empty extra JSON clears hub sort options.
+                  Pick a row to load fields. Empty string key clears the key.
                 </Text>
                 <Flex direction="column" gap={2} maxW="md">
                   <Box>
@@ -918,27 +1088,16 @@ export function GmToolsPanel() {
                   </Box>
                   {field('Name', uName, setUName)}
                   {field('String key', uStringKey, setUStringKey, 'empty to clear')}
-                  {field('Sort order', uSort, setUSort)}
-                  <Checkbox.Root checked={uHub} onCheckedChange={(d) => setUHub(!!d.checked)}>
-                    <Checkbox.HiddenInput />
-                    <Checkbox.Control />
-                    <Checkbox.Label color={dark.label}>Search hub</Checkbox.Label>
-                  </Checkbox.Root>
                   <Box>
                     <Text mb={1} color={dark.label} fontSize="xs">
-                      Extra sort options JSON
+                      Tab icon (Lucide)
                     </Text>
-                    <Textarea
-                      value={uExtraJson}
-                      onChange={(e) => setUExtraJson(e.target.value)}
-                      rows={3}
-                      size="sm"
-                      bg={dark.inputBg}
-                      borderColor={dark.borderSubtle}
-                      color="white"
-                      fontFamily="mono"
-                      fontSize="xs"
-                      _placeholder={{ color: dark.placeholder }}
+                    <GmLucideIconPicker
+                      preset={uLucidePreset}
+                      custom={uLucideCustom}
+                      onPresetChange={setULucidePreset}
+                      onCustomChange={setULucideCustom}
+                      showPlatformDefaultOption
                     />
                   </Box>
                   <Button

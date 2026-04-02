@@ -172,6 +172,37 @@ public class GmToolsServiceTests
         data!.Name.Should().Be("Boats");
         var row = await db.Categories.SingleAsync();
         row.StringKey.Should().Be("boats");
+        row.LucideIconKey.Should().Be("Car");
+    }
+
+    [Fact]
+    public async Task CreateCategory_CustomPascalCaseLucideIcon_Persists()
+    {
+        await using var db = CreateDb();
+        var svc = CreateService(db);
+
+        var (error, data) = await svc.CreateCategoryAsync(
+            1,
+            new GmCreateCategoryDto { Name = "Bicycles", LucideIconKey = "Bike" });
+
+        error.Should().BeNull();
+        data.Should().NotBeNull();
+        (await db.Categories.SingleAsync()).LucideIconKey.Should().Be("Bike");
+    }
+
+    [Fact]
+    public async Task CreateCategory_InvalidLucideIcon_ReturnsError()
+    {
+        await using var db = CreateDb();
+        var svc = CreateService(db);
+
+        var (error, data) = await svc.CreateCategoryAsync(
+            1,
+            new GmCreateCategoryDto { Name = "X", LucideIconKey = "notPascalCase" });
+
+        error.Should().NotBeNullOrEmpty();
+        data.Should().BeNull();
+        (await db.Categories.CountAsync()).Should().Be(0);
     }
 
     [Fact]

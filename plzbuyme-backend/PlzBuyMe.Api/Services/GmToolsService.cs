@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using PlzBuyMe.Api;
 using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos.Admin.Gm;
 using PlzBuyMe.Api.Dtos.Alerts;
@@ -695,31 +696,17 @@ public class GmToolsService : IGmToolsService
                 return ("String key is already in use.", null);
         }
 
-        var extraJson = dto.ExtraSortOptionsJson?.Trim();
-        if (!string.IsNullOrEmpty(extraJson))
-        {
-            try
-            {
-                JsonDocument.Parse(extraJson);
-            }
-            catch (JsonException)
-            {
-                return ("ExtraSortOptionsJson must be valid JSON.", null);
-            }
-        }
-        else
-        {
-            extraJson = null;
-        }
+        var rawIcon = dto.LucideIconKey?.Trim();
+        var iconKey = string.IsNullOrEmpty(rawIcon) ? CategoryLucideIconKeys.Default : rawIcon;
+        if (!CategoryLucideIconKeys.IsValidIconKeyFormat(iconKey))
+            return ("Lucide icon key must be PascalCase (e.g. Car, Bike), 1–64 characters.", null);
 
         var cat = new Category
         {
             Name = name,
             ParentId = dto.ParentId,
             StringKey = stringKey,
-            SortOrder = dto.SortOrder ?? 0,
-            IsSearchHub = dto.IsSearchHub ?? false,
-            ExtraSortOptionsJson = extraJson,
+            LucideIconKey = iconKey,
         };
         _db.Categories.Add(cat);
         await _db.SaveChangesAsync();
@@ -764,31 +751,20 @@ public class GmToolsService : IGmToolsService
             cat.StringKey = newKey;
         }
 
-        if (dto.SortOrder.HasValue)
-            cat.SortOrder = dto.SortOrder.Value;
-
-        if (dto.IsSearchHub.HasValue)
-            cat.IsSearchHub = dto.IsSearchHub.Value;
-
-        if (dto.ExtraSortOptionsJson != null)
+        if (dto.LucideIconKey is not null)
         {
-            var trimmed = dto.ExtraSortOptionsJson.Trim();
-            if (trimmed.Length == 0)
+            var trimmedIcon = dto.LucideIconKey.Trim();
+            if (trimmedIcon.Length == 0)
             {
-                cat.ExtraSortOptionsJson = null;
+                cat.LucideIconKey = null;
+            }
+            else if (!CategoryLucideIconKeys.IsValidIconKeyFormat(trimmedIcon))
+            {
+                return ("Lucide icon key must be PascalCase (e.g. Car, Bike), 1–64 characters.", null);
             }
             else
             {
-                try
-                {
-                    JsonDocument.Parse(trimmed);
-                }
-                catch (JsonException)
-                {
-                    return ("ExtraSortOptionsJson must be valid JSON.", null);
-                }
-
-                cat.ExtraSortOptionsJson = trimmed;
+                cat.LucideIconKey = trimmedIcon;
             }
         }
 
