@@ -1026,6 +1026,13 @@ public class AuctionService : IAuctionService
                 item.Title = dto.Title.Trim();
             if (dto.Description != null)
                 item.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
+            if (dto.CategoryId.HasValue)
+            {
+                var catExists = await _db.Categories.AnyAsync(c => c.Id == dto.CategoryId.Value);
+                if (!catExists)
+                    return ("Category not found.", null);
+                item.CategoryId = dto.CategoryId.Value;
+            }
             await _db.SaveChangesAsync();
             _logger.LogWarning("Admin {AdminId} updated metadata on non-active auction {ItemId}", adminUserId, itemId);
             return (null, await GetByIdAsync(itemId));
@@ -1037,6 +1044,13 @@ public class AuctionService : IAuctionService
             item.Title = dto.Title.Trim();
         if (dto.Description != null)
             item.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
+        if (dto.CategoryId.HasValue)
+        {
+            var catExists = await _db.Categories.AnyAsync(c => c.Id == dto.CategoryId.Value);
+            if (!catExists)
+                return ("Category not found.", null);
+            item.CategoryId = dto.CategoryId.Value;
+        }
 
         if (dto.CloseDateTime.HasValue)
         {
@@ -1095,6 +1109,7 @@ public class AuctionService : IAuctionService
     {
         return dto.Title != null
             || dto.Description != null
+            || dto.CategoryId.HasValue
             || dto.CloseDateTime.HasValue
             || dto.BidIncrement.HasValue
             || dto.ReservePrice.HasValue

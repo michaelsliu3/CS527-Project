@@ -4,6 +4,7 @@ import type { AuctionDetail } from './auctions'
 export interface AdminPatchAuctionPayload {
   title?: string
   description?: string | null
+  categoryId?: number
   closeDateTime?: string
   bidIncrement?: number
   reservePrice?: number

@@ -5,6 +5,7 @@ public record AdminPatchAuctionDto
 {
     public string? Title { get; init; }
     public string? Description { get; init; }
+    public int? CategoryId { get; init; }
 
     public DateTime? CloseDateTime { get; init; }
     public decimal? BidIncrement { get; init; }

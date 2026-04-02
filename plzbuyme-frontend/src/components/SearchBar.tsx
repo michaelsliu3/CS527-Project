@@ -800,13 +800,14 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
                     flexShrink={0}
                     aria-hidden
                     transition="color 0.2s ease, filter 0.2s ease, transform 0.2s ease"
+                    opacity={isActive || isHovered ? 1 : 0.78}
                     filter={
                       isActive || isHovered
                         ? 'drop-shadow(0 0 8px rgba(129, 140, 248, 0.8))'
                         : 'drop-shadow(0 0 0 rgba(129, 140, 248, 0))'
                     }
                     transform={isHovered ? 'scale(1.04)' : 'scale(1)'}
-                    color={isActive ? 'brand.400' : isHovered ? 'brand.300' : 'whiteAlpha.400'}
+                    color={isActive ? 'brand.400' : isHovered ? 'brand.300' : 'gray.300'}
                   />
                   <Text
                     as="span"

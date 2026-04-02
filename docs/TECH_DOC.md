@@ -713,9 +713,9 @@ These endpoints are **admin-only** (`AdminOnly` policy). They exist for **demos,
 
 | Method | Route | Description | Access |
 |--------|--------|-------------|--------|
-| PATCH | `api/admin/auctions/{id}` | Partial update: title, description, close time, increment, reserve, initial/current (no bids only), or **end** active auction (`endAuction`: `natural` \| `closed` \| `sold`) — end must be sent alone | Admin |
+| PATCH | `api/admin/auctions/{id}` | Partial update: title, description, **`categoryId`** (must exist in `categories`; updates `items.category_id`), close time, increment, reserve, initial/current (no bids only), or **end** active auction (`endAuction`: `natural` \| `closed` \| `sold`) — end must be sent alone | Admin |
 
-**Frontend:** auction detail shows **Edit** for admins; dialog calls PATCH.
+**Frontend:** auction detail shows **Edit** for admins; dialog calls PATCH (including root + subcategory selects that resolve to a single `categoryId`).
 
 ---
 

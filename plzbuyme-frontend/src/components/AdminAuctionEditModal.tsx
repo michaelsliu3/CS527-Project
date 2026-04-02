@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Dialog,
+  Flex,
   Input,
   NativeSelect,
   Stack,
@@ -12,6 +13,7 @@ import {
 import { isAxiosError } from 'axios'
 import { patchAdminAuction } from '../api/adminAuctions'
 import type { AuctionDetail } from '../api/auctions'
+import { fetchCategories, type CategoryDto } from '../api/categories'
 import { showErrorToast, showSuccessToast } from './ui/toaster'
 import { dark } from '../theme/colors'
 
@@ -20,6 +22,14 @@ function toLocalDatetimeValue(iso: string): string {
   if (Number.isNaN(d.getTime())) return ''
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function findParentRoot(roots: CategoryDto[], categoryId: number): CategoryDto | undefined {
+  for (const r of roots) {
+    if (r.id === categoryId) return r
+    if (r.children?.some((c) => c.id === categoryId)) return r
+  }
+  return undefined
 }
 
 export interface AdminAuctionEditModalProps {
@@ -41,6 +51,10 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
   const [saving, setSaving] = useState(false)
   const [ending, setEnding] = useState(false)
 
+  const [categories, setCategories] = useState<CategoryDto[]>([])
+  const [selectedRootId, setSelectedRootId] = useState<number | ''>('')
+  const [selectedSubId, setSelectedSubId] = useState<number | ''>('')
+
   const hasBids = auction.bidHistory.length > 0
   const isActive = auction.status === 'active'
 
@@ -54,15 +68,40 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
     setInitialPrice(String(auction.initialPrice))
     setCurrentPrice(String(auction.currentPrice))
     setEndMode('')
+
+    fetchCategories()
+      .then((res) => {
+        const roots = res.data
+        setCategories(roots)
+        const parentRoot = findParentRoot(roots, auction.categoryId)
+        if (parentRoot) {
+          setSelectedRootId(parentRoot.id)
+          setSelectedSubId(parentRoot.id === auction.categoryId ? '' : auction.categoryId)
+        } else {
+          setSelectedRootId(auction.categoryId)
+          setSelectedSubId('')
+        }
+      })
+      .catch(() => {
+        setCategories([])
+      })
   }, [open, auction])
+
+  const selectedRoot = categories.find((c) => c.id === selectedRootId)
+  const effectiveCategoryId = selectedSubId || selectedRootId
 
   const onSaveFields = async () => {
     setSaving(true)
     try {
+      const catId = effectiveCategoryId !== '' && effectiveCategoryId !== auction.categoryId
+        ? (effectiveCategoryId as number)
+        : undefined
+
       if (!isActive) {
         const { data } = await patchAdminAuction(auction.id, {
           title: title.trim(),
           description: description.trim() === '' ? null : description.trim(),
+          categoryId: catId,
         })
         showSuccessToast('Auction updated')
         onSaved(data)
@@ -90,6 +129,7 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
       const { data } = await patchAdminAuction(auction.id, {
         title: title.trim(),
         description: description.trim() === '' ? null : description.trim(),
+        categoryId: catId,
         closeDateTime: closeIso,
         bidIncrement: bi,
         reservePrice: res,
@@ -174,6 +214,54 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
                 borderColor={dark.borderSubtle}
                 color="white"
               />
+              {fieldLabel('Category')}
+              <Flex gap={3}>
+                <Box flex="1">
+                  <NativeSelect.Root>
+                    <NativeSelect.Field
+                      value={selectedRootId === '' ? '' : String(selectedRootId)}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setSelectedRootId(v === '' ? '' : Number(v))
+                        setSelectedSubId('')
+                      }}
+                      bg={dark.inputBg}
+                      borderColor={dark.borderSubtle}
+                      color="white"
+                    >
+                      <option value="">— select category —</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </NativeSelect.Field>
+                    <NativeSelect.Indicator />
+                  </NativeSelect.Root>
+                </Box>
+                <Box flex="1">
+                  <NativeSelect.Root disabled={!selectedRoot?.children?.length}>
+                    <NativeSelect.Field
+                      value={selectedSubId === '' ? '' : String(selectedSubId)}
+                      onChange={(e) => {
+                        const v = e.target.value
+                        setSelectedSubId(v === '' ? '' : Number(v))
+                      }}
+                      bg={dark.inputBg}
+                      borderColor={dark.borderSubtle}
+                      color="white"
+                    >
+                      <option value="">— subcategory —</option>
+                      {selectedRoot?.children?.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </NativeSelect.Field>
+                    <NativeSelect.Indicator />
+                  </NativeSelect.Root>
+                </Box>
+              </Flex>
               {isActive && (
                 <>
                   {fieldLabel('Close time (local)')}
@@ -238,7 +326,7 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
               )}
               {!isActive && (
                 <Text fontSize="sm" color={dark.muted}>
-                  This listing is not active; only title and description can be changed.
+                  This listing is not active; only title, description, and category can be changed.
                 </Text>
               )}
 
