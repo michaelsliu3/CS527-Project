@@ -27,11 +27,6 @@ public class GmToolsService : IGmToolsService
     private const int MaxSampleNotifications = 20;
     private const string DefaultDemoPassword = "GmDemo123!";
 
-    private static readonly string[] LeafCategoryNames =
-    {
-        "Sedans", "SUVs", "Trucks", "Sports Cars", "Electric"
-    };
-
     private static readonly string[] Makes =
     {
         "Toyota", "Honda", "Ford", "Chevrolet", "BMW", "Nissan", "Hyundai", "Mazda", "Subaru", "Volkswagen"
@@ -273,15 +268,17 @@ public class GmToolsService : IGmToolsService
     {
         if (string.Equals(categoryMode, "auto", StringComparison.OrdinalIgnoreCase))
         {
-            var name = Gt7ManifestAuctionBuilder.InferCategoryName(asset);
+            var stringKey = Gt7ManifestAuctionBuilder.InferCategoryStringKey(asset);
             return await _db.Categories
                 .Include(c => c.CategoryFields)
-                .FirstOrDefaultAsync(c => c.Name == name && c.CategoryFields.Any());
+                .FirstOrDefaultAsync(c => c.StringKey == stringKey && c.CategoryFields.Any());
         }
 
         return await _db.Categories
             .Include(c => c.CategoryFields)
-            .FirstOrDefaultAsync(c => c.Name == categoryMode && c.CategoryFields.Any());
+            .FirstOrDefaultAsync(c =>
+                (c.StringKey == categoryMode || c.Name == categoryMode) &&
+                c.CategoryFields.Any());
     }
 
     public async Task<(string? Error, GmBulkUsersResultDto? Data)> BulkCreateUsersAsync(int adminUserId, GmBulkUsersDto dto)
@@ -560,7 +557,7 @@ public class GmToolsService : IGmToolsService
 
         var candidates = await _db.Categories
             .Include(c => c.CategoryFields)
-            .Where(c => LeafCategoryNames.Contains(c.Name) && c.CategoryFields.Any())
+            .Where(c => c.CategoryFields.Any())
             .ToListAsync();
 
         if (candidates.Count == 0)
@@ -584,36 +581,27 @@ public class GmToolsService : IGmToolsService
 
     private static CreateAuctionDto BuildRandomAuctionDto(Category category, int closeHoursMin, int closeHoursMax)
     {
-        var fields = category.CategoryFields.ToList();
-        var idFor = new Dictionary<string, int>(StringComparer.Ordinal);
-        foreach (var f in fields)
-            idFor[f.FieldName] = f.Id;
+        var fields = category.CategoryFields.OrderBy(f => f.Id).ToList();
+        var byName = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var fv = new List<FieldValueDto>(fields.Count);
 
-        var make = Makes[Random.Shared.Next(Makes.Length)];
-        var model = Models[Random.Shared.Next(Models.Length)];
-        var year = 2018 + Random.Shared.Next(8);
-        var mileage = Random.Shared.Next(500, 200_000);
+        foreach (var f in fields)
+        {
+            var value = RandomFieldValue(f);
+            byName[f.FieldName] = value;
+            fv.Add(new FieldValueDto(f.Id, value));
+        }
+
+        var title = TryBuildGmSeedTitle(byName) ?? $"{category.Name} (GM seed)";
         var hours = Random.Shared.Next(closeHoursMin, closeHoursMax + 1);
         var closeAt = DateTime.UtcNow.AddHours(hours);
         var initial = 5000m + Random.Shared.Next(0, 80_000);
         var increment = 50m + Random.Shared.Next(0, 450);
         var reserve = initial + increment * Random.Shared.Next(2, 20);
 
-        var fv = new List<FieldValueDto>
-        {
-            new(idFor["Make"], make),
-            new(idFor["Model"], model),
-            new(idFor["Year"], year.ToString()),
-            new(idFor["Mileage"], mileage.ToString()),
-            new(idFor["Condition"], Conditions[Random.Shared.Next(Conditions.Length)]),
-            new(idFor["Transmission"], Transmissions[Random.Shared.Next(Transmissions.Length)]),
-            new(idFor["Fuel Type"], Fuels[Random.Shared.Next(Fuels.Length)]),
-            new(idFor["Exterior Color"], Colors[Random.Shared.Next(Colors.Length)])
-        };
-
         return new CreateAuctionDto
         {
-            Title = $"{year} {make} {model} (GM seed)",
+            Title = title,
             Description = "Bulk-seeded listing for demos, load tests, or QA.",
             CategoryId = category.Id,
             InitialPrice = initial,
@@ -622,5 +610,217 @@ public class GmToolsService : IGmToolsService
             CloseDateTime = closeAt,
             FieldValues = fv
         };
+    }
+
+    private static string? TryBuildGmSeedTitle(Dictionary<string, string> byName)
+    {
+        if (!byName.TryGetValue("Make", out var make) || !byName.TryGetValue("Model", out var model))
+            return null;
+
+        return byName.TryGetValue("Year", out var year) && !string.IsNullOrWhiteSpace(year)
+            ? $"{year} {make} {model} (GM seed)"
+            : $"{make} {model} (GM seed)";
+    }
+
+    private static string RandomFieldValue(CategoryField f)
+    {
+        switch (f.FieldType)
+        {
+            case FieldType.Number:
+                if (f.FieldName.Equals("Year", StringComparison.OrdinalIgnoreCase))
+                    return (2018 + Random.Shared.Next(8)).ToString();
+                return Random.Shared.Next(500, 200_000).ToString();
+            case FieldType.Select:
+                var fromJson = PickSelectOption(f.Options);
+                if (!string.IsNullOrEmpty(fromJson))
+                    return fromJson;
+                if (f.FieldName.Equals("Condition", StringComparison.OrdinalIgnoreCase))
+                    return Conditions[Random.Shared.Next(Conditions.Length)];
+                if (f.FieldName.Equals("Transmission", StringComparison.OrdinalIgnoreCase))
+                    return Transmissions[Random.Shared.Next(Transmissions.Length)];
+                if (f.FieldName.Contains("Fuel", StringComparison.OrdinalIgnoreCase))
+                    return Fuels[Random.Shared.Next(Fuels.Length)];
+                return "—";
+            default:
+                if (f.FieldName.Equals("Make", StringComparison.OrdinalIgnoreCase))
+                    return Makes[Random.Shared.Next(Makes.Length)];
+                if (f.FieldName.Equals("Model", StringComparison.OrdinalIgnoreCase))
+                    return Models[Random.Shared.Next(Models.Length)];
+                if (f.FieldName.Contains("Color", StringComparison.OrdinalIgnoreCase))
+                    return Colors[Random.Shared.Next(Colors.Length)];
+                var shortName = f.FieldName.Length > 12 ? f.FieldName[..12] : f.FieldName;
+                return $"{shortName}-{Random.Shared.Next(100, 999)}";
+        }
+    }
+
+    private static string? PickSelectOption(string? optionsJson)
+    {
+        if (string.IsNullOrWhiteSpace(optionsJson))
+            return null;
+        try
+        {
+            var list = JsonSerializer.Deserialize<List<string>>(optionsJson);
+            if (list == null || list.Count == 0)
+                return null;
+            return list[Random.Shared.Next(list.Count)];
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    public async Task<(string? Error, GmCategoryMutationResultDto? Data)> CreateCategoryAsync(
+        int adminUserId,
+        GmCreateCategoryDto dto)
+    {
+        var name = dto.Name.Trim();
+        if (name.Length is < 1 or > 64)
+            return ("Name is required and must be at most 64 characters.", null);
+
+        if (dto.ParentId is { } pid)
+        {
+            var parentExists = await _db.Categories.AnyAsync(c => c.Id == pid);
+            if (!parentExists)
+                return ("Parent category not found.", null);
+        }
+
+        var stringKey = string.IsNullOrWhiteSpace(dto.StringKey) ? null : dto.StringKey.Trim();
+        if (stringKey?.Length > 64)
+            return ("String key must be at most 64 characters.", null);
+        if (!string.IsNullOrEmpty(stringKey))
+        {
+            var dupKey = await _db.Categories.AnyAsync(c => c.StringKey == stringKey);
+            if (dupKey)
+                return ("String key is already in use.", null);
+        }
+
+        var extraJson = dto.ExtraSortOptionsJson?.Trim();
+        if (!string.IsNullOrEmpty(extraJson))
+        {
+            try
+            {
+                JsonDocument.Parse(extraJson);
+            }
+            catch (JsonException)
+            {
+                return ("ExtraSortOptionsJson must be valid JSON.", null);
+            }
+        }
+        else
+        {
+            extraJson = null;
+        }
+
+        var cat = new Category
+        {
+            Name = name,
+            ParentId = dto.ParentId,
+            StringKey = stringKey,
+            SortOrder = dto.SortOrder ?? 0,
+            IsSearchHub = dto.IsSearchHub ?? false,
+            ExtraSortOptionsJson = extraJson,
+        };
+        _db.Categories.Add(cat);
+        await _db.SaveChangesAsync();
+
+        _logger.LogWarning(
+            "GM tools: admin {AdminId} created category {CategoryId} ({Name})",
+            adminUserId,
+            cat.Id,
+            cat.Name);
+        return (null, new GmCategoryMutationResultDto { Id = cat.Id, Name = cat.Name });
+    }
+
+    public async Task<(string? Error, GmCategoryMutationResultDto? Data)> UpdateCategoryAsync(
+        int adminUserId,
+        int categoryId,
+        GmUpdateCategoryDto dto)
+    {
+        var cat = await _db.Categories.FirstOrDefaultAsync(c => c.Id == categoryId);
+        if (cat == null)
+            return ("Category not found.", null);
+
+        if (dto.Name != null)
+        {
+            var name = dto.Name.Trim();
+            if (name.Length is < 1 or > 64)
+                return ("Name must be 1–64 characters.", null);
+            cat.Name = name;
+        }
+
+        if (dto.StringKey != null)
+        {
+            var newKey = string.IsNullOrWhiteSpace(dto.StringKey) ? null : dto.StringKey.Trim();
+            if (newKey?.Length > 64)
+                return ("String key must be at most 64 characters.", null);
+            if (!string.IsNullOrEmpty(newKey))
+            {
+                var dup = await _db.Categories.AnyAsync(c => c.StringKey == newKey && c.Id != categoryId);
+                if (dup)
+                    return ("String key is already in use.", null);
+            }
+
+            cat.StringKey = newKey;
+        }
+
+        if (dto.SortOrder.HasValue)
+            cat.SortOrder = dto.SortOrder.Value;
+
+        if (dto.IsSearchHub.HasValue)
+            cat.IsSearchHub = dto.IsSearchHub.Value;
+
+        if (dto.ExtraSortOptionsJson != null)
+        {
+            var trimmed = dto.ExtraSortOptionsJson.Trim();
+            if (trimmed.Length == 0)
+            {
+                cat.ExtraSortOptionsJson = null;
+            }
+            else
+            {
+                try
+                {
+                    JsonDocument.Parse(trimmed);
+                }
+                catch (JsonException)
+                {
+                    return ("ExtraSortOptionsJson must be valid JSON.", null);
+                }
+
+                cat.ExtraSortOptionsJson = trimmed;
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        _logger.LogWarning("GM tools: admin {AdminId} updated category {CategoryId}", adminUserId, categoryId);
+        return (null, new GmCategoryMutationResultDto { Id = cat.Id, Name = cat.Name });
+    }
+
+    public async Task<(string? Error, GmDeleteCategoryResultDto? Data)> DeleteCategoryAsync(
+        int adminUserId,
+        int categoryId)
+    {
+        var cat = await _db.Categories.FirstOrDefaultAsync(c => c.Id == categoryId);
+        if (cat == null)
+            return ("Category not found.", null);
+
+        if (await _db.Categories.AnyAsync(c => c.ParentId == categoryId))
+            return ("Cannot delete a category that has child categories.", null);
+
+        if (await _db.Items.AnyAsync(i => i.CategoryId == categoryId))
+            return ("Cannot delete a category that has listings.", null);
+
+        if (await _db.CategoryFields.AnyAsync(f => f.CategoryId == categoryId))
+            return ("Cannot delete a category that still has field definitions. Remove fields first.", null);
+
+        if (await _db.Alerts.AnyAsync(a => a.CategoryId == categoryId))
+            return ("Cannot delete a category referenced by user alerts.", null);
+
+        _db.Categories.Remove(cat);
+        await _db.SaveChangesAsync();
+
+        _logger.LogWarning("GM tools: admin {AdminId} deleted category {CategoryId}", adminUserId, categoryId);
+        return (null, new GmDeleteCategoryResultDto { Id = categoryId, Deleted = true });
     }
 }

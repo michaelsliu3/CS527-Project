@@ -143,3 +143,42 @@ export interface GmDeleteAllAuctionsResult {
 export function gmDeleteAllAuctions() {
   return apiClient.post<GmDeleteAllAuctionsResult>('admin/gm/auctions/delete-all')
 }
+
+export interface GmCreateCategoryPayload {
+  name: string
+  parentId?: number | null
+  stringKey?: string | null
+  sortOrder?: number
+  isSearchHub?: boolean
+  extraSortOptionsJson?: string | null
+}
+
+export interface GmUpdateCategoryPayload {
+  name?: string
+  stringKey?: string | null
+  sortOrder?: number
+  isSearchHub?: boolean
+  extraSortOptionsJson?: string | null
+}
+
+export interface GmCategoryMutationResult {
+  id: number
+  name: string
+}
+
+export interface GmDeleteCategoryResult {
+  id: number
+  deleted: boolean
+}
+
+export function gmCreateCategory(payload: GmCreateCategoryPayload) {
+  return apiClient.post<GmCategoryMutationResult>('admin/gm/categories', payload)
+}
+
+export function gmUpdateCategory(categoryId: number, payload: GmUpdateCategoryPayload) {
+  return apiClient.patch<GmCategoryMutationResult>(`admin/gm/categories/${categoryId}`, payload)
+}
+
+export function gmDeleteCategory(categoryId: number) {
+  return apiClient.delete<GmDeleteCategoryResult>(`admin/gm/categories/${categoryId}`)
+}

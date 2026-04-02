@@ -21,7 +21,7 @@ public class ReportServiceTests
     public async Task GetTotalEarnings_SumSoldItemsOnly()
     {
         await using var db = CreateDbContext();
-        var cat = new Category { Name = "Cars", ParentId = null };
+        var cat = new Category { Name = "Cars", ParentId = null, StringKey = "rpt-cars-1" };
         db.Categories.Add(cat);
         var seller = new User { Username = "s", Email = "s@x.com", PasswordHash = "h", Role = UserRole.EndUser };
         db.Users.Add(seller);
@@ -62,8 +62,8 @@ public class ReportServiceTests
     public async Task GetEarningsByType_GroupsByCategory()
     {
         await using var db = CreateDbContext();
-        var cars = new Category { Name = "Cars", ParentId = null };
-        var bikes = new Category { Name = "Bikes", ParentId = null };
+        var cars = new Category { Name = "Cars", ParentId = null, StringKey = "rpt-cars-2" };
+        var bikes = new Category { Name = "Bikes", ParentId = null, StringKey = "rpt-bikes" };
         db.Categories.AddRange(cars, bikes);
         var seller = new User { Username = "s", Email = "s@x.com", PasswordHash = "h", Role = UserRole.EndUser };
         db.Users.Add(seller);
@@ -87,7 +87,7 @@ public class ReportServiceTests
     public async Task GetBestSellingItems_ReturnsTopNByPriceWithBidCount()
     {
         await using var db = CreateDbContext();
-        var cat = new Category { Name = "Cars", ParentId = null };
+        var cat = new Category { Name = "Cars", ParentId = null, StringKey = "rpt-cars-3" };
         db.Categories.Add(cat);
         var seller = new User { Username = "s", Email = "s@x.com", PasswordHash = "h", Role = UserRole.EndUser };
         db.Users.Add(seller);
@@ -119,7 +119,7 @@ public class ReportServiceTests
     public async Task GetBestBuyers_ReturnsTopNSpendersWithWinCount()
     {
         await using var db = CreateDbContext();
-        var cat = new Category { Name = "Cars", ParentId = null };
+        var cat = new Category { Name = "Cars", ParentId = null, StringKey = "rpt-cars-4" };
         db.Categories.Add(cat);
         var seller = new User { Username = "seller", Email = "s@x.com", PasswordHash = "h", Role = UserRole.EndUser };
         var buyer1 = new User { Username = "buyer1", Email = "b1@x.com", PasswordHash = "h", Role = UserRole.EndUser };

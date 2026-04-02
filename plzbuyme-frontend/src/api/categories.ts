@@ -1,8 +1,19 @@
 import { apiClient } from './client'
 
+export interface CategoryExtraSortOptionDto {
+  value: string
+  label: string
+}
+
 export interface CategoryDto {
   id: number
   name: string
+  stringKey?: string | null
+  /** Display / API ordering; default 0 when omitted (older clients). */
+  sortOrder?: number
+  /** When true, search top bar uses “All {name}” + direct children as tabs. */
+  isSearchHub?: boolean
+  extraSortOptions?: CategoryExtraSortOptionDto[] | null
   parentId: number | null
   children: CategoryDto[]
 }
@@ -21,5 +32,31 @@ export function fetchCategories() {
 
 export function fetchCategoryFields(categoryId: number) {
   return apiClient.get<CategoryFieldDto[]>(`/categories/${categoryId}/fields`)
+}
+
+/** Flat list of every category node (root + descendants), sorted by name for selects. */
+export function flattenCategories(roots: CategoryDto[]): { id: number; name: string }[] {
+  const items: { id: number; name: string }[] = []
+  const walk = (nodes: CategoryDto[]) => {
+    for (const n of nodes) {
+      items.push({ id: n.id, name: n.name })
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(roots)
+  items.sort((a, b) => a.name.localeCompare(b.name))
+  return items
+}
+
+export function categoryIdToNameMap(roots: CategoryDto[]): Map<number, string> {
+  const map = new Map<number, string>()
+  const walk = (nodes: CategoryDto[]) => {
+    for (const n of nodes) {
+      map.set(n.id, n.name)
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(roots)
+  return map
 }
 

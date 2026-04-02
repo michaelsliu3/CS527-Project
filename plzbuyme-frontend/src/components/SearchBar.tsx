@@ -14,8 +14,20 @@ import {
   Wrap,
   WrapItem,
 } from '@chakra-ui/react'
+import type { IconType } from 'react-icons'
 import { HiChevronDown } from 'react-icons/hi'
-import { LuCalendar } from 'react-icons/lu'
+import {
+  LuBattery,
+  LuCalendar,
+  LuCar,
+  LuCarFront,
+  LuChevronRight,
+  LuGauge,
+  LuLayoutGrid,
+  LuSparkles,
+  LuTruck,
+  LuZap,
+} from 'react-icons/lu'
 import { useSearchParams } from 'react-router-dom'
 import { getFieldValues } from '../api/auctions'
 import { dark } from '../theme/colors'
@@ -28,13 +40,6 @@ const SORT_OPTIONS = [
   { value: 'price_asc', label: 'Price: low to high' },
   { value: 'price_desc', label: 'Price: high to low' },
   { value: 'most_bids', label: 'Most bids' },
-]
-
-const CAR_SORT_OPTIONS = [
-  { value: 'year_newest', label: 'Year: newest' },
-  { value: 'year_oldest', label: 'Year: oldest' },
-  { value: 'mileage_low', label: 'Mileage: low to high' },
-  { value: 'mileage_high', label: 'Mileage: high to low' },
 ]
 
 const STATUS_OPTIONS = [
@@ -115,6 +120,59 @@ type FilterSectionKey =
 
 interface SearchBarProps {
   variant?: SearchBarVariant
+}
+
+function compareCategoryOrder(a: CategoryDto, b: CategoryDto): number {
+  const ao = a.sortOrder ?? 0
+  const bo = b.sortOrder ?? 0
+  if (ao !== bo) return ao - bo
+  return a.name.localeCompare(b.name)
+}
+
+function flattenCategoryNodes(roots: CategoryDto[]): CategoryDto[] {
+  const out: CategoryDto[] = []
+  const walk = (nodes: CategoryDto[]) => {
+    for (const n of nodes) {
+      out.push(n)
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(roots)
+  return out
+}
+
+/** True if `categoryId` is the hub root or any of its descendants (by parent chain). */
+function categoryIsUnderHub(
+  flat: CategoryDto[],
+  categoryId: number | '',
+  hubId: number,
+): boolean {
+  if (categoryId === '' || typeof categoryId !== 'number') return false
+  const byId = new Map(flat.map((c) => [c.id, c]))
+  let current: CategoryDto | undefined = byId.get(categoryId)
+  while (current) {
+    if (current.id === hubId) return true
+    if (current.parentId == null) return false
+    current = byId.get(current.parentId)
+  }
+  return false
+}
+
+function categoryTabIcon(categoryName: string): IconType {
+  const key = categoryName.trim().toLowerCase()
+  if (key === 'all cars' || key === 'cars') return LuLayoutGrid
+  if (key.includes('sedan')) return LuCarFront
+  if (key.includes('suv')) return LuTruck
+  if (key.includes('sport')) return LuGauge
+  if (key.includes('electric') || key.includes(' ev') || key === 'ev') return LuBattery
+  if (key.includes('hybrid') || key.includes('plug')) return LuZap
+  if (key.includes('truck')) return LuTruck
+  if (key.includes('van')) return LuTruck
+  if (key.includes('convertible')) return LuSparkles
+  if (key.includes('coupe')) return LuCarFront
+  if (key.includes('hatch')) return LuCarFront
+  if (key.includes('wagon') || key.includes('estate')) return LuCarFront
+  return LuCar
 }
 
 interface DateFilterPickerProps {
@@ -313,28 +371,29 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
         setCategories(data)
 
         const rootCategories = data.filter((c) => c.parentId === null)
-        const carsRoot = rootCategories.find((c) => c.name.toLowerCase() === 'cars')
+        const searchHubRoot = [...rootCategories].sort(compareCategoryOrder).find((c) => c.isSearchHub === true)
+        const flatFromResponse = flattenCategoryNodes(data)
         const existing = searchParams.get('categoryId')
         if (existing) {
           const idNum = Number(existing)
           const root = rootCategories.find((c) => c.id === idNum)
           if (root) {
             setSelectedRootId(root.id)
-            if (carsRoot && root.id === carsRoot.id) {
+            if (searchHubRoot && root.id === searchHubRoot.id) {
               setSelectedCategoryId('')
             } else {
               setSelectedCategoryId(root.id)
             }
           } else {
-            const child = data.find((c) => c.id === idNum)
+            const child = flatFromResponse.find((c) => c.id === idNum)
             if (child) {
               setSelectedCategoryId(child.id)
-              const parent = data.find((c) => c.id === child.parentId)
+              const parent = child.parentId != null ? flatFromResponse.find((c) => c.id === child.parentId) : undefined
               if (parent) setSelectedRootId(parent.id)
             }
           }
-        } else if (carsRoot) {
-          setSelectedRootId(carsRoot.id)
+        } else if (searchHubRoot) {
+          setSelectedRootId(searchHubRoot.id)
           setSelectedCategoryId('')
         }
       } catch {
@@ -350,7 +409,8 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     return () => {
       isMounted = false
     }
-  }, [searchParams])
+    // Use serialized query so a new URLSearchParams instance each render does not refetch in a loop.
+  }, [searchParams.toString()])
 
   useEffect(() => {
     const nextMin = searchParams.get('minPrice')
@@ -383,14 +443,18 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
   }, [searchParams])
 
   const rootCategories = categories.filter((c) => c.parentId === null)
-  const carsRootCategory = rootCategories.find((c) => c.name.toLowerCase() === 'cars')
+  const searchHubRoot = [...rootCategories].sort(compareCategoryOrder).find((c) => c.isSearchHub === true)
+  const flatCategoryNodes = flattenCategoryNodes(categories)
   const topBarCategories =
-    carsRootCategory?.children?.length
+    searchHubRoot?.children?.length
       ? [
-          { id: carsRootCategory.id, name: 'All Cars' },
-          ...carsRootCategory.children.map((child) => ({ id: child.id, name: child.name })),
+          { id: searchHubRoot.id, name: `All ${searchHubRoot.name}` },
+          ...[...searchHubRoot.children].sort(compareCategoryOrder).map((child) => ({
+            id: child.id,
+            name: child.name,
+          })),
         ]
-      : rootCategories.map((root) => ({ id: root.id, name: root.name }))
+      : [...rootCategories].sort(compareCategoryOrder).map((root) => ({ id: root.id, name: root.name }))
 
   const selectedRoot: CategoryDto | undefined =
     typeof selectedRootId === 'number'
@@ -398,7 +462,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
       : undefined
 
   const activeTopCategoryId =
-    typeof selectedCategoryId === 'number' && carsRootCategory
+    typeof selectedCategoryId === 'number' && searchHubRoot
       ? selectedCategoryId
       : typeof selectedRootId === 'number'
         ? selectedRootId
@@ -411,7 +475,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
 
   const handleTopCategorySelect = (categoryId: number) => {
     const next = new URLSearchParams(searchParams)
-    if (carsRootCategory && categoryId === carsRootCategory.id) {
+    if (searchHubRoot && categoryId === searchHubRoot.id) {
       next.delete('categoryId')
     } else {
       next.set('categoryId', String(categoryId))
@@ -419,8 +483,8 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     next.set('page', '1')
     setSearchParams(next)
 
-    if (carsRootCategory && categoryId !== carsRootCategory.id) {
-      setSelectedRootId(carsRootCategory.id)
+    if (searchHubRoot && categoryId !== searchHubRoot.id) {
+      setSelectedRootId(searchHubRoot.id)
       setSelectedCategoryId(categoryId)
     } else {
       setSelectedRootId(categoryId)
@@ -626,7 +690,12 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     setClosingBefore('')
   }
 
-  const allSortOptions = [...SORT_OPTIONS, ...CAR_SORT_OPTIONS]
+  const browsingUnderSearchHub =
+    !!searchHubRoot &&
+    (selectedRootId === searchHubRoot.id ||
+      categoryIsUnderHub(flatCategoryNodes, selectedCategoryId, searchHubRoot.id))
+  const hubExtraSorts = browsingUnderSearchHub ? searchHubRoot?.extraSortOptions ?? [] : []
+  const allSortOptions = [...SORT_OPTIONS, ...hubExtraSorts]
   const showTopBar = variant !== 'filters'
   const showFilters = variant !== 'top'
   const formColumns = variant === 'filters' ? 1 : { base: 1, md: 2, lg: 4 }
@@ -635,95 +704,123 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
   return (
     <Box mb={variant === 'top' ? 3 : 0}>
       {showTopBar && (
-      <Box
-        bg={dark.cardBg}
-        borderWidth="1px"
-        borderColor={dark.borderSubtle}
-        borderRadius="md"
-        mb={showFilters ? 3 : 0}
-        w="full"
-      >
-        <Flex
-          align={{ base: 'stretch', sm: 'center' }}
-          direction={{ base: 'column', sm: 'row' }}
-          gap={{ base: 2, sm: 3 }}
-          px={{ base: 2, md: 4 }}
-          py={3}
+      <Box mb={showFilters ? 3 : 0} w="full" position="relative" overflow="hidden">
+        <Box
+          overflowX="auto"
+          overflowY="hidden"
+          py={4}
+          pl={4}
+          pr={{ base: 10, md: 12 }}
+          css={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(255, 255, 255, 0.2) transparent',
+            WebkitOverflowScrolling: 'touch',
+            '&::-webkit-scrollbar': { height: '5px' },
+            '&::-webkit-scrollbar-thumb': {
+              background: 'rgba(255, 255, 255, 0.15)',
+              borderRadius: '4px',
+            },
+          }}
         >
-          <Text
-            display={{ base: 'none', sm: 'block' }}
-            flexShrink={0}
-            fontSize="xs"
-            fontWeight="semibold"
-            color={dark.muted}
-            textTransform="uppercase"
-            letterSpacing="0.08em"
-            pt={{ sm: 1 }}
+          <Flex
+            as="nav"
+            aria-label="Browse by category"
+            role="tablist"
+            gap={{ base: 5, md: 8 }}
+            align="flex-start"
+            justify="flex-start"
+            w="max-content"
+            minH="76px"
           >
-            Categories
-          </Text>
-          <Box
-            flex="1"
-            minW={0}
-            overflowX="auto"
-            overflowY="hidden"
-            css={{
-              scrollbarWidth: 'thin',
-              scrollbarColor: 'rgba(255, 255, 255, 0.28) transparent',
-              WebkitOverflowScrolling: 'touch',
-            }}
-            sx={{
-              '&::-webkit-scrollbar': { height: '6px' },
-              '&::-webkit-scrollbar-thumb': {
-                background: 'rgba(255, 255, 255, 0.22)',
-                borderRadius: '6px',
-              },
-            }}
-          >
-            <Flex
-              as="nav"
-              aria-label="Browse by category"
-              gap={2}
-              py={0.5}
-              w="max-content"
-            >
-              {topBarCategories.map((category) => {
-                const isActive = activeTopCategoryId === category.id
-                return (
-                  <Button
-                    key={category.id}
-                    size="sm"
+            {topBarCategories.map((category) => {
+              const isActive = activeTopCategoryId === category.id
+              const TabIcon = categoryTabIcon(category.name)
+              return (
+                <Button
+                  key={category.id}
+                  role="tab"
+                  aria-selected={isActive}
+                  variant="ghost"
+                  flexDirection="column"
+                  alignItems="center"
+                  justifyContent="flex-start"
+                  gap={2.5}
+                  flexShrink={0}
+                  w="auto"
+                  minW="72px"
+                  maxW="100px"
+                  h="auto"
+                  minH="68px"
+                  px={2}
+                  py={1}
+                  borderRadius="md"
+                  bg="transparent"
+                  color="inherit"
+                  transition="color 0.2s ease, background 0.2s ease"
+                  title={category.name}
+                  _hover={{
+                    bg: 'whiteAlpha.50',
+                  }}
+                  _focus={{ boxShadow: 'none', outline: 'none' }}
+                  _focusVisible={{
+                    boxShadow: '0 0 0 2px var(--chakra-colors-brand-500)',
+                    outline: 'none',
+                    bg: 'whiteAlpha.50',
+                  }}
+                  onClick={() => handleTopCategorySelect(category.id)}
+                  disabled={categoriesLoading || !!categoriesError}
+                >
+                  <Icon
+                    as={TabIcon}
+                    boxSize={7}
                     flexShrink={0}
-                    variant={isActive ? 'solid' : 'outline'}
-                    colorPalette={isActive ? 'brand' : undefined}
-                    borderRadius="full"
-                    borderWidth={isActive ? 0 : '1px'}
-                    borderColor={dark.borderSubtle}
-                    color="white"
-                    bg={isActive ? undefined : 'transparent'}
-                    px={4}
-                    h="auto"
-                    py={2}
-                    fontWeight={isActive ? 'semibold' : 'medium'}
-                    whiteSpace="nowrap"
-                    _hover={{
-                      bg: isActive ? 'brand.400' : 'whiteAlpha.100',
-                      borderColor: isActive ? undefined : 'whiteAlpha.300',
+                    color={isActive ? 'brand.400' : 'whiteAlpha.400'}
+                    aria-hidden
+                    transition="color 0.2s ease"
+                  />
+                  <Text
+                    as="span"
+                    fontSize="10px"
+                    fontWeight={isActive ? 'bold' : 'medium'}
+                    textTransform="uppercase"
+                    letterSpacing="0.08em"
+                    lineHeight="1.25"
+                    textAlign="center"
+                    color={isActive ? 'white' : 'whiteAlpha.500'}
+                    css={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
                     }}
-                    _focus={{ boxShadow: 'none', outline: 'none' }}
-                    _focusVisible={{
-                      boxShadow: '0 0 0 2px var(--chakra-colors-brand-500)',
-                      outline: 'none',
-                    }}
-                    onClick={() => handleTopCategorySelect(category.id)}
-                    disabled={categoriesLoading || !!categoriesError}
                   >
                     {category.name}
-                  </Button>
-                )
-              })}
-            </Flex>
-          </Box>
+                  </Text>
+                </Button>
+              )
+            })}
+          </Flex>
+        </Box>
+        <Flex
+          aria-hidden
+          position="absolute"
+          right={0}
+          top={0}
+          bottom={0}
+          w={{ base: '48px', md: '56px' }}
+          align="center"
+          justify="center"
+          pointerEvents="none"
+          css={{
+            background: `linear-gradient(to left, ${dark.bg} 52%, transparent)`,
+          }}
+        >
+          <Icon
+            as={LuChevronRight}
+            boxSize={5}
+            color="whiteAlpha.400"
+            opacity={0.9}
+          />
         </Flex>
       </Box>
       )}

@@ -166,6 +166,12 @@ namespace PlzBuyMe.Api.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("ExtraSortOptionsJson")
+                        .HasColumnType("longtext");
+
+                    b.Property<bool>("IsSearchHub")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -174,9 +180,19 @@ namespace PlzBuyMe.Api.Migrations
                     b.Property<int?>("ParentId")
                         .HasColumnType("int");
 
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StringKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ParentId");
+
+                    b.HasIndex("StringKey")
+                        .IsUnique();
 
                     b.ToTable("Categories");
                 });

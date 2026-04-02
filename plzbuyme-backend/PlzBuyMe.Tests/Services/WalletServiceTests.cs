@@ -65,7 +65,7 @@ public class WalletServiceTests
             WalletBalance = 100m
         };
         db.Users.Add(user);
-        var cat = new Category { Name = "Cars", ParentId = null };
+        var cat = new Category { Name = "Cars", ParentId = null, StringKey = "wlt-cars" };
         db.Categories.Add(cat);
         await db.SaveChangesAsync();
         var item = new Item

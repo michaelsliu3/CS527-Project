@@ -520,15 +520,21 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 **Layer:** Backend + Frontend  
 **Branch:** `PBM-29/multi-tag-car-subtypes`  
-**PR Title:** `[PBM-29] support multiple car subtype tags per auction item`
+**PR Title:** `[PBM-29] DB-driven category metadata, search hub, GM category tools, and SearchBar polish`
 
-- Add support for assigning and rendering multiple car subtype tags on a single listing (for example, a car can be both `Electric` and `Sports Car`).
-- Backend: extend item/category metadata and API DTOs so car subtype tags are modeled as a collection (not a single value), persisted, and returned in list/detail responses.
-- Backend: update search/filter behavior so subtype filtering can match multi-tag items deterministically (define AND/OR behavior explicitly in endpoint contract and docs).
-- Frontend: update create/edit/list/detail surfaces to display all relevant subtype tags with consistent visual treatment and safe fallback when no tags exist.
-- Frontend: keep existing subtype styling patterns (chips/badges/gradients) while handling multiple tags without overlap/truncation regressions across responsive breakpoints.
-- Frontend: redesign the browse **categories top bar** (`SearchBar` `variant="top"` on auction list): improve visual hierarchy, spacing, active/inactive contrast, and small-screen behavior (avoid cramped equal-width segmented buttons; scroll or wrap as needed).
-- **Tests:** add/extend backend tests for multi-tag persistence/query filtering and frontend tests for multi-tag rendering, layout wrapping, and filter behavior.
+**Shipped in this PR (category platform + UX):**
+
+- **Schema & API:** `categories` gains `string_key` (unique, nullable), `sort_order`, `is_search_hub`, `extra_sort_options_json`. `GET /api/categories` returns the full tree with parsed `extraSortOptions`, ordered by `sortOrder` then name. Migrations: `20260402120000_CategorySearchMetadata`, `20260402140000_RenameCategorySlugToStringKey` (Pomelo-safe raw SQL rename `Slug` → `StringKey` on upgrade paths).
+- **Seed:** Cars root is a search hub with default extra sort JSON; subcategories carry string keys aligned with GT7 inference (`sedans`, `suvs`, `electric`, etc.).
+- **SearchBar:** Hub tabs and extra sort options come from API (`isSearchHub`, `extraSortOptions`), not hardcoded `CAR_CATEGORIES`. Flattened tree for URL `categoryId` sync; effect dependencies avoid refetch loops. Top bar polish (tabs, spacing, behavior) retained/improved.
+- **Create Auction / Alerts:** Category ordering uses `sortOrder`; alerts page loads category tree from API (removed `constants/categories.ts`).
+- **GM tools:** Admin-only create/update/delete categories (`POST/PATCH/DELETE api/admin/gm/categories`); panel **Categories** tab with validation/error surfacing; manifest category mode documents string key vs name; `Gt7ManifestAuctionBuilder` uses `InferCategoryStringKey` and `StringKey*` constants.
+- **Reliability:** `Program.cs` rethrows migration/seed failures in **Development** so schema drift does not leave a running API with broken `/api/categories`. GM category load errors show HTTP detail in toasts.
+- **Tests:** `SeedDataTests`, `GmToolsServiceTests`, `Gt7ManifestAuctionBuilderTests`, `SearchBar.test.tsx`, `AlertsPage.test.tsx`, and related fixture updates.
+
+**Original ticket scope not yet implemented (follow-up work):**
+
+- Per-**item** multiple subtype tags (collection on `Item`, list/detail DTOs, browse filters with explicit AND/OR semantics, multi-chip UI on cards). The current work strengthens the **category tree** and search hub so multiple leaf types (e.g. Electric, Sports Cars) remain first-class **categories** rather than a single multi-value field on items.
 
 ---
 

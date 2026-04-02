@@ -24,21 +24,43 @@ public static class SeedData
         db.SaveChanges();
 
         // ── Category hierarchy: Cars → Sedans, SUVs, Trucks, Sports Cars, Electric ──
-        var cars = new Category { Name = "Cars", ParentId = null };
+        const string carHubExtraSortJson =
+            """[{"value":"year_newest","label":"Year: newest"},{"value":"year_oldest","label":"Year: oldest"},{"value":"mileage_low","label":"Mileage: low to high"},{"value":"mileage_high","label":"Mileage: high to low"}]""";
+        var cars = new Category
+        {
+            Name = "Cars",
+            ParentId = null,
+            StringKey = "cars",
+            SortOrder = 0,
+            IsSearchHub = true,
+            ExtraSortOptionsJson = carHubExtraSortJson,
+        };
         db.Categories.Add(cars);
         db.SaveChanges();
 
-        var sedans = new Category { Name = "Sedans", ParentId = cars.Id };
-        var suvs = new Category { Name = "SUVs", ParentId = cars.Id };
-        var trucks = new Category { Name = "Trucks", ParentId = cars.Id };
-        var sportsCars = new Category { Name = "Sports Cars", ParentId = cars.Id };
-        var electric = new Category { Name = "Electric", ParentId = cars.Id };
+        var sedans = new Category { Name = "Sedans", ParentId = cars.Id, StringKey = "sedans", SortOrder = 10 };
+        var suvs = new Category { Name = "SUVs", ParentId = cars.Id, StringKey = "suvs", SortOrder = 20 };
+        var trucks = new Category { Name = "Trucks", ParentId = cars.Id, StringKey = "trucks", SortOrder = 30 };
+        var sportsCars = new Category { Name = "Sports Cars", ParentId = cars.Id, StringKey = "sports-cars", SortOrder = 40 };
+        var electric = new Category { Name = "Electric", ParentId = cars.Id, StringKey = "electric", SortOrder = 50 };
         db.Categories.AddRange(sedans, suvs, trucks, sportsCars, electric);
         db.SaveChanges();
 
         // Third level under Sedans so hierarchy has 3+ levels (Cars → Sedans → Compact/Full-Size)
-        var compactSedans = new Category { Name = "Compact Sedans", ParentId = sedans.Id };
-        var fullSizeSedans = new Category { Name = "Full-Size Sedans", ParentId = sedans.Id };
+        var compactSedans = new Category
+        {
+            Name = "Compact Sedans",
+            ParentId = sedans.Id,
+            StringKey = "compact-sedans",
+            SortOrder = 60,
+        };
+        var fullSizeSedans = new Category
+        {
+            Name = "Full-Size Sedans",
+            ParentId = sedans.Id,
+            StringKey = "full-size-sedans",
+            SortOrder = 70,
+        };
         db.Categories.AddRange(compactSedans, fullSizeSedans);
         db.SaveChanges();
 

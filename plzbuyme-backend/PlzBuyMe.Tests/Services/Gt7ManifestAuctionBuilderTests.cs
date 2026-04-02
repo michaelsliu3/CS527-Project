@@ -8,10 +8,10 @@ namespace PlzBuyMe.Tests.Services;
 public class Gt7ManifestAuctionBuilderTests
 {
     [Fact]
-    public void InferCategoryName_Tesla_ReturnsElectric()
+    public void InferCategoryStringKey_Tesla_ReturnsElectricStringKey()
     {
         var asset = new Gt7ManifestAsset { Title = "Tesla Model 3", Make = "Tesla", Model = "Model 3" };
-        Gt7ManifestAuctionBuilder.InferCategoryName(asset).Should().Be(Gt7ManifestAuctionBuilder.CategoryElectric);
+        Gt7ManifestAuctionBuilder.InferCategoryStringKey(asset).Should().Be(Gt7ManifestAuctionBuilder.StringKeyElectric);
     }
 
     [Fact]

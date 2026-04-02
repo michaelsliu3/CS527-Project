@@ -18,7 +18,11 @@ import { showErrorToast, showSuccessToast } from '../components/ui/toaster'
 import { useForm, Controller } from 'react-hook-form'
 import { HiOutlinePlus, HiOutlineTrash } from 'react-icons/hi'
 import { listAlerts, createAlert, deleteAlert, type AlertResponse, type CreateAlertDto } from '../api/alerts'
-import { CAR_CATEGORIES } from '../constants/categories'
+import {
+  fetchCategories,
+  flattenCategories,
+  categoryIdToNameMap,
+} from '../api/categories'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
 import { APP_PAGE_PX } from '../theme/layout'
@@ -33,6 +37,8 @@ export function AlertsPage() {
   const [alerts, setAlerts] = useState<AlertResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [categoryOptions, setCategoryOptions] = useState<{ id: number; name: string }[]>([])
+  const [categoryNameById, setCategoryNameById] = useState<Map<number, string>>(() => new Map())
   const createDialog = useDisclosure()
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -55,6 +61,26 @@ export function AlertsPage() {
 
   useEffect(() => {
     fetchAlerts()
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchCategories()
+      .then((res) => {
+        if (cancelled) return
+        const roots = res.data ?? []
+        setCategoryOptions(flattenCategories(roots))
+        setCategoryNameById(categoryIdToNameMap(roots))
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCategoryOptions([])
+          setCategoryNameById(new Map())
+        }
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const onSubmitCreate = async (data: CreateAlertFormValues) => {
@@ -106,7 +132,7 @@ export function AlertsPage() {
 
   const categoryName = (categoryId: number | null) => {
     if (categoryId == null) return 'Any category'
-    return CAR_CATEGORIES.find((c) => c.id === categoryId)?.name ?? `Category ${categoryId}`
+    return categoryNameById.get(categoryId) ?? `Category ${categoryId}`
   }
 
   return (
@@ -219,7 +245,7 @@ export function AlertsPage() {
                             color="white"
                           >
                             <option value="">Any category</option>
-                            {CAR_CATEGORIES.map((c) => (
+                            {categoryOptions.map((c) => (
                               <option key={c.id} value={String(c.id)}>
                                 {c.name}
                               </option>

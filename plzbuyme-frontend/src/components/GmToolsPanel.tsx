@@ -1,12 +1,16 @@
-import { useState } from 'react'
-import { Box, Button, Checkbox, Flex, Input, Tabs, Text } from '@chakra-ui/react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Box, Button, Checkbox, Flex, Input, Tabs, Text, Textarea } from '@chakra-ui/react'
 import { isAxiosError } from 'axios'
 import { apiClient } from '../api/client'
+import { fetchCategories, type CategoryDto } from '../api/categories'
 import {
   bulkGmUsers,
   gmBulkCloseActiveAuctions,
+  gmCreateCategory,
   gmDeleteAllAuctions,
+  gmDeleteCategory,
   gmRunCloseSweep,
+  gmUpdateCategory,
   gmWalletTopUp,
   seedGmAuctionsFromManifest,
   seedGmQuestions,
@@ -32,6 +36,37 @@ function parseUserIds(raw: string): number[] {
     .filter(Boolean)
     .map((s) => Number.parseInt(s, 10))
     .filter((n) => Number.isFinite(n))
+}
+
+function flattenCategoryDtos(roots: CategoryDto[]): CategoryDto[] {
+  const out: CategoryDto[] = []
+  const walk = (nodes: CategoryDto[]) => {
+    for (const n of nodes) {
+      out.push(n)
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(roots)
+  return out.sort((a, b) => a.id - b.id)
+}
+
+function formatCategoriesLoadError(err: unknown): string {
+  if (isAxiosError(err)) {
+    const d = err.response?.data
+    if (typeof d === 'string' && d.trim()) return d.trim().slice(0, 280)
+    if (d && typeof d === 'object') {
+      const title = (d as { title?: unknown }).title
+      const detail = (d as { detail?: unknown }).detail
+      if (typeof title === 'string' && title.trim()) return title.trim().slice(0, 280)
+      if (typeof detail === 'string' && detail.trim()) return detail.trim().slice(0, 280)
+    }
+    const st = err.response?.status
+    if (st === 401) return 'Not signed in or session expired. Log in again.'
+    if (st)
+      return `Could not load categories (HTTP ${st}). Check the API is running and database migrations are applied.`
+  }
+  if (err instanceof Error && err.message) return err.message.slice(0, 280)
+  return 'Could not load categories.'
 }
 
 export function GmToolsPanel() {
@@ -63,6 +98,56 @@ export function GmToolsPanel() {
 
   const [nUser, setNUser] = useState('2')
   const [nCount, setNCount] = useState('5')
+
+  const [categoryTree, setCategoryTree] = useState<CategoryDto[]>([])
+  const [categoriesLoading, setCategoriesLoading] = useState(false)
+
+  const [cName, setCName] = useState('')
+  const [cParentId, setCParentId] = useState('')
+  const [cStringKey, setCStringKey] = useState('')
+  const [cSort, setCSort] = useState('0')
+  const [cHub, setCHub] = useState(false)
+  const [cExtraJson, setCExtraJson] = useState('')
+
+  const [uCatId, setUCatId] = useState('')
+  const [uName, setUName] = useState('')
+  const [uStringKey, setUStringKey] = useState('')
+  const [uSort, setUSort] = useState('0')
+  const [uHub, setUHub] = useState(false)
+  const [uExtraJson, setUExtraJson] = useState('')
+
+  const [dCatId, setDCatId] = useState('')
+
+  const flatCategories = useMemo(() => flattenCategoryDtos(categoryTree), [categoryTree])
+
+  const loadGmCategories = useCallback(async () => {
+    setCategoriesLoading(true)
+    try {
+      const res = await fetchCategories()
+      if (!Array.isArray(res.data)) {
+        showErrorToast('GM tools', 'Categories response was not a list. Check API version.')
+        return
+      }
+      setCategoryTree(res.data)
+    } catch (err) {
+      showErrorToast('GM tools', formatCategoriesLoadError(err))
+    } finally {
+      setCategoriesLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadGmCategories()
+  }, [loadGmCategories])
+
+  const nativeSelectSx = {
+    width: '100%',
+    padding: '8px 12px',
+    background: dark.inputBg,
+    border: `1px solid ${dark.borderSubtle}`,
+    borderRadius: '6px',
+    color: 'white',
+  } as const
 
   const run = async (key: string, fn: () => Promise<void>) => {
     setBusy(key)
@@ -337,6 +422,122 @@ export function GmToolsPanel() {
       }
     })
 
+  const applySelectedCategoryToUpdateForm = (idStr: string) => {
+    setUCatId(idStr)
+    if (!idStr) {
+      setUName('')
+      setUStringKey('')
+      setUSort('0')
+      setUHub(false)
+      setUExtraJson('')
+      return
+    }
+    const c = flatCategories.find((x) => x.id === Number(idStr))
+    if (!c) return
+    setUName(c.name)
+    setUStringKey(c.stringKey ?? '')
+    setUSort(String(c.sortOrder ?? 0))
+    setUHub(c.isSearchHub === true)
+    setUExtraJson(
+      c.extraSortOptions?.length ? JSON.stringify(c.extraSortOptions) : '',
+    )
+  }
+
+  const onCreateCategory = () =>
+    run('catCreate', async () => {
+      if (!cName.trim()) {
+        showErrorToast('GM tools', 'Name is required.')
+        return
+      }
+      try {
+        const sortOrder = Number.parseInt(cSort, 10)
+        await gmCreateCategory({
+          name: cName.trim(),
+          parentId: cParentId === '' ? null : Number.parseInt(cParentId, 10),
+          stringKey: cStringKey.trim() || null,
+          sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
+          isSearchHub: cHub,
+          extraSortOptionsJson: cExtraJson.trim() || null,
+        })
+        showSuccessToast('Category created', cName.trim())
+        setCName('')
+        setCParentId('')
+        setCStringKey('')
+        setCSort('0')
+        setCHub(false)
+        setCExtraJson('')
+        await loadGmCategories()
+        notifyAuctionListRefresh()
+      } catch (err) {
+        if (isAxiosError(err) && err.response?.data) {
+          const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
+          showErrorToast('GM tools', msg)
+        } else {
+          showErrorToast('GM tools', 'Request failed.')
+        }
+      }
+    })
+
+  const onUpdateCategorySave = () =>
+    run('catUpdate', async () => {
+      const id = Number.parseInt(uCatId, 10)
+      if (!Number.isFinite(id)) {
+        showErrorToast('GM tools', 'Select a category to update.')
+        return
+      }
+      try {
+        await gmUpdateCategory(id, {
+          name: uName.trim(),
+          stringKey: uStringKey.trim(),
+          sortOrder: Number.parseInt(uSort, 10) || 0,
+          isSearchHub: uHub,
+          extraSortOptionsJson: uExtraJson.trim(),
+        })
+        showSuccessToast('Category updated', `#${id} ${uName.trim()}`)
+        await loadGmCategories()
+        notifyAuctionListRefresh()
+      } catch (err) {
+        if (isAxiosError(err) && err.response?.data) {
+          const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
+          showErrorToast('GM tools', msg)
+        } else {
+          showErrorToast('GM tools', 'Request failed.')
+        }
+      }
+    })
+
+  const onDeleteCategoryRow = () =>
+    run('catDelete', async () => {
+      const id = Number.parseInt(dCatId, 10)
+      if (!Number.isFinite(id)) {
+        showErrorToast('GM tools', 'Select a category to delete.')
+        return
+      }
+      const c = flatCategories.find((x) => x.id === id)
+      if (
+        !window.confirm(
+          `Delete category #${id} (${c?.name ?? 'unknown'})? Only succeeds if it has no child categories, listings, field definitions, or alerts.`,
+        )
+      ) {
+        return
+      }
+      try {
+        await gmDeleteCategory(id)
+        showSuccessToast('Category deleted', `#${id}`)
+        setDCatId('')
+        if (uCatId === String(id)) applySelectedCategoryToUpdateForm('')
+        await loadGmCategories()
+        notifyAuctionListRefresh()
+      } catch (err) {
+        if (isAxiosError(err) && err.response?.data) {
+          const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
+          showErrorToast('GM tools', msg)
+        } else {
+          showErrorToast('GM tools', 'Request failed.')
+        }
+      }
+    })
+
   const field = (
     label: string,
     value: string,
@@ -400,6 +601,9 @@ export function GmToolsPanel() {
             </Tabs.Trigger>
             <Tabs.Trigger value="seed" color="white" flexShrink={0}>
               Seed auctions
+            </Tabs.Trigger>
+            <Tabs.Trigger value="categories" color="white" flexShrink={0}>
+              Categories
             </Tabs.Trigger>
             <Tabs.Trigger value="users" color="white" flexShrink={0}>
               Users
@@ -538,7 +742,7 @@ export function GmToolsPanel() {
               <Flex direction="column" gap={3}>
                 {field('Count', seedCount, setSeedCount, 'max 100')}
                 {field('Title keyword filter (optional)', manifestKeyword, setManifestKeyword)}
-                {field('Category mode', manifestCategoryMode, setManifestCategoryMode, 'auto or Sedans, SUVs, …')}
+                {field('Category mode', manifestCategoryMode, setManifestCategoryMode, 'auto or string key (sedans) or display name')}
                 <Text fontSize="xs" color={dark.muted}>
                   Thumbnails are served from your media CDN (<Text as="span" fontFamily="mono">MediaStorage:ServiceBaseUrl</Text>
                   ), which mirrors car images on first request. Run <Text as="span" fontFamily="mono">plzbuyme-cdn</Text> beside
@@ -574,6 +778,222 @@ export function GmToolsPanel() {
                 </Button>
               </Flex>
             </>
+          </Tabs.Content>
+
+          <Tabs.Content value="categories">
+            <Flex direction="column" gap={6}>
+              <Box>
+                <Text fontWeight="semibold" color="white" mb={2}>
+                  Category catalog
+                </Text>
+                <Text fontSize="sm" color={dark.label} mb={2}>
+                  Uses the same tree as browse/search. After changes, refresh the app or reopen modals to pick up new
+                  data. String keys must be unique when set; use them for GT7 &quot;auto&quot; routing and search hub metadata.
+                </Text>
+                <Flex gap={2} mb={2} flexWrap="wrap" align="center">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    borderColor={dark.borderSubtle}
+                    color="white"
+                    loading={categoriesLoading}
+                    onClick={() => void loadGmCategories()}
+                  >
+                    Reload list
+                  </Button>
+                  <Text fontSize="xs" color={dark.muted}>
+                    {flatCategories.length} categories loaded
+                  </Text>
+                </Flex>
+                <Box
+                  maxH="140px"
+                  overflowY="auto"
+                  borderWidth="1px"
+                  borderColor={dark.borderSubtle}
+                  borderRadius="md"
+                  p={2}
+                  fontSize="xs"
+                  fontFamily="mono"
+                  color={dark.muted}
+                >
+                  {flatCategories.length === 0 ? (
+                    <Text color={dark.muted}>No categories (or still loading).</Text>
+                  ) : (
+                    flatCategories.map((c) => (
+                      <Text key={c.id} mb={0.5}>
+                        #{c.id} {c.name}
+                        {c.stringKey ? ` [${c.stringKey}]` : ''} parent={c.parentId ?? '—'} sort={c.sortOrder ?? 0}
+                        {c.isSearchHub ? ' hub' : ''}
+                      </Text>
+                    ))
+                  )}
+                </Box>
+              </Box>
+
+              <Box>
+                <Text fontWeight="semibold" color="white" mb={2}>
+                  Create category
+                </Text>
+                <Flex direction="column" gap={2} maxW="md">
+                  {field('Name', cName, setCName, 'required')}
+                  <Box>
+                    <Text mb={1} color={dark.label} fontSize="xs">
+                      Parent
+                    </Text>
+                    <select
+                      style={nativeSelectSx}
+                      value={cParentId}
+                      onChange={(e) => setCParentId(e.target.value)}
+                    >
+                      <option value="">Root (no parent)</option>
+                      {flatCategories.map((c) => (
+                        <option key={c.id} value={String(c.id)}>
+                          #{c.id} {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Box>
+                  {field('String key (optional, unique)', cStringKey, setCStringKey, 'e.g. boats')}
+                  {field('Sort order', cSort, setCSort, '0')}
+                  <Checkbox.Root checked={cHub} onCheckedChange={(d) => setCHub(!!d.checked)}>
+                    <Checkbox.HiddenInput />
+                    <Checkbox.Control />
+                    <Checkbox.Label color={dark.label}>Search hub (All + child tabs, extra sort options)</Checkbox.Label>
+                  </Checkbox.Root>
+                  <Box>
+                    <Text mb={1} color={dark.label} fontSize="xs">
+                      Extra sort options JSON (optional)
+                    </Text>
+                    <Textarea
+                      value={cExtraJson}
+                      onChange={(e) => setCExtraJson(e.target.value)}
+                      placeholder='[{"value":"year_newest","label":"Year: newest"}]'
+                      rows={3}
+                      size="sm"
+                      bg={dark.inputBg}
+                      borderColor={dark.borderSubtle}
+                      color="white"
+                      fontFamily="mono"
+                      fontSize="xs"
+                      _placeholder={{ color: dark.placeholder }}
+                    />
+                  </Box>
+                  <Button
+                    bg="brand.500"
+                    color="white"
+                    _hover={{ bg: 'brand.400' }}
+                    loading={busy === 'catCreate'}
+                    onClick={onCreateCategory}
+                    alignSelf="flex-start"
+                  >
+                    Create
+                  </Button>
+                </Flex>
+              </Box>
+
+              <Box>
+                <Text fontWeight="semibold" color="white" mb={2}>
+                  Update category
+                </Text>
+                <Text fontSize="sm" color={dark.label} mb={2}>
+                  Pick a row to load fields. Empty string key clears the key. Empty extra JSON clears hub sort options.
+                </Text>
+                <Flex direction="column" gap={2} maxW="md">
+                  <Box>
+                    <Text mb={1} color={dark.label} fontSize="xs">
+                      Category
+                    </Text>
+                    <select
+                      style={nativeSelectSx}
+                      value={uCatId}
+                      onChange={(e) => applySelectedCategoryToUpdateForm(e.target.value)}
+                    >
+                      <option value="">Select…</option>
+                      {flatCategories.map((c) => (
+                        <option key={c.id} value={String(c.id)}>
+                          #{c.id} {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Box>
+                  {field('Name', uName, setUName)}
+                  {field('String key', uStringKey, setUStringKey, 'empty to clear')}
+                  {field('Sort order', uSort, setUSort)}
+                  <Checkbox.Root checked={uHub} onCheckedChange={(d) => setUHub(!!d.checked)}>
+                    <Checkbox.HiddenInput />
+                    <Checkbox.Control />
+                    <Checkbox.Label color={dark.label}>Search hub</Checkbox.Label>
+                  </Checkbox.Root>
+                  <Box>
+                    <Text mb={1} color={dark.label} fontSize="xs">
+                      Extra sort options JSON
+                    </Text>
+                    <Textarea
+                      value={uExtraJson}
+                      onChange={(e) => setUExtraJson(e.target.value)}
+                      rows={3}
+                      size="sm"
+                      bg={dark.inputBg}
+                      borderColor={dark.borderSubtle}
+                      color="white"
+                      fontFamily="mono"
+                      fontSize="xs"
+                      _placeholder={{ color: dark.placeholder }}
+                    />
+                  </Box>
+                  <Button
+                    variant="outline"
+                    borderColor={dark.borderSubtle}
+                    color="white"
+                    _hover={{ bg: 'whiteAlpha.100' }}
+                    loading={busy === 'catUpdate'}
+                    onClick={onUpdateCategorySave}
+                    alignSelf="flex-start"
+                  >
+                    Save changes
+                  </Button>
+                </Flex>
+              </Box>
+
+              <Box>
+                <Text fontWeight="semibold" color="white" mb={2}>
+                  Delete category
+                </Text>
+                <Text fontSize="sm" color={dark.label} mb={2}>
+                  Safe only for unused categories (API enforces no children, listings, fields, or alerts).
+                </Text>
+                <Flex direction="column" gap={2} maxW="md">
+                  <Box>
+                    <Text mb={1} color={dark.label} fontSize="xs">
+                      Category
+                    </Text>
+                    <select
+                      style={nativeSelectSx}
+                      value={dCatId}
+                      onChange={(e) => setDCatId(e.target.value)}
+                    >
+                      <option value="">Select…</option>
+                      {flatCategories.map((c) => (
+                        <option key={c.id} value={String(c.id)}>
+                          #{c.id} {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Box>
+                  <Button
+                    variant="outline"
+                    borderColor="red.400"
+                    color="red.200"
+                    _hover={{ bg: 'whiteAlpha.100' }}
+                    loading={busy === 'catDelete'}
+                    onClick={onDeleteCategoryRow}
+                    alignSelf="flex-start"
+                  >
+                    Delete
+                  </Button>
+                </Flex>
+              </Box>
+            </Flex>
           </Tabs.Content>
 
           <Tabs.Content value="users">

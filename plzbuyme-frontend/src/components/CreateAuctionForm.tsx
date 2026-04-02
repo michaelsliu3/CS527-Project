@@ -868,7 +868,12 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
     }
   }, [categoryId])
 
-  const rootCategories = categories.filter((c) => c.parentId === null)
+  const rootCategories = categories
+    .filter((c) => c.parentId === null)
+    .sort(
+      (a, b) =>
+        (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name),
+    )
 
   const selectedRoot: CategoryDto | undefined =
     typeof selectedRootId === 'number'
@@ -1213,11 +1218,16 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
               }
             >
               <option value="">Select subcategory</option>
-              {selectedRoot?.children?.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
+              {[...(selectedRoot?.children ?? [])]
+                .sort(
+                  (a, b) =>
+                    (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.name.localeCompare(b.name),
+                )
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
             </select>
             {!categoriesLoading && selectedRootId === '' && (
               <Box

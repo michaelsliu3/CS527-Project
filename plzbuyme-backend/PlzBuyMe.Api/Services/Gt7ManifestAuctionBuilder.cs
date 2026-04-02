@@ -11,11 +11,11 @@ public static class Gt7ManifestAuctionBuilder
     private static readonly Regex FullYearRegex = new(@"\b(19\d{2}|20\d{2})\b", RegexOptions.Compiled);
     private static readonly Regex ManifestCatalogExternalIdRegex = new(@"^\d{3,8}$", RegexOptions.Compiled);
 
-    public const string CategorySedans = "Sedans";
-    public const string CategorySuvs = "SUVs";
-    public const string CategoryTrucks = "Trucks";
-    public const string CategorySportsCars = "Sports Cars";
-    public const string CategoryElectric = "Electric";
+    public const string StringKeySedans = "sedans";
+    public const string StringKeySuvs = "suvs";
+    public const string StringKeyTrucks = "trucks";
+    public const string StringKeySportsCars = "sports-cars";
+    public const string StringKeyElectric = "electric";
 
     public static List<Gt7ManifestAsset> SelectAssets(IReadOnlyList<Gt7ManifestAsset> all, int count, string? titleKeyword)
     {
@@ -48,7 +48,8 @@ public static class Gt7ManifestAuctionBuilder
         return DateTime.UtcNow.Year;
     }
 
-    public static string InferCategoryName(Gt7ManifestAsset asset)
+    /// <summary>Resolves a <see cref="Category.StringKey"/> for manifest import (matches seeded categories).</summary>
+    public static string InferCategoryStringKey(Gt7ManifestAsset asset)
     {
         var text = $"{asset.Title ?? ""} {asset.Make ?? ""} {asset.Model ?? ""}".ToLowerInvariant();
 
@@ -58,14 +59,14 @@ public static class Gt7ManifestAuctionBuilder
             "model 3", "model s", "model x", "model y"
         };
         if (electricKeywords.Any(k => text.Contains(k)))
-            return CategoryElectric;
+            return StringKeyElectric;
 
         var truckKeywords = new[]
         {
             "truck", "pickup", "f-150", "silverado", "sierra", "ram", "tacoma", "tundra", "hilux", "r1t"
         };
         if (truckKeywords.Any(k => text.Contains(k)))
-            return CategoryTrucks;
+            return StringKeyTrucks;
 
         var suvKeywords = new[]
         {
@@ -73,7 +74,7 @@ public static class Gt7ManifestAuctionBuilder
             "forester", "outback", "x5", "q5", "glc"
         };
         if (suvKeywords.Any(k => text.Contains(k)))
-            return CategorySuvs;
+            return StringKeySuvs;
 
         var sportsKeywords = new[]
         {
@@ -81,9 +82,9 @@ public static class Gt7ManifestAuctionBuilder
             "porsche", "nsx", "viper", "amg gt", "zonda", "skyline", "rx-7", "mx-5", "miata"
         };
         if (sportsKeywords.Any(k => text.Contains(k)))
-            return CategorySportsCars;
+            return StringKeySportsCars;
 
-        return CategorySedans;
+        return StringKeySedans;
     }
 
     /// <summary>

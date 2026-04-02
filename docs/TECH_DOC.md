@@ -237,11 +237,15 @@ CS527-Project/
 
 #### `categories`
 
-| Column          | Type              | Constraints                       |
-|-----------------|-------------------|-----------------------------------|
-| `id`            | INT               | PK, AUTO_INCREMENT                |
-| `name`          | VARCHAR(64)       | NOT NULL                          |
-| `parent_id`     | INT               | FK → categories.id, NULLABLE      |
+| Column                    | Type              | Constraints                       |
+|---------------------------|-------------------|-----------------------------------|
+| `id`                      | INT               | PK, AUTO_INCREMENT                |
+| `name`                    | VARCHAR(64)       | NOT NULL                          |
+| `parent_id`               | INT               | FK → categories.id, NULLABLE      |
+| `string_key`              | VARCHAR(64)       | NULLABLE, UNIQUE when set — stable key for integrations (e.g. GT7 manifest category mode, search routing) |
+| `sort_order`              | INT               | NOT NULL, DEFAULT 0 — display/API ordering within siblings |
+| `is_search_hub`           | BOOLEAN           | NOT NULL, DEFAULT FALSE — when true, auction search top bar treats this root as a **hub**: “All {name}” tab plus one tab per direct child |
+| `extra_sort_options_json` | LONGTEXT          | NULLABLE — JSON array of `{ "value", "label" }` for extra sort dropdown options scoped under that hub |
 
 Self-referencing foreign key enables the hierarchical subcategory tree.
 
@@ -605,7 +609,7 @@ End-user policy only (`[Authorize(Policy = "EndUser")]`). Used for **demo / deve
 
 | Method | Route                               | Description                                              | Access |
 |--------|--------------------------------------|----------------------------------------------------------|--------|
-| GET    | `api/categories`                    | List category hierarchy (root categories with children)  | Public |
+| GET    | `api/categories`                    | List category hierarchy (roots with nested `children`). Each node includes `id`, `name`, `parentId`, `stringKey`, `sortOrder`, `isSearchHub`, `extraSortOptions` (parsed from `extra_sort_options_json`), ordered by `sortOrder` then name | Public |
 | GET    | `api/categories/{id}/fields`        | List dynamic fields for the given category/subcategory   | Public |
 
 ### Alerts — `api/alerts`
@@ -697,10 +701,15 @@ These endpoints are **admin-only** (`AdminOnly` policy). They exist for **demos,
 | POST | `api/admin/gm/auctions/close-active` | Body `{ "mode": "natural" \| "closed" }`: end every **active** listing in one batch (natural = reserve rules; closed = no sale). Max 500 active per request | Admin |
 | POST | `api/admin/gm/auctions/run-close-sweep` | Run the same **expired** close pass as the background job (active + `close_datetime` in the past) | Admin |
 | POST | `api/admin/gm/auctions/delete-all` | **Destructive (QA/demo reset):** deletes every `Item` and related bids, auto-bids, bid holds, and notifications tied to an item id. Uses a transaction and bulk `ExecuteDelete` on relational providers; in-memory tests use explicit removes. **Do not expose to untrusted production admins.** | Admin |
+| POST | `api/admin/gm/categories` | Create category: `name`, optional `parentId`, optional `stringKey` (unique, max 64), `sortOrder`, `isSearchHub`, `extraSortOptionsJson` | Admin |
+| PATCH | `api/admin/gm/categories/{id}` | Partial update (same fields as create where applicable). Empty `stringKey` clears the key | Admin |
+| DELETE | `api/admin/gm/categories/{id}` | Delete category if it has no children, items, fields, or alerts | Admin |
 
 **Audit:** each successful GM action is logged at **Warning** level with the admin user id and counts affected (Serilog).
 
-**Frontend:** “GM tools” opens from a **right-edge tab** (admins on any page); **slides in from the right** as a full-height panel with backdrop dismiss and error toasts. The **Seed auctions** tab combines **random/synthetic** and **GT7 manifest** sources behind one form. **Delete all auctions** is available in the panel for full environment reset alongside other GM actions. Legacy `/admin/gm` redirects to `/admin`.
+**Frontend:** “GM tools” opens from a **right-edge tab** (admins on any page); **slides in from the right** as a full-height panel with backdrop dismiss and error toasts. The **Seed auctions** tab combines **random/synthetic** and **GT7 manifest** sources behind one form. **Categories** tab: reload tree from `GET /api/categories`, create/update/delete via GM category endpoints (string keys, hub flag, extra sort JSON). **Delete all auctions** is available in the panel for full environment reset alongside other GM actions. Legacy `/admin/gm` redirects to `/admin`.
+
+**GT7 manifest seeding:** category mode `auto` infers a target subcategory `string_key` from manifest text; manual mode accepts a category `string_key` or display `name` (must resolve to a category that has `category_fields`).
 
 #### Admin auction edit — `api/admin/auctions`
 
@@ -1196,8 +1205,8 @@ node plzbuyme-backend/scripts/create-auctions-temp.mjs
 
 Supported behavior:
 
-- `AUCTION_SEED_CATEGORY=auto` infers `Sedans`/`SUVs`/`Trucks`/`Sports Cars`/`Electric` from manifest vehicle keywords.
-- Manual category override still works by setting `AUCTION_SEED_CATEGORY` to a specific category name.
+- `AUCTION_SEED_CATEGORY=auto` infers a leaf category from manifest text; resolution matches seeded `categories.string_key` values (e.g. `sedans`, `electric`) where those rows exist.
+- Manual override: set `AUCTION_SEED_CATEGORY` to a category **string key** or display **name** (must match a category that has fields).
 - Cars are chosen **at random** (without replacement) from the manifest up to `AUCTION_SEED_COUNT`; with `AUCTION_SEED_TITLE_KEYWORD`, the pool is filtered first, then shuffled.
 - Auction values are randomized per item (close window, initial price, reserve, bid increment, mileage) to avoid deterministic demo data.
 - Concept-car seeding is supported via `AUCTION_SEED_TITLE_KEYWORD=concept`; missing manifest year values are derived from title (or safely defaulted) so creation does not fail.

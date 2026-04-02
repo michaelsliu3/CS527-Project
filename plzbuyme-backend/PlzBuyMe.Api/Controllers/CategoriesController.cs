@@ -10,6 +10,11 @@ namespace PlzBuyMe.Api.Controllers;
 [Route("api/categories")]
 public class CategoriesController : ControllerBase
 {
+    private static readonly JsonSerializerOptions ExtraSortJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+    };
+
     private readonly AppDbContext _db;
 
     public CategoriesController(AppDbContext db)
@@ -30,8 +35,12 @@ public class CategoriesController : ControllerBase
             {
                 Id = c.Id,
                 Name = c.Name,
+                StringKey = c.StringKey,
+                SortOrder = c.SortOrder,
+                IsSearchHub = c.IsSearchHub,
+                ExtraSortOptions = ParseExtraSortOptions(c.ExtraSortOptionsJson),
                 ParentId = c.ParentId,
-                Children = new List<CategoryDto>()
+                Children = new List<CategoryDto>(),
             });
 
         foreach (var category in lookup.Values)
@@ -44,10 +53,41 @@ public class CategoriesController : ControllerBase
 
         var roots = lookup.Values
             .Where(c => c.ParentId == null)
-            .OrderBy(c => c.Name)
             .ToList();
 
+        SortCategoryTree(roots);
+
         return Ok(roots);
+    }
+
+    private static void SortCategoryTree(List<CategoryDto> nodes)
+    {
+        nodes.Sort(static (a, b) =>
+            a.SortOrder != b.SortOrder
+                ? a.SortOrder.CompareTo(b.SortOrder)
+                : string.CompareOrdinal(a.Name, b.Name));
+        foreach (var n in nodes)
+        {
+            SortCategoryTree(n.Children);
+        }
+    }
+
+    private static IReadOnlyList<CategoryExtraSortOptionDto>? ParseExtraSortOptions(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        try
+        {
+            var list = JsonSerializer.Deserialize<List<CategoryExtraSortOptionDto>>(json, ExtraSortJsonOptions);
+            return list is { Count: > 0 } ? list : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     [HttpGet("{id:int}/fields")]

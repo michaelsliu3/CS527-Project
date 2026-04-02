@@ -7,6 +7,7 @@ using Moq;
 using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos.Admin.Gm;
 using PlzBuyMe.Api.Dtos.Auctions;
+using PlzBuyMe.Api.Models;
 using PlzBuyMe.Api.Services;
 using Xunit;
 
@@ -156,5 +157,37 @@ public class GmToolsServiceTests
         data!.ItemsDeleted.Should().Be(2);
         data.BidsDeleted.Should().Be(5);
         auctionMock.Verify(a => a.GmDeleteAllAuctionsAsync(), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateCategory_Valid_PersistsWithStringKey()
+    {
+        await using var db = CreateDb();
+        var svc = CreateService(db);
+
+        var (error, data) = await svc.CreateCategoryAsync(1, new GmCreateCategoryDto { Name = "Boats", StringKey = "boats" });
+
+        error.Should().BeNull();
+        data.Should().NotBeNull();
+        data!.Name.Should().Be("Boats");
+        var row = await db.Categories.SingleAsync();
+        row.StringKey.Should().Be("boats");
+    }
+
+    [Fact]
+    public async Task DeleteCategory_WithChild_ReturnsError()
+    {
+        await using var db = CreateDb();
+        var root = new Category { Name = "Root", ParentId = null, StringKey = "root-cat" };
+        db.Categories.Add(root);
+        await db.SaveChangesAsync();
+        db.Categories.Add(new Category { Name = "Child", ParentId = root.Id, StringKey = "child-cat" });
+        await db.SaveChangesAsync();
+        var svc = CreateService(db);
+
+        var (error, data) = await svc.DeleteCategoryAsync(1, root.Id);
+
+        error.Should().NotBeNullOrEmpty();
+        data.Should().BeNull();
     }
 }

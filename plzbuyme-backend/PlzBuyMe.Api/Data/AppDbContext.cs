@@ -64,6 +64,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Category>(e =>
         {
             e.Property(c => c.Name).HasMaxLength(64);
+            e.Property(c => c.StringKey).HasMaxLength(64);
+            e.HasIndex(c => c.StringKey).IsUnique();
             e.HasOne(c => c.Parent)
                 .WithMany(c => c.Children)
                 .HasForeignKey(c => c.ParentId)

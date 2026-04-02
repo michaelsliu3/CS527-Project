@@ -48,6 +48,19 @@ public class SeedDataTests
     }
 
     [Fact]
+    public void Seed_CarsRoot_HasSearchHubStringKeyAndExtraSortJson()
+    {
+        using var context = TestDbContextFactory.Create();
+        SeedData.Initialize(context);
+
+        var cars = context.Categories.Single(c => c.Name == "Cars" && c.ParentId == null);
+        cars.StringKey.Should().Be("cars");
+        cars.IsSearchHub.Should().BeTrue();
+        cars.ExtraSortOptionsJson.Should().NotBeNullOrEmpty();
+        cars.ExtraSortOptionsJson.Should().Contain("year_newest");
+    }
+
+    [Fact]
     public void Seed_CreatesCategoryFieldsForEachSubcategory()
     {
         using var context = TestDbContextFactory.Create();
