@@ -527,6 +527,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Backend: update search/filter behavior so subtype filtering can match multi-tag items deterministically (define AND/OR behavior explicitly in endpoint contract and docs).
 - Frontend: update create/edit/list/detail surfaces to display all relevant subtype tags with consistent visual treatment and safe fallback when no tags exist.
 - Frontend: keep existing subtype styling patterns (chips/badges/gradients) while handling multiple tags without overlap/truncation regressions across responsive breakpoints.
+- Frontend: redesign the browse **categories top bar** (`SearchBar` `variant="top"` on auction list): improve visual hierarchy, spacing, active/inactive contrast, and small-screen behavior (avoid cramped equal-width segmented buttons; scroll or wrap as needed).
 - **Tests:** add/extend backend tests for multi-tag persistence/query filtering and frontend tests for multi-tag rendering, layout wrapping, and filter behavior.
 
 ---

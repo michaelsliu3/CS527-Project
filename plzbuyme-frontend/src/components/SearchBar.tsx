@@ -639,44 +639,91 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
         bg={dark.cardBg}
         borderWidth="1px"
         borderColor={dark.borderSubtle}
-        borderRadius="sm"
-        overflow="hidden"
+        borderRadius="md"
         mb={showFilters ? 3 : 0}
         w="full"
       >
-        <Flex w="full">
-          {topBarCategories.map((category, index) => {
-            const isActive = activeTopCategoryId === category.id
-            const isFirst = index === 0
-            const isLast = index === topBarCategories.length - 1
-            return (
-              <Button
-                key={category.id}
-                size="sm"
-                flex={1}
-                minW={0}
-                variant="ghost"
-                borderRadius={0}
-                borderLeftRadius={isFirst ? 'xs' : 0}
-                borderRightRadius={isLast ? 'xs' : 0}
-                borderRightWidth={isLast ? '0' : '1px'}
-                borderRightColor={dark.borderSubtle}
-                bg={isActive ? 'brand.500' : 'transparent'}
-                color="white"
-                fontWeight={isActive ? 'semibold' : 'medium'}
-                px={2}
-                _hover={{
-                  bg: isActive ? 'brand.400' : 'whiteAlpha.100',
-                }}
-                _focus={{ boxShadow: 'none', outline: 'none' }}
-                _focusVisible={{ boxShadow: 'none', outline: 'none' }}
-                onClick={() => handleTopCategorySelect(category.id)}
-                disabled={categoriesLoading || !!categoriesError}
-              >
-                {category.name}
-              </Button>
-            )
-          })}
+        <Flex
+          align={{ base: 'stretch', sm: 'center' }}
+          direction={{ base: 'column', sm: 'row' }}
+          gap={{ base: 2, sm: 3 }}
+          px={{ base: 2, md: 4 }}
+          py={3}
+        >
+          <Text
+            display={{ base: 'none', sm: 'block' }}
+            flexShrink={0}
+            fontSize="xs"
+            fontWeight="semibold"
+            color={dark.muted}
+            textTransform="uppercase"
+            letterSpacing="0.08em"
+            pt={{ sm: 1 }}
+          >
+            Categories
+          </Text>
+          <Box
+            flex="1"
+            minW={0}
+            overflowX="auto"
+            overflowY="hidden"
+            css={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(255, 255, 255, 0.28) transparent',
+              WebkitOverflowScrolling: 'touch',
+            }}
+            sx={{
+              '&::-webkit-scrollbar': { height: '6px' },
+              '&::-webkit-scrollbar-thumb': {
+                background: 'rgba(255, 255, 255, 0.22)',
+                borderRadius: '6px',
+              },
+            }}
+          >
+            <Flex
+              as="nav"
+              aria-label="Browse by category"
+              gap={2}
+              py={0.5}
+              w="max-content"
+            >
+              {topBarCategories.map((category) => {
+                const isActive = activeTopCategoryId === category.id
+                return (
+                  <Button
+                    key={category.id}
+                    size="sm"
+                    flexShrink={0}
+                    variant={isActive ? 'solid' : 'outline'}
+                    colorPalette={isActive ? 'brand' : undefined}
+                    borderRadius="full"
+                    borderWidth={isActive ? 0 : '1px'}
+                    borderColor={dark.borderSubtle}
+                    color="white"
+                    bg={isActive ? undefined : 'transparent'}
+                    px={4}
+                    h="auto"
+                    py={2}
+                    fontWeight={isActive ? 'semibold' : 'medium'}
+                    whiteSpace="nowrap"
+                    _hover={{
+                      bg: isActive ? 'brand.400' : 'whiteAlpha.100',
+                      borderColor: isActive ? undefined : 'whiteAlpha.300',
+                    }}
+                    _focus={{ boxShadow: 'none', outline: 'none' }}
+                    _focusVisible={{
+                      boxShadow: '0 0 0 2px var(--chakra-colors-brand-500)',
+                      outline: 'none',
+                    }}
+                    onClick={() => handleTopCategorySelect(category.id)}
+                    disabled={categoriesLoading || !!categoriesError}
+                  >
+                    {category.name}
+                  </Button>
+                )
+              })}
+            </Flex>
+          </Box>
         </Flex>
       </Box>
       )}
