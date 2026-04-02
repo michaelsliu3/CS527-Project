@@ -1,8 +1,12 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using PlzBuyMe.Api.Data;
 using PlzBuyMe.Api.Dtos;
+using PlzBuyMe.Api.Dtos.Admin;
+using PlzBuyMe.Api.Dtos.Admin.Gm;
 using PlzBuyMe.Api.Dtos.Auctions;
 using PlzBuyMe.Api.Models;
 
@@ -13,6 +17,11 @@ public class AuctionService : IAuctionService
     private const string UploadedImageSource = "uploaded";
     private const string Gt7DefaultImageSource = "gt7-default";
     private const string PlaceholderImageSource = "placeholder";
+    private const int GmBulkCloseActiveMax = 500;
+
+    private static readonly Regex CatalogCarExternalIdRegex = new(
+        @"car(\d{3,7})",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 
     /// <summary>Second paragraph appended to close-out messages; UI renders it in smaller text after a blank line.</summary>
     private const string WalletBalanceDisclaimerParagraph =
@@ -26,12 +35,14 @@ public class AuctionService : IAuctionService
     private readonly ICdnGt7ThumbnailResolver _cdnGt7ThumbnailResolver;
     private readonly IWalletService _walletService;
     private readonly ILogger<AuctionService> _logger;
+    private readonly string _mediaPublicBaseUrl;
 
     public AuctionService(
         AppDbContext db,
         IAlertService alertService,
         ICdnGt7ThumbnailResolver cdnGt7ThumbnailResolver,
         IWalletService walletService,
+        IConfiguration configuration,
         ILogger<AuctionService> logger)
     {
         _db = db;
@@ -39,6 +50,7 @@ public class AuctionService : IAuctionService
         _cdnGt7ThumbnailResolver = cdnGt7ThumbnailResolver;
         _walletService = walletService;
         _logger = logger;
+        _mediaPublicBaseUrl = (configuration["MediaStorage:ServiceBaseUrl"] ?? "http://localhost:5090").TrimEnd('/');
     }
 
     public async Task<AuctionDetailDto?> CreateAuctionAsync(CreateAuctionDto dto, int sellerId)
@@ -49,31 +61,60 @@ public class AuctionService : IAuctionService
         if (category == null)
             return null;
 
-        var uploadedImageValue = NormalizeMediaKey(dto.ImageStorageKey, dto.ImageUrl);
-        var hasUploadedImage = !string.IsNullOrWhiteSpace(uploadedImageValue);
-        var imageUrl = uploadedImageValue;
-        var imageStorageKey = hasUploadedImage ? uploadedImageValue : null;
-        var imageSource = hasUploadedImage ? UploadedImageSource : null;
-        string? imageMatchLevel = null;
+        string? imageUrl;
+        string? imageStorageKey;
+        string? imageSource;
+        string? imageMatchLevel;
 
-        if (!hasUploadedImage)
+        var manifestCatalogId = HintManifestCatalogExternalId(dto.ImageStorageKey, dto.ImageUrl);
+        if (manifestCatalogId != null)
         {
-            var defaultResolution = await ResolveDefaultImageForCreateAsync(category, dto.FieldValues);
-            if (defaultResolution.Found && !string.IsNullOrWhiteSpace(defaultResolution.Url))
+            imageUrl = $"{_mediaPublicBaseUrl}/media/cars/gt7/car{manifestCatalogId}.png";
+            imageStorageKey = manifestCatalogId;
+            imageSource = Gt7DefaultImageSource;
+            imageMatchLevel = "manifest";
+        }
+        else
+        {
+            var uploadedImageValue = NormalizeMediaKey(dto.ImageStorageKey, dto.ImageUrl);
+            var hasUploadedImage = !string.IsNullOrWhiteSpace(uploadedImageValue);
+            imageUrl = uploadedImageValue;
+            imageStorageKey = hasUploadedImage ? uploadedImageValue : null;
+            imageSource = hasUploadedImage ? UploadedImageSource : null;
+            imageMatchLevel = null;
+
+            if (!hasUploadedImage)
             {
-                imageUrl = defaultResolution.Url;
-                imageStorageKey = defaultResolution.ExternalId;
-                imageSource = Gt7DefaultImageSource;
-                imageMatchLevel = defaultResolution.MatchLevel;
-            }
-            else
-            {
-                imageUrl = null;
-                imageStorageKey = null;
-                imageSource = PlaceholderImageSource;
-                imageMatchLevel = "none";
+                var defaultResolution = await ResolveDefaultImageForCreateAsync(category, dto.FieldValues);
+                if (defaultResolution.Found)
+                {
+                    var extId = ResolveCatalogCarIdForCreate(defaultResolution);
+                    if (extId != null)
+                    {
+                        imageUrl = $"{_mediaPublicBaseUrl}/media/cars/gt7/car{extId}.png";
+                        imageStorageKey = extId;
+                        imageSource = Gt7DefaultImageSource;
+                        imageMatchLevel = defaultResolution.MatchLevel;
+                    }
+                    else
+                    {
+                        imageUrl = null;
+                        imageStorageKey = null;
+                        imageSource = PlaceholderImageSource;
+                        imageMatchLevel = "none";
+                    }
+                }
+                else
+                {
+                    imageUrl = null;
+                    imageStorageKey = null;
+                    imageSource = PlaceholderImageSource;
+                    imageMatchLevel = "none";
+                }
             }
         }
+
+        SanitizeGranTurismoBeforePersist(ref imageUrl, ref imageStorageKey, ref imageSource, ref imageMatchLevel);
 
         var item = new Item
         {
@@ -119,6 +160,145 @@ public class AuctionService : IAuctionService
         return null;
     }
 
+    /// <summary>Matches <c>car####</c> in thumbnail/detail paths (CDN or third-party).</summary>
+    private static string? TryExtractCatalogCarIdFromImagePath(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+        var m = CatalogCarExternalIdRegex.Match(text);
+        return m.Success ? m.Groups[1].Value : null;
+    }
+
+    /// <summary>
+    /// GM manifest seed: numeric <c>externalId</c> only, no <see cref="CreateAuctionDto.ImageUrl"/> — not a user upload key.
+    /// </summary>
+    private static string? HintManifestCatalogExternalId(string? imageStorageKey, string? imageUrl)
+    {
+        if (!string.IsNullOrWhiteSpace(imageUrl))
+            return null;
+        if (string.IsNullOrWhiteSpace(imageStorageKey))
+            return null;
+        var k = imageStorageKey.Trim();
+        return Regex.IsMatch(k, @"^\d{3,8}$") ? k : null;
+    }
+
+    private void SanitizeGranTurismoBeforePersist(
+        ref string? imageUrl,
+        ref string? imageStorageKey,
+        ref string? imageSource,
+        ref string? imageMatchLevel)
+    {
+        static bool IsGranTurismoHost(string? s) =>
+            !string.IsNullOrWhiteSpace(s) && s.Contains("gran-turismo.com", StringComparison.OrdinalIgnoreCase);
+
+        if (!IsGranTurismoHost(imageUrl) && !IsGranTurismoHost(imageStorageKey))
+            return;
+
+        var id = TryExtractCatalogCarIdFromImagePath(imageUrl) ?? TryExtractCatalogCarIdFromImagePath(imageStorageKey);
+        if (id == null)
+            return;
+
+        imageUrl = $"{_mediaPublicBaseUrl}/media/cars/gt7/car{id}.png";
+        imageStorageKey = id;
+        imageSource = Gt7DefaultImageSource;
+        if (string.IsNullOrWhiteSpace(imageMatchLevel))
+            imageMatchLevel = "sanitized";
+    }
+
+    private static string? ResolveCatalogCarIdForCreate(CdnGt7ThumbnailResolveResult resolution)
+    {
+        if (!string.IsNullOrWhiteSpace(resolution.ExternalId))
+        {
+            var t = resolution.ExternalId.Trim();
+            if (Regex.IsMatch(t, @"^\d{3,7}$"))
+                return t;
+        }
+
+        return TryExtractCatalogCarIdFromImagePath(resolution.Url)
+            ?? TryExtractCatalogCarIdFromImagePath(resolution.DetailUrl);
+    }
+
+    private static string? TryExtractCatalogCarExternalIdFromThirdPartyUrl(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+        if (!text.Contains("gran-turismo.com", StringComparison.OrdinalIgnoreCase))
+            return null;
+        return TryExtractCatalogCarIdFromImagePath(text);
+    }
+
+    /// <summary>
+    /// Catalog listings use a numeric storage key; legacy rows may only have third-party image URLs.
+    /// Resolved paths use <c>MediaStorage:ServiceBaseUrl</c> so clients load mirrored CDN assets.
+    /// </summary>
+    private string? TryResolveCatalogCarExternalId(string? imageUrl, string? imageStorageKey, string? imageSource)
+    {
+        if (string.Equals(imageSource, Gt7DefaultImageSource, StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(imageStorageKey))
+        {
+            var key = imageStorageKey.Trim();
+            if (Regex.IsMatch(key, @"^\d{3,7}$"))
+                return key;
+        }
+
+        return TryExtractCatalogCarExternalIdFromThirdPartyUrl(imageUrl)
+            ?? TryExtractCatalogCarExternalIdFromThirdPartyUrl(imageStorageKey);
+    }
+
+    private string? NormalizeCatalogListingImage(string? imageUrl, string? imageStorageKey, string? imageSource)
+    {
+        var id = TryResolveCatalogCarExternalId(imageUrl, imageStorageKey, imageSource);
+        if (id != null)
+            return $"{_mediaPublicBaseUrl}/media/cars/gt7/car{id}.png";
+        return imageUrl;
+    }
+
+    private (string? ImageUrl, string? DetailImageUrl) NormalizeCatalogDisplayImages(
+        string? imageUrl,
+        string? imageStorageKey,
+        string? imageSource)
+    {
+        var id = TryResolveCatalogCarExternalId(imageUrl, imageStorageKey, imageSource);
+        if (id != null)
+        {
+            return (
+                $"{_mediaPublicBaseUrl}/media/cars/gt7/car{id}.png",
+                $"{_mediaPublicBaseUrl}/media/cars/gt7/detail/car{id}.jpg");
+        }
+
+        return (imageUrl, imageUrl);
+    }
+
+    private AuctionListDto ToAuctionListDto(
+        int id,
+        string title,
+        string? imageUrl,
+        string? imageStorageKey,
+        string? imageSource,
+        string? imageMatchLevel,
+        decimal currentPrice,
+        DateTime closeDateTime,
+        string statusLower,
+        string categoryName,
+        string sellerUsername,
+        string? sellerDisplayNameColor,
+        int bidCount) =>
+        new()
+        {
+            Id = id,
+            Title = title,
+            ImageUrl = NormalizeCatalogListingImage(imageUrl, imageStorageKey, imageSource),
+            ImageSource = imageSource,
+            ImageMatchLevel = imageMatchLevel,
+            CurrentPrice = currentPrice,
+            CloseDateTime = closeDateTime,
+            Status = statusLower,
+            CategoryName = categoryName,
+            SellerUsername = sellerUsername,
+            SellerDisplayNameColor = sellerDisplayNameColor,
+            BidCount = bidCount
+        };
+
     private async Task<CdnGt7ThumbnailResolveResult> ResolveDefaultImageForCreateAsync(Category category, List<FieldValueDto>? fieldValues)
     {
         var map = (fieldValues ?? new List<FieldValueDto>())
@@ -148,6 +328,8 @@ public class AuctionService : IAuctionService
             throw new InvalidOperationException("Auction not found.");
         if (item.Status != ItemStatus.Active)
             throw new InvalidOperationException("Auction is not active.");
+        if (item.CloseDateTime <= DateTime.UtcNow)
+            throw new InvalidOperationException("This auction has ended.");
         if (item.SellerId == bidderId)
             throw new InvalidOperationException("Sellers cannot bid on their own items.");
         if (amount < item.CurrentPrice + item.BidIncrement)
@@ -174,6 +356,8 @@ public class AuctionService : IAuctionService
             throw new InvalidOperationException("Auction not found.");
         if (item.Status != ItemStatus.Active)
             throw new InvalidOperationException("Auction is not active.");
+        if (item.CloseDateTime <= DateTime.UtcNow)
+            throw new InvalidOperationException("This auction has ended.");
         if (item.SellerId == bidderId)
             throw new InvalidOperationException("Sellers cannot set auto-bid on their own items.");
         if (upperLimit < item.CurrentPrice + item.BidIncrement)
@@ -209,6 +393,9 @@ public class AuctionService : IAuctionService
 
     private async Task TriggerAutoBidsAsync(Item item, int? excludeUserId)
     {
+        if (item.Status != ItemStatus.Active || item.CloseDateTime <= DateTime.UtcNow)
+            return;
+
         var autoBids = await _db.AutoBids
             .Where(ab => ab.ItemId == item.Id && ab.IsActive && ab.BidderId != excludeUserId)
             .OrderByDescending(ab => ab.UpperLimit)
@@ -264,79 +451,8 @@ public class AuctionService : IAuctionService
             .ToListAsync();
 
         foreach (var item in expired)
-        {
-            var highestBid = await _db.Bids
-                .Where(b => b.ItemId == item.Id)
-                .OrderByDescending(b => b.Amount)
-                .FirstOrDefaultAsync();
+            await ProcessActiveAuctionCloseByRulesAsync(item);
 
-            if (highestBid != null && highestBid.Amount >= item.ReservePrice)
-            {
-                item.Status = ItemStatus.Sold;
-                item.WinnerId = highestBid.BidderId;
-                await _walletService.FinalizeSoldAuctionAsync(item.Id, highestBid.BidderId, highestBid.Amount, item.SellerId);
-                _db.Notifications.Add(new Notification
-                {
-                    UserId = item.SellerId,
-                    ItemId = item.Id,
-                    Type = NotificationType.AuctionSold,
-                    Message = WithWalletBalanceDisclaimer(
-                        $"Your listing \"{item.Title}\" sold for ${highestBid.Amount:N2}.")
-                });
-                _db.Notifications.Add(new Notification
-                {
-                    UserId = highestBid.BidderId,
-                    ItemId = item.Id,
-                    Type = NotificationType.AuctionWon,
-                    Message = WithWalletBalanceDisclaimer($"You won the auction for \"{item.Title}\"!")
-                });
-                var losingBidderIds = await _db.Bids
-                    .Where(b => b.ItemId == item.Id && b.BidderId != highestBid.BidderId)
-                    .Select(b => b.BidderId)
-                    .ToListAsync();
-                foreach (var loserId in losingBidderIds.Distinct())
-                {
-                    _db.Notifications.Add(new Notification
-                    {
-                        UserId = loserId,
-                        ItemId = item.Id,
-                        Type = NotificationType.AuctionLost,
-                        Message = WithWalletBalanceDisclaimer(
-                            $"You did not win the auction for \"{item.Title}\". Another bidder had the highest bid when it closed.")
-                    });
-                }
-            }
-            else
-            {
-                await _walletService.ReleaseItemHoldAsync(item.Id);
-                item.Status = ItemStatus.Closed;
-                _db.Notifications.Add(new Notification
-                {
-                    UserId = item.SellerId,
-                    ItemId = item.Id,
-                    Type = NotificationType.ReserveNotMet,
-                    Message = WithWalletBalanceDisclaimer($"Reserve price was not met on \"{item.Title}\".")
-                });
-                var bidderIds = (await _db.Bids
-                        .AsNoTracking()
-                        .Where(b => b.ItemId == item.Id)
-                        .Select(b => b.BidderId)
-                        .ToListAsync())
-                    .Distinct()
-                    .ToList();
-                foreach (var bidderId in bidderIds)
-                {
-                    _db.Notifications.Add(new Notification
-                    {
-                        UserId = bidderId,
-                        ItemId = item.Id,
-                        Type = NotificationType.ReserveNotMet,
-                        Message = WithWalletBalanceDisclaimer(
-                            $"The auction for \"{item.Title}\" closed without meeting the reserve price. If you had funds held for your bid, they are available in your wallet again.")
-                    });
-                }
-            }
-        }
         await _db.SaveChangesAsync();
     }
 
@@ -429,51 +545,85 @@ public class AuctionService : IAuctionService
             var idsForPage = orderedIds.Skip((page - 1) * pageSize).Take(pageSize).ToList();
             if (idsForPage.Count == 0)
                 return new PaginatedResultDto<AuctionListDto> { Items = new List<AuctionListDto>(), TotalCount = total, Page = page, PageSize = pageSize };
-            items = await _db.Items
+            var rows = await _db.Items
                 .Include(i => i.Category)
                 .Include(i => i.Seller)
                 .Where(i => idsForPage.Contains(i.Id))
-                .Select(i => new AuctionListDto
+                .Select(i => new
                 {
-                    Id = i.Id,
-                    Title = i.Title,
-                    ImageUrl = i.ImageUrl,
-                    ImageSource = i.ImageSource,
-                    ImageMatchLevel = i.ImageMatchLevel,
-                    CurrentPrice = i.CurrentPrice,
-                    CloseDateTime = i.CloseDateTime,
-                    Status = i.Status.ToString().ToLowerInvariant(),
+                    i.Id,
+                    i.Title,
+                    i.ImageUrl,
+                    i.ImageStorageKey,
+                    i.ImageSource,
+                    i.ImageMatchLevel,
+                    i.CurrentPrice,
+                    i.CloseDateTime,
+                    i.Status,
                     CategoryName = i.Category.Name,
                     SellerUsername = i.Seller.Username,
                     SellerDisplayNameColor = i.Seller.DisplayNameColor,
                     BidCount = i.Bids.Count
                 })
                 .ToListAsync();
-            items = idsForPage.Select(id => items.First(i => i.Id == id)).ToList();
+            var byId = rows.ToDictionary(r => r.Id);
+            items = idsForPage.Select(id =>
+            {
+                var r = byId[id];
+                return ToAuctionListDto(
+                    r.Id,
+                    r.Title,
+                    r.ImageUrl,
+                    r.ImageStorageKey,
+                    r.ImageSource,
+                    r.ImageMatchLevel,
+                    r.CurrentPrice,
+                    r.CloseDateTime,
+                    r.Status.ToString().ToLowerInvariant(),
+                    r.CategoryName,
+                    r.SellerUsername,
+                    r.SellerDisplayNameColor,
+                    r.BidCount);
+            }).ToList();
         }
         else
         {
             q = ApplySort(q, query.Sort, null, null);
             total = await q.CountAsync();
-            items = await q
+            var pageRows = await q
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(i => new AuctionListDto
+                .Select(i => new
                 {
-                    Id = i.Id,
-                    Title = i.Title,
-                    ImageUrl = i.ImageUrl,
-                    ImageSource = i.ImageSource,
-                    ImageMatchLevel = i.ImageMatchLevel,
-                    CurrentPrice = i.CurrentPrice,
-                    CloseDateTime = i.CloseDateTime,
-                    Status = i.Status.ToString().ToLowerInvariant(),
+                    i.Id,
+                    i.Title,
+                    i.ImageUrl,
+                    i.ImageStorageKey,
+                    i.ImageSource,
+                    i.ImageMatchLevel,
+                    i.CurrentPrice,
+                    i.CloseDateTime,
+                    i.Status,
                     CategoryName = i.Category.Name,
                     SellerUsername = i.Seller.Username,
                     SellerDisplayNameColor = i.Seller.DisplayNameColor,
                     BidCount = i.Bids.Count
                 })
                 .ToListAsync();
+            items = pageRows.Select(r => ToAuctionListDto(
+                r.Id,
+                r.Title,
+                r.ImageUrl,
+                r.ImageStorageKey,
+                r.ImageSource,
+                r.ImageMatchLevel,
+                r.CurrentPrice,
+                r.CloseDateTime,
+                r.Status.ToString().ToLowerInvariant(),
+                r.CategoryName,
+                r.SellerUsername,
+                r.SellerDisplayNameColor,
+                r.BidCount)).ToList();
         }
 
         return new PaginatedResultDto<AuctionListDto> { Items = items, TotalCount = total, Page = page, PageSize = pageSize };
@@ -642,22 +792,17 @@ public class AuctionService : IAuctionService
             })
             .ToList();
 
-        var detailImageUrl = item.ImageUrl;
-        if (item.ImageSource == Gt7DefaultImageSource && !string.IsNullOrWhiteSpace(item.ImageStorageKey))
-        {
-            var resolved = await _cdnGt7ThumbnailResolver.ResolveByExternalIdAsync(item.ImageStorageKey);
-            if (resolved.Found && !string.IsNullOrWhiteSpace(resolved.DetailUrl))
-            {
-                detailImageUrl = resolved.DetailUrl;
-            }
-        }
+        var (displayImageUrl, detailImageUrl) = NormalizeCatalogDisplayImages(
+            item.ImageUrl,
+            item.ImageStorageKey,
+            item.ImageSource);
 
         return new AuctionDetailDto
         {
             Id = item.Id,
             Title = item.Title,
             Description = item.Description,
-            ImageUrl = item.ImageUrl,
+            ImageUrl = displayImageUrl,
             DetailImageUrl = detailImageUrl,
             ImageSource = item.ImageSource,
             ImageMatchLevel = item.ImageMatchLevel,
@@ -669,6 +814,7 @@ public class AuctionService : IAuctionService
             SellerDisplayNameColor = item.Seller.DisplayNameColor,
             InitialPrice = item.InitialPrice,
             BidIncrement = item.BidIncrement,
+            ReservePrice = item.ReservePrice,
             CurrentPrice = item.CurrentPrice,
             CloseDateTime = item.CloseDateTime,
             Status = item.Status.ToString().ToLowerInvariant(),
@@ -689,24 +835,39 @@ public class AuctionService : IAuctionService
         if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<ItemStatus>(status, true, out var statusEnum))
             q = q.Where(i => i.Status == statusEnum);
 
-        return await q
+        var mineRows = await q
             .OrderByDescending(i => i.CreatedAt)
-            .Select(i => new AuctionListDto
+            .Select(i => new
             {
-                Id = i.Id,
-                Title = i.Title,
-                ImageUrl = i.ImageUrl,
-                ImageSource = i.ImageSource,
-                ImageMatchLevel = i.ImageMatchLevel,
-                CurrentPrice = i.CurrentPrice,
-                CloseDateTime = i.CloseDateTime,
-                Status = i.Status.ToString().ToLowerInvariant(),
+                i.Id,
+                i.Title,
+                i.ImageUrl,
+                i.ImageStorageKey,
+                i.ImageSource,
+                i.ImageMatchLevel,
+                i.CurrentPrice,
+                i.CloseDateTime,
+                i.Status,
                 CategoryName = i.Category.Name,
                 SellerUsername = i.Seller.Username,
                 SellerDisplayNameColor = i.Seller.DisplayNameColor,
                 BidCount = i.Bids.Count
             })
             .ToListAsync();
+        return mineRows.Select(r => ToAuctionListDto(
+            r.Id,
+            r.Title,
+            r.ImageUrl,
+            r.ImageStorageKey,
+            r.ImageSource,
+            r.ImageMatchLevel,
+            r.CurrentPrice,
+            r.CloseDateTime,
+            r.Status.ToString().ToLowerInvariant(),
+            r.CategoryName,
+            r.SellerUsername,
+            r.SellerDisplayNameColor,
+            r.BidCount)).ToList();
     }
 
     public async Task<List<AuctionListDto>> GetSimilarAsync(int itemId, int limit = 10)
@@ -732,21 +893,20 @@ public class AuctionService : IAuctionService
             .OrderByDescending(x => x.Score)
             .ThenByDescending(x => x.Item.CreatedAt)
             .Take(limit)
-            .Select(x => new AuctionListDto
-            {
-                Id = x.Item.Id,
-                Title = x.Item.Title,
-                ImageUrl = x.Item.ImageUrl,
-                ImageSource = x.Item.ImageSource,
-                ImageMatchLevel = x.Item.ImageMatchLevel,
-                CurrentPrice = x.Item.CurrentPrice,
-                CloseDateTime = x.Item.CloseDateTime,
-                Status = x.Item.Status.ToString().ToLowerInvariant(),
-                CategoryName = x.Item.Category.Name,
-                SellerUsername = x.Item.Seller.Username,
-                SellerDisplayNameColor = x.Item.Seller.DisplayNameColor,
-                BidCount = x.Item.Bids.Count
-            })
+            .Select(x => ToAuctionListDto(
+                x.Item.Id,
+                x.Item.Title,
+                x.Item.ImageUrl,
+                x.Item.ImageStorageKey,
+                x.Item.ImageSource,
+                x.Item.ImageMatchLevel,
+                x.Item.CurrentPrice,
+                x.Item.CloseDateTime,
+                x.Item.Status.ToString().ToLowerInvariant(),
+                x.Item.Category.Name,
+                x.Item.Seller.Username,
+                x.Item.Seller.DisplayNameColor,
+                x.Item.Bids.Count))
             .ToList();
 
         return scored;
@@ -760,27 +920,42 @@ public class AuctionService : IAuctionService
         if (allIds.Count == 0)
             return new List<AuctionListDto>();
 
-        return await _db.Items
+        var histRows = await _db.Items
             .Include(i => i.Category)
             .Include(i => i.Seller)
             .Where(i => allIds.Contains(i.Id))
             .OrderByDescending(i => i.CreatedAt)
-            .Select(i => new AuctionListDto
+            .Select(i => new
             {
-                Id = i.Id,
-                Title = i.Title,
-                ImageUrl = i.ImageUrl,
-                ImageSource = i.ImageSource,
-                ImageMatchLevel = i.ImageMatchLevel,
-                CurrentPrice = i.CurrentPrice,
-                CloseDateTime = i.CloseDateTime,
-                Status = i.Status.ToString().ToLowerInvariant(),
+                i.Id,
+                i.Title,
+                i.ImageUrl,
+                i.ImageStorageKey,
+                i.ImageSource,
+                i.ImageMatchLevel,
+                i.CurrentPrice,
+                i.CloseDateTime,
+                i.Status,
                 CategoryName = i.Category.Name,
                 SellerUsername = i.Seller.Username,
                 SellerDisplayNameColor = i.Seller.DisplayNameColor,
                 BidCount = i.Bids.Count
             })
             .ToListAsync();
+        return histRows.Select(r => ToAuctionListDto(
+            r.Id,
+            r.Title,
+            r.ImageUrl,
+            r.ImageStorageKey,
+            r.ImageSource,
+            r.ImageMatchLevel,
+            r.CurrentPrice,
+            r.CloseDateTime,
+            r.Status.ToString().ToLowerInvariant(),
+            r.CategoryName,
+            r.SellerUsername,
+            r.SellerDisplayNameColor,
+            r.BidCount)).ToList();
     }
 
     public async Task<IReadOnlyList<string>> GetFieldValuesAsync(string fieldName, int? categoryId, string? prefix, int maxCount = 50)
@@ -802,5 +977,392 @@ public class AuctionService : IAuctionService
             .Select(g => g.Key)
             .ToListAsync();
         return values;
+    }
+
+    public async Task<(string? Error, AuctionDetailDto? Detail)> AdminPatchAuctionAsync(
+        int itemId,
+        AdminPatchAuctionDto dto,
+        int adminUserId)
+    {
+        var item = await _db.Items.FirstOrDefaultAsync(i => i.Id == itemId);
+        if (item == null)
+            return ("Auction not found.", null);
+
+        var hasEnd = !string.IsNullOrWhiteSpace(dto.EndAuction);
+        if (hasEnd && AdminPatchHasOtherFields(dto))
+            return ("Send EndAuction alone, or omit it when updating fields.", null);
+
+        if (hasEnd)
+        {
+            if (item.Status != ItemStatus.Active)
+                return ("End auction is only valid for active listings.", null);
+
+            switch (dto.EndAuction!.Trim().ToLowerInvariant())
+            {
+                case "natural":
+                    await ProcessActiveAuctionCloseByRulesAsync(item);
+                    break;
+                case "closed":
+                    await ForceCloseActiveWithoutSaleAsync(item);
+                    break;
+                case "sold":
+                    var soldErr = await TryFinalizeActiveAsSoldWithTopBidAsync(item);
+                    if (soldErr != null)
+                        return (soldErr, null);
+                    break;
+                default:
+                    return ("EndAuction must be natural, closed, or sold.", null);
+            }
+
+            item.CloseDateTime = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            _logger.LogWarning("Admin {AdminId} ended auction {ItemId} via {Mode}", adminUserId, itemId, dto.EndAuction);
+            return (null, await GetByIdAsync(itemId));
+        }
+
+        if (item.Status != ItemStatus.Active)
+        {
+            if (dto.Title != null)
+                item.Title = dto.Title.Trim();
+            if (dto.Description != null)
+                item.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
+            await _db.SaveChangesAsync();
+            _logger.LogWarning("Admin {AdminId} updated metadata on non-active auction {ItemId}", adminUserId, itemId);
+            return (null, await GetByIdAsync(itemId));
+        }
+
+        var hasBids = await _db.Bids.AnyAsync(b => b.ItemId == itemId);
+
+        if (dto.Title != null)
+            item.Title = dto.Title.Trim();
+        if (dto.Description != null)
+            item.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
+
+        if (dto.CloseDateTime.HasValue)
+        {
+            var closeUtc = dto.CloseDateTime.Value.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(dto.CloseDateTime.Value, DateTimeKind.Utc)
+                : dto.CloseDateTime.Value.ToUniversalTime();
+            if (closeUtc <= DateTime.UtcNow)
+                return ("Close date must be in the future.", null);
+            item.CloseDateTime = closeUtc;
+        }
+
+        if (dto.BidIncrement.HasValue)
+        {
+            if (dto.BidIncrement.Value <= 0m)
+                return ("Bid increment must be positive.", null);
+            item.BidIncrement = dto.BidIncrement.Value;
+        }
+
+        if (dto.ReservePrice.HasValue)
+        {
+            if (dto.ReservePrice.Value < 0m)
+                return ("Reserve cannot be negative.", null);
+            item.ReservePrice = dto.ReservePrice.Value;
+        }
+
+        if (dto.InitialPrice.HasValue || dto.CurrentPrice.HasValue)
+        {
+            if (hasBids)
+                return ("Cannot change initial or current price when bids exist.", null);
+            if (dto.InitialPrice.HasValue)
+            {
+                if (dto.InitialPrice.Value < 0m)
+                    return ("Initial price cannot be negative.", null);
+                item.InitialPrice = dto.InitialPrice.Value;
+            }
+
+            if (dto.CurrentPrice.HasValue)
+            {
+                if (dto.CurrentPrice.Value < 0m)
+                    return ("Current price cannot be negative.", null);
+                item.CurrentPrice = dto.CurrentPrice.Value;
+            }
+
+            if (dto.InitialPrice.HasValue && !dto.CurrentPrice.HasValue)
+                item.CurrentPrice = item.InitialPrice;
+            else if (dto.CurrentPrice.HasValue && !dto.InitialPrice.HasValue)
+                item.InitialPrice = item.CurrentPrice;
+        }
+
+        await _db.SaveChangesAsync();
+        _logger.LogWarning("Admin {AdminId} patched active auction {ItemId}", adminUserId, itemId);
+        return (null, await GetByIdAsync(itemId));
+    }
+
+    private static bool AdminPatchHasOtherFields(AdminPatchAuctionDto dto)
+    {
+        return dto.Title != null
+            || dto.Description != null
+            || dto.CloseDateTime.HasValue
+            || dto.BidIncrement.HasValue
+            || dto.ReservePrice.HasValue
+            || dto.InitialPrice.HasValue
+            || dto.CurrentPrice.HasValue;
+    }
+
+    private async Task ProcessActiveAuctionCloseByRulesAsync(Item item)
+    {
+        var highestBid = await _db.Bids
+            .Where(b => b.ItemId == item.Id)
+            .OrderByDescending(b => b.Amount)
+            .FirstOrDefaultAsync();
+
+        if (highestBid != null && highestBid.Amount >= item.ReservePrice)
+        {
+            item.Status = ItemStatus.Sold;
+            item.WinnerId = highestBid.BidderId;
+            await _walletService.FinalizeSoldAuctionAsync(item.Id, highestBid.BidderId, highestBid.Amount, item.SellerId);
+            _db.Notifications.Add(new Notification
+            {
+                UserId = item.SellerId,
+                ItemId = item.Id,
+                Type = NotificationType.AuctionSold,
+                Message = WithWalletBalanceDisclaimer(
+                    $"Your listing \"{item.Title}\" sold for ${highestBid.Amount:N2}.")
+            });
+            _db.Notifications.Add(new Notification
+            {
+                UserId = highestBid.BidderId,
+                ItemId = item.Id,
+                Type = NotificationType.AuctionWon,
+                Message = WithWalletBalanceDisclaimer($"You won the auction for \"{item.Title}\"!")
+            });
+            var losingBidderIds = await _db.Bids
+                .Where(b => b.ItemId == item.Id && b.BidderId != highestBid.BidderId)
+                .Select(b => b.BidderId)
+                .ToListAsync();
+            foreach (var loserId in losingBidderIds.Distinct())
+            {
+                _db.Notifications.Add(new Notification
+                {
+                    UserId = loserId,
+                    ItemId = item.Id,
+                    Type = NotificationType.AuctionLost,
+                    Message = WithWalletBalanceDisclaimer(
+                        $"You did not win the auction for \"{item.Title}\". Another bidder had the highest bid when it closed.")
+                });
+            }
+        }
+        else
+        {
+            await ForceCloseActiveWithoutSaleAsync(item);
+        }
+    }
+
+    private async Task ForceCloseActiveWithoutSaleAsync(Item item)
+    {
+        await _walletService.ReleaseItemHoldAsync(item.Id);
+        item.Status = ItemStatus.Closed;
+        item.WinnerId = null;
+        _db.Notifications.Add(new Notification
+        {
+            UserId = item.SellerId,
+            ItemId = item.Id,
+            Type = NotificationType.ReserveNotMet,
+            Message = WithWalletBalanceDisclaimer($"Reserve price was not met on \"{item.Title}\".")
+        });
+        var bidderIds = (await _db.Bids
+                .AsNoTracking()
+                .Where(b => b.ItemId == item.Id)
+                .Select(b => b.BidderId)
+                .ToListAsync())
+            .Distinct()
+            .ToList();
+        foreach (var bidderId in bidderIds)
+        {
+            _db.Notifications.Add(new Notification
+            {
+                UserId = bidderId,
+                ItemId = item.Id,
+                Type = NotificationType.ReserveNotMet,
+                Message = WithWalletBalanceDisclaimer(
+                    $"The auction for \"{item.Title}\" closed without meeting the reserve price. If you had funds held for your bid, they are available in your wallet again.")
+            });
+        }
+    }
+
+    private async Task<string?> TryFinalizeActiveAsSoldWithTopBidAsync(Item item)
+    {
+        var highestBid = await _db.Bids
+            .Where(b => b.ItemId == item.Id)
+            .OrderByDescending(b => b.Amount)
+            .FirstOrDefaultAsync();
+        if (highestBid == null)
+            return "No bids to complete a sale.";
+        if (highestBid.Amount < item.ReservePrice)
+            return "Top bid is below reserve; use natural or adjust reserve first.";
+
+        item.Status = ItemStatus.Sold;
+        item.WinnerId = highestBid.BidderId;
+        await _walletService.FinalizeSoldAuctionAsync(item.Id, highestBid.BidderId, highestBid.Amount, item.SellerId);
+        _db.Notifications.Add(new Notification
+        {
+            UserId = item.SellerId,
+            ItemId = item.Id,
+            Type = NotificationType.AuctionSold,
+            Message = WithWalletBalanceDisclaimer(
+                $"Your listing \"{item.Title}\" sold for ${highestBid.Amount:N2}.")
+        });
+        _db.Notifications.Add(new Notification
+        {
+            UserId = highestBid.BidderId,
+            ItemId = item.Id,
+            Type = NotificationType.AuctionWon,
+            Message = WithWalletBalanceDisclaimer($"You won the auction for \"{item.Title}\"!")
+        });
+        var losingBidderIds = await _db.Bids
+            .Where(b => b.ItemId == item.Id && b.BidderId != highestBid.BidderId)
+            .Select(b => b.BidderId)
+            .ToListAsync();
+        foreach (var loserId in losingBidderIds.Distinct())
+        {
+            _db.Notifications.Add(new Notification
+            {
+                UserId = loserId,
+                ItemId = item.Id,
+                Type = NotificationType.AuctionLost,
+                Message = WithWalletBalanceDisclaimer(
+                    $"You did not win the auction for \"{item.Title}\". Another bidder had the highest bid when it closed.")
+            });
+        }
+
+        return null;
+    }
+
+    public async Task<(string? Error, GmBulkCloseAuctionsResultDto? Result)> GmBulkCloseActiveAuctionsAsync(string mode)
+    {
+        var m = mode?.Trim().ToLowerInvariant();
+        if (m != "natural" && m != "closed")
+            return ("Mode must be natural or closed.", null);
+
+        var items = await _db.Items.Where(i => i.Status == ItemStatus.Active).ToListAsync();
+        if (items.Count > GmBulkCloseActiveMax)
+            return ($"Too many active auctions ({items.Count}). Maximum {GmBulkCloseActiveMax} per request.", null);
+
+        var sold = 0;
+        var closedNoSale = 0;
+
+        foreach (var item in items)
+        {
+            if (m == "natural")
+            {
+                await ProcessActiveAuctionCloseByRulesAsync(item);
+                if (item.Status == ItemStatus.Sold)
+                    sold++;
+                else if (item.Status == ItemStatus.Closed)
+                    closedNoSale++;
+            }
+            else
+            {
+                await ForceCloseActiveWithoutSaleAsync(item);
+                closedNoSale++;
+            }
+
+            item.CloseDateTime = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync();
+        _logger.LogWarning(
+            "GM bulk closed {Count} active auctions via {Mode} (sold={Sold}, closedNoSale={Closed})",
+            items.Count, m, sold, closedNoSale);
+
+        return (null, new GmBulkCloseAuctionsResultDto
+        {
+            ProcessedCount = items.Count,
+            SoldCount = sold,
+            ClosedWithoutSaleCount = closedNoSale
+        });
+    }
+
+    public async Task<(string? Error, GmDeleteAllAuctionsResultDto? Result)> GmDeleteAllAuctionsAsync()
+    {
+        if (_db.Database.IsInMemory())
+            return await GmDeleteAllAuctionsInMemoryAsync();
+
+        await using var tx = await _db.Database.BeginTransactionAsync();
+        try
+        {
+            var holdsDeleted = await _db.BidHolds.ExecuteDeleteAsync();
+            var bidsDeleted = await _db.Bids.ExecuteDeleteAsync();
+            var autoBidsDeleted = await _db.AutoBids.ExecuteDeleteAsync();
+            var notificationsDeleted = await _db.Notifications.Where(n => n.ItemId != null).ExecuteDeleteAsync();
+            var itemsDeleted = await _db.Items.ExecuteDeleteAsync();
+
+            await tx.CommitAsync();
+
+            _logger.LogWarning(
+                "GM delete-all auctions: removed {Items} items, {Bids} bids, {Auto} auto-bids, {Holds} bid holds, {Notif} notifications",
+                itemsDeleted,
+                bidsDeleted,
+                autoBidsDeleted,
+                holdsDeleted,
+                notificationsDeleted);
+
+            return (null, new GmDeleteAllAuctionsResultDto
+            {
+                ItemsDeleted = itemsDeleted,
+                BidsDeleted = bidsDeleted,
+                AutoBidsDeleted = autoBidsDeleted,
+                BidHoldsDeleted = holdsDeleted,
+                NotificationsDeleted = notificationsDeleted
+            });
+        }
+        catch (Exception ex)
+        {
+            await tx.RollbackAsync();
+            _logger.LogError(ex, "GM delete-all auctions failed.");
+            return ("Failed to delete auctions. See server logs.", null);
+        }
+    }
+
+    // InMemory provider has no ExecuteDelete; mirror the relational delete order with tracked removes.
+    private async Task<(string? Error, GmDeleteAllAuctionsResultDto? Result)> GmDeleteAllAuctionsInMemoryAsync()
+    {
+        try
+        {
+            var holds = await _db.BidHolds.ToListAsync();
+            var bids = await _db.Bids.ToListAsync();
+            var autoBids = await _db.AutoBids.ToListAsync();
+            var notifications = await _db.Notifications.Where(n => n.ItemId != null).ToListAsync();
+            var items = await _db.Items.ToListAsync();
+
+            _db.BidHolds.RemoveRange(holds);
+            _db.Bids.RemoveRange(bids);
+            _db.AutoBids.RemoveRange(autoBids);
+            _db.Notifications.RemoveRange(notifications);
+            _db.Items.RemoveRange(items);
+
+            await _db.SaveChangesAsync();
+
+            var holdsDeleted = holds.Count;
+            var bidsDeleted = bids.Count;
+            var autoBidsDeleted = autoBids.Count;
+            var notificationsDeleted = notifications.Count;
+            var itemsDeleted = items.Count;
+
+            _logger.LogWarning(
+                "GM delete-all auctions: removed {Items} items, {Bids} bids, {Auto} auto-bids, {Holds} bid holds, {Notif} notifications",
+                itemsDeleted,
+                bidsDeleted,
+                autoBidsDeleted,
+                holdsDeleted,
+                notificationsDeleted);
+
+            return (null, new GmDeleteAllAuctionsResultDto
+            {
+                ItemsDeleted = itemsDeleted,
+                BidsDeleted = bidsDeleted,
+                AutoBidsDeleted = autoBidsDeleted,
+                BidHoldsDeleted = holdsDeleted,
+                NotificationsDeleted = notificationsDeleted
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "GM delete-all auctions failed.");
+            return ("Failed to delete auctions. See server logs.", null);
+        }
     }
 }

@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { useSellItemModal } from '../context/SellItemModalContext'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
+import { subscribeAuctionListRefresh } from '../utils/auctionListRefresh'
 
 function canCreateAuctions(role: string | undefined): boolean {
   if (!role) return false
@@ -99,6 +100,10 @@ export function AuctionListPage() {
       })
       .finally(() => setLoading(false))
   }, [searchParams, listRefreshToken])
+
+  useEffect(() => {
+    return subscribeAuctionListRefresh(() => setListRefreshToken((t) => t + 1))
+  }, [])
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
   const hasNext = page < totalPages

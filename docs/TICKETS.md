@@ -531,22 +531,17 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-30 — Admin “GM” tools menu (bulk seeding & fixtures)
+## PBM-30 — Admin “GM” tools menu (bulk seeding & fixtures) ✅
 
 **Layer:** Backend + Frontend  
 **Branch:** `PBM-30/admin-gm-tools-menu`  
 **PR Title:** `[PBM-30] add admin GM menu for bulk auctions, users, forums, and fixtures`
 
-- Add an **admin-only** surface (e.g. a “GM tools” section on the existing admin dashboard, or a dedicated `/admin/gm` route) that exposes **safe, intentional** operations for demos, load testing, and QA—not for production abuse.
-- **Guardrails:** all actions require `AdminOnly` (or stricter); optional confirmation dialogs and/or typed confirmations for destructive or high-volume actions; rate limits or batch caps where appropriate; audit logging (who ran what, when, counts affected) if not already present elsewhere.
-- **Initial tool set (iterate as needed):**
-  - **Auctions:** generate N auctions with realistic or randomized fields (reuse/align with existing seed or `scripts/create-auctions-temp.mjs` logic where possible); options for category, seller assignment, close dates, bid counts.
-  - **Users:** bulk-create end-user accounts (username pattern, optional wallet balance); optional password policy for demo users.
-  - **Forums / Q&A:** if the product model is “questions” threads, seed N questions (and optional rep replies) tied to existing users/items; if true forums are out of scope, scope this bullet to “Q&A seeding” only and document the limitation.
-  - **Other fixtures:** wallet top-ups, alerts/notifications samples, or sold/closed auction history—only where APIs already exist or small admin endpoints are justified.
-- **Implementation notes:** prefer authenticated **admin API endpoints** (`POST /api/admin/gm/...` or similar) that call shared services, rather than one-off curl scripts, so the UI and automation stay in sync; keep payloads validated and idempotent where useful (e.g. “ensure at least N listings” vs blind duplicate spam).
-- **Docs:** short note in `TECH_DOC.md` or admin-facing copy listing what each tool does and that it is for **non-production** or controlled environments unless explicitly enabled.
-- **Tests:** backend tests for authorization (non-admin forbidden), validation, and bounded batch behavior; frontend tests for role-gated visibility and successful trigger + error toasts.
+- **Admin-only surface:** `GmToolsDock` (right-edge tab) + slide-in `GmToolsPanel` for admins; integrated with `/admin` (legacy `/admin/gm` redirects to `/admin`). Intended for **demos, load testing, and QA**, not unchecked production use.
+- **API:** `POST /api/admin/gm/...` via `AdminGmController` and `GmToolsService` — auction seed (random fields + optional synthetic bids, caps), **GT7 manifest** seed (aligned with `scripts/create-auctions-temp.mjs`), bulk end-user creation, Q&amp;A seed (optional rep/admin replies), wallet top-up, sample alerts and in-app notifications, idempotent sold-history fixture, bulk close all **active** listings (`natural` vs `closed`), run expired close sweep (same as background job), and **`auctions/delete-all`** to wipe every listing plus dependent rows (bids, auto-bids, bid holds, item-linked notifications) for environment reset.
+- **Guardrails:** all routes use `AdminOnly`; batch/recipient caps on seeding and top-ups; UI confirmations for destructive or high-volume actions where appropriate; successful GM actions audit-logged at **Warning** with admin id and affected counts.
+- **Docs:** endpoint catalog and usage notes in `docs/TECH_DOC.md` (§7 Admin GM tools table; §11 GM tools overview).
+- **Tests:** `AdminGmControllerTests`, `GmToolsServiceTests`, `AuctionServiceTests`; frontend `GmToolsPanel.test.tsx` (role gating, triggers, errors).
 
 ---
 
@@ -565,6 +560,22 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Frontend:** new page using existing list/card patterns (`AuctionCard` or table variant), loading and empty states (“You have not placed any bids yet”), sort default (e.g. active first, then by close date or last bid time).
 - **Nav:** add **My bids** to `Layout` for roles that can bid (aligned with **My auctions** / **Sell** visibility rules).
 - **Tests:** backend tests for authorization (only self), bids-only vs history semantics, and DTO fields; frontend tests for route guard, empty list, and row actions linking to detail.
+
+---
+
+## PBM-32 — Seller actions on own active auctions (no listing edits)
+
+**Layer:** Backend + Frontend  
+**Branch:** `PBM-32/seller-auction-lifecycle-actions`  
+**PR Title:** `[PBM-32] seller lifecycle actions for active auctions (end early, etc.; no field edits)`
+
+**Placeholder / intent:** Give sellers limited control over auctions that are **still active**—without reopening **create-time listing data** (title, description, category fields, reserve, images, etc. remain immutable after publish). Primary candidate: **end the auction early** (business rules TBD: e.g. immediate close vs. scheduled, reserve/winner semantics, notifications to bidders).
+
+- **Out of scope for this ticket (explicit):** General “edit my listing” or admin-style field patches; those stay separate (admin/rep flows or a different product decision).
+- **Backend (sketch):** Authenticated seller-only endpoint(s), e.g. `POST api/auctions/{id}/end-early` or `POST api/auctions/{id}/seller-actions` with a small action enum; validate item is active, seller owns item, and any policy checks (min time open, bid count, etc.—to be specified). Reuse or align with existing close/winner logic where possible.
+- **Frontend (sketch):** From **My auctions** and/or **auction detail** (when viewer is seller and auction is active), expose safe actions (e.g. **End auction now**) with confirmation modal and clear copy about consequences.
+- **Product follow-ups to decide:** Whether other actions belong here (e.g. “withdraw” if no bids, messaging-only nudges) vs. separate tickets; audit/logging if required.
+- **Tests:** Authorization (only owner, only active), happy path close, rejection cases; frontend tests for visibility and confirm flow.
 
 ---
 

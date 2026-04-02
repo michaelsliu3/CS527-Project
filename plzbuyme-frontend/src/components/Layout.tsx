@@ -1,5 +1,5 @@
 import { Box, Badge, Button, Container, Flex, Heading, Menu, Spinner } from '@chakra-ui/react'
-import { Outlet, Link as RouterLink, useNavigate } from 'react-router-dom'
+import { Outlet, Link as RouterLink, useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { listNotifications, markNotificationRead } from '../api/notifications'
@@ -12,6 +12,7 @@ import { APP_PAGE_PX } from '../theme/layout'
 import { DisplayNameText } from './DisplayNameText'
 import { NavWallet } from './NavWallet'
 import { UserAvatar } from './UserAvatar'
+import { GmToolsDockProvider } from './GmToolsDock'
 
 /** How often to poll for new notifications while the user is logged in (used for badge + real-time toasts). */
 const NOTIFICATION_POLL_INTERVAL_MS = 5_000
@@ -24,6 +25,9 @@ const canUseEndUserFeatures = (role: string) =>
 export function Layout() {
   const { user, loading, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const locationRef = useRef(location)
+  locationRef.current = location
   const [unreadCount, setUnreadCount] = useState(0)
   const [navAvatarUrl, setNavAvatarUrl] = useState<string | null>(null)
   const lastKnownUnreadIdsRef = useRef<Set<number>>(new Set())
@@ -51,7 +55,12 @@ export function Layout() {
                   markNotificationRead(notificationId)
                     .then(() => window.dispatchEvent(new CustomEvent('notifications-updated')))
                     .catch(() => showErrorToast('Error', 'Failed to mark as read.'))
-                  navigate(path)
+                  navigate(
+                    path,
+                    path.startsWith('/auctions/')
+                      ? { state: { backgroundLocation: locationRef.current } }
+                      : undefined,
+                  )
                 },
               })
             }
@@ -104,6 +113,7 @@ export function Layout() {
   }
 
   return (
+    <GmToolsDockProvider enabled={user?.role === 'admin'}>
     <Box minH="100vh" bg={dark.bg} color="white">
       <Box as="nav" borderBottomWidth="1px" borderColor={dark.borderSubtle} py={3} bg={dark.navBg}>
         <Container maxW="container.xl" px={APP_PAGE_PX}>
@@ -195,5 +205,6 @@ export function Layout() {
         <Outlet />
       </Box>
     </Box>
+    </GmToolsDockProvider>
   )
 }

@@ -189,6 +189,8 @@ CS527-Project/
 | `QuestionsController`   | `api/questions`     | Customer Q&A                            |
 | `WalletController`      | `api/wallet`        | Demo deposit / withdraw (end-user)      |
 | `AdminController`       | `api/admin`         | Admin dashboard and reports             |
+| `AdminGmController`     | `api/admin/gm`      | GM bulk seeding (demos / QA)                |
+| `AdminAuctionsController` | `api/admin/auctions` | Admin patch auction / end early          |
 | `RepController`         | `api/rep`           | Customer rep functions                  |
 
 ### Frontend Page Structure (React Router)
@@ -678,6 +680,36 @@ End-user policy only (`[Authorize(Policy = "EndUser")]`). Used for **demo / deve
 | GET    | `api/admin/reports/best-selling`    | Best-selling items          | Admin  |
 | GET    | `api/admin/reports/best-buyers`     | Top buyers                  | Admin  |
 
+#### Admin GM tools — `api/admin/gm`
+
+These endpoints are **admin-only** (`AdminOnly` policy). They exist for **demos, load testing, and QA**.
+
+| Method | Route | Description | Access |
+|--------|--------|-------------|--------|
+| POST | `api/admin/gm/auctions/seed` | Bulk-create auctions (optional synthetic bids); batch and bid caps enforced | Admin |
+| POST | `api/admin/gm/auctions/seed-from-manifest` | Same as `scripts/create-auctions-temp.mjs`: GT7 manifest cars, category inference, image URLs; up to 100/request; `Gt7CarManifest:Path` or `plzbuyme-cdn` beside repo | Admin |
+| POST | `api/admin/gm/users/bulk` | Bulk-create end-user accounts (username prefix, optional wallet) | Admin |
+| POST | `api/admin/gm/questions/seed` | Seed Q&amp;A threads (optional rep/admin replies) | Admin |
+| POST | `api/admin/gm/wallets/top-up` | Deposit the same amount to many users (recipient and amount caps enforced) | Admin |
+| POST | `api/admin/gm/alerts/sample` | Create keyword sample alerts for a user | Admin |
+| POST | `api/admin/gm/notifications/sample` | Insert sample in-app notifications for a user | Admin |
+| POST | `api/admin/gm/fixtures/sold-history` | Idempotently extend sold/closed history via existing `SeedData.SeedSoldItemsForReports` | Admin |
+| POST | `api/admin/gm/auctions/close-active` | Body `{ "mode": "natural" \| "closed" }`: end every **active** listing in one batch (natural = reserve rules; closed = no sale). Max 500 active per request | Admin |
+| POST | `api/admin/gm/auctions/run-close-sweep` | Run the same **expired** close pass as the background job (active + `close_datetime` in the past) | Admin |
+| POST | `api/admin/gm/auctions/delete-all` | **Destructive (QA/demo reset):** deletes every `Item` and related bids, auto-bids, bid holds, and notifications tied to an item id. Uses a transaction and bulk `ExecuteDelete` on relational providers; in-memory tests use explicit removes. **Do not expose to untrusted production admins.** | Admin |
+
+**Audit:** each successful GM action is logged at **Warning** level with the admin user id and counts affected (Serilog).
+
+**Frontend:** “GM tools” opens from a **right-edge tab** (admins on any page); **slides in from the right** as a full-height panel with backdrop dismiss and error toasts. The **Seed auctions** tab combines **random/synthetic** and **GT7 manifest** sources behind one form. **Delete all auctions** is available in the panel for full environment reset alongside other GM actions. Legacy `/admin/gm` redirects to `/admin`.
+
+#### Admin auction edit — `api/admin/auctions`
+
+| Method | Route | Description | Access |
+|--------|--------|-------------|--------|
+| PATCH | `api/admin/auctions/{id}` | Partial update: title, description, close time, increment, reserve, initial/current (no bids only), or **end** active auction (`endAuction`: `natural` \| `closed` \| `sold`) — end must be sent alone | Admin |
+
+**Frontend:** auction detail shows **Edit** for admins; dialog calls PATCH.
+
 ---
 
 ## 8. Auction Engine Logic
@@ -889,6 +921,10 @@ Two items are "similar" if they share the same subcategory and were listed withi
 
 ## 11. Admin & Reports
 
+### GM tools (bulk seeding)
+
+Admin-only **GM tools** (right-edge dock tab + slide-in panel, `api/admin/gm/*` API) bulk-generate auctions (including **GT7 manifest**-driven listings aligned with `create-auctions-temp.mjs`), users, Q&amp;A threads, wallet credits, sample alerts/notifications, and optional sold-history fixtures for **demos, load tests, and QA**. Administrators can also **end all active listings** in one batch, **run the expired close sweep** manually, or **delete every auction** (and dependent bid/hold/notification rows) to reset a test environment—treat the last as **highly destructive** and only for controlled or non-production deployments. Batch sizes limit abuse. Successful GM actions are audit-logged at Warning level with the admin id and affected counts. Optional **`Gt7CarManifest:Path`** points at `gt7-car-thumbnails.manifest.json` when `plzbuyme-cdn` is not next to the API project.
+
 ### Report Queries (pseudocode)
 
 **Total Earnings:**
@@ -967,7 +1003,9 @@ CS527-Project/
 │       │   ├── QuestionsController.cs
 │       │   ├── WalletController.cs
 │       │   ├── RepController.cs
-│       │   └── AdminController.cs
+│       │   ├── AdminController.cs
+│       │   ├── AdminGmController.cs   # api/admin/gm — bulk GM seeding
+│       │   └── AdminAuctionsController.cs # api/admin/auctions — admin patch
 │       │
 │       ├── Services/
 │       │   ├── AuctionService.cs      # Bidding, auto-bid, CloseExpiredAsync + close notifications
@@ -975,7 +1013,9 @@ CS527-Project/
 │       │   ├── WalletService.cs       # Holds, deposit/withdraw, finalize sale
 │       │   ├── AlertService.cs        # Alert matching
 │       │   ├── AuthService.cs         # JWT, profile incl. wallet snapshot
-│       │   └── ReportService.cs       # Admin report queries
+│       │   ├── ReportService.cs       # Admin report queries
+│       │   ├── GmToolsService.cs      # GM bulk seeding (+ GT7 manifest)
+│       │   └── Gt7ManifestAuctionBuilder.cs # Manifest → CreateAuctionDto (script parity)
 │       │
 │       └── Migrations/                # EF Core auto-generated migrations
 │
@@ -985,13 +1025,17 @@ CS527-Project/
 │       │   ├── AuthServiceTests.cs
 │       │   ├── AuctionServiceTests.cs
 │       │   ├── AlertServiceTests.cs
-│       │   └── ReportServiceTests.cs
+│       │   ├── ReportServiceTests.cs
+│       │   ├── GmToolsServiceTests.cs
+│       │   └── Gt7ManifestAuctionBuilderTests.cs
 │       ├── Controllers/               # Controller integration tests
 │       │   ├── AuthControllerTests.cs
 │       │   ├── AuctionsControllerTests.cs
 │       │   ├── AlertsControllerTests.cs
 │       │   ├── RepControllerTests.cs
-│       │   └── AdminControllerTests.cs
+│       │   ├── AdminControllerTests.cs
+│       │   ├── AdminGmControllerTests.cs
+│       │   └── AdminAuctionsControllerTests.cs
 │       └── Helpers/
 │           └── TestDbContextFactory.cs # InMemory DB setup for tests
 │
@@ -1005,6 +1049,8 @@ CS527-Project/
 │       ├── App.tsx                    # Route definitions
 │       ├── api/
 │       │   ├── client.ts             # Axios instance with JWT interceptor
+│       │   ├── adminAuctions.ts      # Admin PATCH auction
+│       │   ├── gm.ts                 # Admin GM tools API helpers
 │       │   └── notifications.ts
 │       ├── utils/
 │       │   └── notificationMessage.ts # Split primary vs wallet disclaimer for UI
@@ -1014,6 +1060,9 @@ CS527-Project/
 │       │   ├── Layout.tsx             # Navbar, wallet, notification polling/toasts
 │       │   ├── NavWallet.tsx          # Compact wallet + deposit presets in nav
 │       │   ├── ProtectedRoute.tsx     # Role-based route guard
+│       │   ├── AdminAuctionEditModal.tsx # Admin auction PATCH from detail view
+│       │   ├── GmToolsDock.tsx          # Admin GM tab + right slide-in panel (`GmToolsDockProvider`)
+│       │   ├── GmToolsPanel.tsx         # GM tools form tabs (used inside dock modal)
 │       │   ├── AuctionCard.tsx
 │       │   ├── BidHistory.tsx
 │       │   ├── SearchBar.tsx
@@ -1038,6 +1087,7 @@ CS527-Project/
 │       ├── __tests__/                # Vitest test files
 │       │   ├── components/
 │       │   │   ├── AuctionCard.test.tsx
+│       │   │   ├── GmToolsPanel.test.tsx
 │       │   │   ├── SearchBar.test.tsx
 │       │   │   └── ProtectedRoute.test.tsx
 │       │   ├── pages/

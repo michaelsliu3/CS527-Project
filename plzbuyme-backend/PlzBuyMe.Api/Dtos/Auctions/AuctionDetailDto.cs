@@ -17,6 +17,7 @@ public record AuctionDetailDto
     public string? SellerDisplayNameColor { get; init; }
     public decimal InitialPrice { get; init; }
     public decimal BidIncrement { get; init; }
+    public decimal ReservePrice { get; init; }
     public decimal CurrentPrice { get; init; }
     public DateTime CloseDateTime { get; init; }
     public string Status { get; init; } = string.Empty;

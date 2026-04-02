@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -21,7 +22,8 @@ public class PlzBuyMeWebApplicationFactory : WebApplicationFactory<PlzBuyMe.Api.
         {
             services.RemoveAll(typeof(DbContextOptions<AppDbContext>));
             services.AddDbContext<AppDbContext>(options =>
-                options.UseInMemoryDatabase(_databaseName));
+                options.UseInMemoryDatabase(_databaseName)
+                    .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning)));
         });
     }
 

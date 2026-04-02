@@ -1,4 +1,6 @@
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using PlzBuyMe.Api.Data;
@@ -11,6 +13,14 @@ namespace PlzBuyMe.Tests.Services;
 
 public class AuctionServiceTests
 {
+    private static IConfiguration TestAppConfiguration() =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MediaStorage:ServiceBaseUrl"] = "http://localhost:5090"
+            })
+            .Build();
+
     private static (AppDbContext Db, int SedanId, int MakeFieldId, int SellerId) CreateSeededContext()
     {
         var db = TestDbContextFactory.Create();
@@ -38,6 +48,7 @@ public class AuctionServiceTests
             alertService ?? new AlertService(db),
             resolver ?? CreateResolverMock(),
             new WalletService(db),
+            TestAppConfiguration(),
             new Mock<ILogger<AuctionService>>().Object);
     }
 
@@ -83,13 +94,6 @@ public class AuctionServiceTests
                 "http://localhost:5090/media/cars/gt7/car137.png",
                 "https://www.gran-turismo.com/common/dist/gt7/carlist/assets/car137_2_01-BjWLpWuk.jpg",
                 "137"));
-        resolverMock.Setup(r => r.ResolveByExternalIdAsync("137", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new CdnGt7ThumbnailResolveResult(
-                true,
-                "external-id",
-                "http://localhost:5090/media/cars/gt7/car137.png",
-                "https://www.gran-turismo.com/common/dist/gt7/carlist/assets/car137_2_01-BjWLpWuk.jpg",
-                "137"));
         var service = CreateService(db, resolver: resolverMock.Object);
 
         var dto = new CreateAuctionDto
@@ -112,13 +116,115 @@ public class AuctionServiceTests
 
         created.Should().NotBeNull();
         created!.ImageUrl.Should().Be("http://localhost:5090/media/cars/gt7/car137.png");
-        created.DetailImageUrl.Should().Be("https://www.gran-turismo.com/common/dist/gt7/carlist/assets/car137_2_01-BjWLpWuk.jpg");
+        created.DetailImageUrl.Should().Be("http://localhost:5090/media/cars/gt7/detail/car137.jpg");
         created.ImageSource.Should().Be("gt7-default");
         created.ImageMatchLevel.Should().Be("exact");
         var item = db.Items.Single(i => i.Id == created.Id);
+        item.ImageUrl.Should().Be("http://localhost:5090/media/cars/gt7/car137.png");
         item.ImageStorageKey.Should().Be("137");
         resolverMock.Verify(r => r.ResolveAsync("Honda", "Beat", 1991, It.IsAny<CancellationToken>()), Times.Once);
-        resolverMock.Verify(r => r.ResolveByExternalIdAsync("137", It.IsAny<CancellationToken>()), Times.Once);
+        resolverMock.Verify(r => r.ResolveByExternalIdAsync(It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GmDeleteAllAuctionsAsync_RemovesAllItemsBidsAndRelatedRows()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var itemsBefore = await db.Items.CountAsync();
+        var bidsBefore = await db.Bids.CountAsync();
+        itemsBefore.Should().BeGreaterThan(0);
+        bidsBefore.Should().BeGreaterThan(0);
+
+        var (error, result) = await service.GmDeleteAllAuctionsAsync();
+
+        error.Should().BeNull();
+        result.Should().NotBeNull();
+        result!.ItemsDeleted.Should().Be(itemsBefore);
+        result.BidsDeleted.Should().Be(bidsBefore);
+        (await db.Items.CountAsync()).Should().Be(0);
+        (await db.Bids.CountAsync()).Should().Be(0);
+        (await db.AutoBids.CountAsync()).Should().Be(0);
+        (await db.BidHolds.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task CreateAuction_ManifestCatalogHint_SkipsResolverAndPersistsCdnThumbnail()
+    {
+        var (db, categoryId, _, sellerId) = CreateSeededContext();
+        var resolverMock = new Mock<ICdnGt7ThumbnailResolver>();
+        var service = CreateService(db, resolver: resolverMock.Object);
+
+        var dto = new CreateAuctionDto
+        {
+            Title = "Seeded from manifest id",
+            CategoryId = categoryId,
+            ImageStorageKey = "1523",
+            InitialPrice = 5000m,
+            BidIncrement = 100m,
+            ReservePrice = 6000m,
+            CloseDateTime = DateTime.UtcNow.AddDays(1),
+            FieldValues = new List<FieldValueDto>()
+        };
+
+        var created = await service.CreateAuctionAsync(dto, sellerId);
+
+        created.Should().NotBeNull();
+        created!.ImageUrl.Should().Be("http://localhost:5090/media/cars/gt7/car1523.png");
+        created.ImageSource.Should().Be("gt7-default");
+        created.ImageMatchLevel.Should().Be("manifest");
+        var item = db.Items.Single(i => i.Id == created.Id);
+        item.ImageUrl.Should().Be("http://localhost:5090/media/cars/gt7/car1523.png");
+        item.ImageStorageKey.Should().Be("1523");
+        resolverMock.Verify(
+            r => r.ResolveAsync(It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAuction_WhenResolverReturnsThirdPartyUrlWithoutExternalId_StillPersistsCdnPaths()
+    {
+        var (db, categoryId, _, sellerId) = CreateSeededContext();
+        var sedanFields = db.CategoryFields.Where(f => f.CategoryId == categoryId).ToList();
+        var makeFieldId = sedanFields.First(f => f.FieldName == "Make").Id;
+        var modelFieldId = sedanFields.First(f => f.FieldName == "Model").Id;
+        var yearFieldId = sedanFields.First(f => f.FieldName == "Year").Id;
+
+        var resolverMock = new Mock<ICdnGt7ThumbnailResolver>();
+        resolverMock.Setup(r => r.ResolveAsync("Honda", "Civic", 2020, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new CdnGt7ThumbnailResolveResult(
+                true,
+                "exact",
+                "https://www.gran-turismo.com/common/dist/gt7/carlist/assets/car3377_2_01-CJlc6klO.jpg",
+                null,
+                null));
+        var service = CreateService(db, resolver: resolverMock.Object);
+
+        var dto = new CreateAuctionDto
+        {
+            Title = "2020 Honda Civic",
+            CategoryId = categoryId,
+            InitialPrice = 12000m,
+            BidIncrement = 250m,
+            ReservePrice = 15000m,
+            CloseDateTime = DateTime.UtcNow.AddDays(2),
+            FieldValues =
+            [
+                new FieldValueDto(makeFieldId, "Honda"),
+                new FieldValueDto(modelFieldId, "Civic"),
+                new FieldValueDto(yearFieldId, "2020")
+            ]
+        };
+
+        var created = await service.CreateAuctionAsync(dto, sellerId);
+
+        created.Should().NotBeNull();
+        created!.ImageUrl.Should().Be("http://localhost:5090/media/cars/gt7/car3377.png");
+        created.DetailImageUrl.Should().Be("http://localhost:5090/media/cars/gt7/detail/car3377.jpg");
+        var item = db.Items.Single(i => i.Id == created.Id);
+        item.ImageUrl.Should().Be("http://localhost:5090/media/cars/gt7/car3377.png");
+        item.ImageStorageKey.Should().Be("3377");
+        item.ImageSource.Should().Be("gt7-default");
     }
 
     [Fact]
@@ -203,6 +309,45 @@ public class AuctionServiceTests
         var service = CreateService(db);
         var act = () => service.PlaceBidAsync(item.Id, bidder.Id, item.CurrentPrice + item.BidIncrement);
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not active*");
+    }
+
+    [Fact]
+    public async Task GmBulkCloseActive_InvalidMode_ReturnsError()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var (err, result) = await service.GmBulkCloseActiveAuctionsAsync("invalid");
+        err.Should().NotBeNull();
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GmBulkCloseActive_ClosedMode_EndsAllActiveWithoutSale()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var activeBefore = db.Items.Count(i => i.Status == ItemStatus.Active);
+        activeBefore.Should().BeGreaterThan(0);
+        var service = CreateService(db);
+        var (err, result) = await service.GmBulkCloseActiveAuctionsAsync("closed");
+        err.Should().BeNull();
+        result.Should().NotBeNull();
+        result!.ProcessedCount.Should().Be(activeBefore);
+        result.SoldCount.Should().Be(0);
+        result.ClosedWithoutSaleCount.Should().Be(activeBefore);
+        db.Items.Count(i => i.Status == ItemStatus.Active).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task PlaceBid_AfterScheduledClose_Rejected()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var item = db.Items.First(i => i.Status == ItemStatus.Active);
+        var bidder = db.Users.Single(u => u.Username == "bidder1");
+        item.CloseDateTime = DateTime.UtcNow.AddSeconds(-1);
+        db.SaveChanges();
+        var service = CreateService(db);
+        var act = () => service.PlaceBidAsync(item.Id, bidder.Id, item.CurrentPrice + item.BidIncrement);
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*ended*");
     }
 
     [Fact]

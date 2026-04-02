@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -7,6 +8,11 @@ namespace PlzBuyMe.Api.Services;
 
 public sealed class CdnGt7ThumbnailResolver : ICdnGt7ThumbnailResolver
 {
+    private static readonly JsonSerializerOptions ResolvePayloadJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<CdnGt7ThumbnailResolver> _logger;
     private readonly string _cdnBaseUrl;
@@ -45,7 +51,9 @@ public sealed class CdnGt7ThumbnailResolver : ICdnGt7ThumbnailResolver
                 return new CdnGt7ThumbnailResolveResult(false, "none", null, null, null);
             }
 
-            var payload = await response.Content.ReadFromJsonAsync<Gt7ResolveResponsePayload>(cancellationToken: cancellationToken);
+            var payload = await response.Content.ReadFromJsonAsync<Gt7ResolveResponsePayload>(
+                ResolvePayloadJsonOptions,
+                cancellationToken);
             if (payload == null || !payload.Found || string.IsNullOrWhiteSpace(payload.Url))
                 return new CdnGt7ThumbnailResolveResult(false, payload?.MatchLevel ?? "none", null, null, payload?.ExternalId);
 
@@ -74,7 +82,9 @@ public sealed class CdnGt7ThumbnailResolver : ICdnGt7ThumbnailResolver
                 return new CdnGt7ThumbnailResolveResult(false, "none", null, null, null);
             }
 
-            var payload = await response.Content.ReadFromJsonAsync<Gt7ResolveResponsePayload>(cancellationToken: cancellationToken);
+            var payload = await response.Content.ReadFromJsonAsync<Gt7ResolveResponsePayload>(
+                ResolvePayloadJsonOptions,
+                cancellationToken);
             if (payload == null || !payload.Found || string.IsNullOrWhiteSpace(payload.Url))
                 return new CdnGt7ThumbnailResolveResult(false, payload?.MatchLevel ?? "none", null, null, payload?.ExternalId);
 

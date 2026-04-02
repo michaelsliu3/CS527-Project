@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PlzBuyMe.Api.Data;
@@ -83,7 +84,8 @@ public class Program
         if (builder.Environment.IsEnvironment("Testing"))
         {
             builder.Services.AddDbContext<AppDbContext>(options =>
-                options.UseInMemoryDatabase("PlzBuyMeE2E"));
+                options.UseInMemoryDatabase("PlzBuyMeE2E")
+                    .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning)));
         }
         else
         {
@@ -144,6 +146,7 @@ public class Program
         builder.Services.AddScoped<IQuestionsService, QuestionsService>();
         builder.Services.AddScoped<IRepService, RepService>();
         builder.Services.AddScoped<IReportService, ReportService>();
+        builder.Services.AddScoped<IGmToolsService, GmToolsService>();
         builder.Services.AddHttpClient();
         builder.Services.AddHostedService<AuctionCloseService>();
 

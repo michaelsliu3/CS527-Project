@@ -36,7 +36,7 @@ export function AdminDashboard() {
       <Text fontSize="2xl" fontWeight="bold" color="white" mb={6}>
         Admin Dashboard
       </Text>
-      <Flex gap={4} mb={8}>
+      <Flex gap={4} mb={8} flexWrap="wrap">
         <Button
           asChild
           size="sm"

@@ -110,6 +110,7 @@ function App() {
             >
               <Route index element={<AdminDashboard />} />
               <Route path="reports" element={<ReportsPage />} />
+              <Route path="gm" element={<Navigate to="/admin" replace />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

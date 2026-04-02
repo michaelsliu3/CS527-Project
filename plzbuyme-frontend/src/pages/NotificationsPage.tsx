@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Box, Button, Container, Flex, Icon, Spinner, Text } from '@chakra-ui/react'
 import { showErrorToast } from '../components/ui/toaster'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   HiOutlineBell,
   HiOutlineCheckCircle,
@@ -51,6 +51,7 @@ function formatTime(createdAt: string) {
 
 export function NotificationsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [items, setItems] = useState<NotificationItem[]>([])
   const [loading, setLoading] = useState(true)
   const [markAllLoading, setMarkAllLoading] = useState(false)
@@ -73,8 +74,9 @@ export function NotificationsPage() {
   }, [])
 
   const handleViewAuction = async (n: NotificationItem) => {
+    const auctionState = { state: { backgroundLocation: location } }
     if (n.isRead) {
-      navigate(`/auctions/${n.itemId!}`)
+      navigate(`/auctions/${n.itemId!}`, auctionState)
       return
     }
     try {
@@ -83,7 +85,7 @@ export function NotificationsPage() {
         prev.map((item) => (item.id === n.id ? { ...item, isRead: true } : item))
       )
       window.dispatchEvent(new CustomEvent('notifications-updated'))
-      navigate(`/auctions/${n.itemId!}`)
+      navigate(`/auctions/${n.itemId!}`, auctionState)
     } catch {
       showErrorToast('Error', 'Failed to mark as read.')
     }

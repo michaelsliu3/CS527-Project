@@ -12,6 +12,7 @@ import {
   type AuctionDetail,
   type AuctionListItem,
 } from '../api/auctions'
+import { AdminAuctionEditModal } from '../components/AdminAuctionEditModal'
 import { BidHistory } from '../components/BidHistory'
 import { AuctionCard } from '../components/AuctionCard'
 import { DisplayNameText } from '../components/DisplayNameText'
@@ -21,6 +22,7 @@ import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
 import { APP_PAGE_PX } from '../theme/layout'
 import { resolveMediaUrl } from '../utils/mediaUrl'
+import { notifyAuctionListRefresh } from '../utils/auctionListRefresh'
 import { useScrollLock } from '../hooks/useScrollLock'
 
 function toUtcEpochMs(value: string): number {
@@ -116,9 +118,25 @@ export function AuctionDetailPage() {
   const [error, setError] = useState<string | null>(null)
   const [bidError, setBidError] = useState<string | null>(null)
   const [bidSubmitting, setBidSubmitting] = useState(false)
+  const [adminEditOpen, setAdminEditOpen] = useState(false)
+  const adminEditOpenRef = useRef(false)
+  const handleCloseRef = useRef(handleClose)
+  adminEditOpenRef.current = adminEditOpen
+  handleCloseRef.current = handleClose
+
   const { register, handleSubmit, setValue } = useForm<BidFormValues>({
     defaultValues: { amount: '', autoLimit: '' },
   })
+
+  useEffect(() => {
+    if (!isModal) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || adminEditOpenRef.current) return
+      handleCloseRef.current()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isModal])
 
   useEffect(() => {
     if (!id) return
@@ -151,10 +169,12 @@ export function AuctionDetailPage() {
       .catch(() => setSimilar([]))
   }, [id, auction?.id])
 
+  const closeEpochMs = auction ? toUtcEpochMs(auction.closeDateTime) : 0
   const canBid =
     user &&
     auction &&
     auction.status === 'active' &&
+    closeEpochMs > Date.now() &&
     user.id !== auction.sellerId
 
   const onPlaceBid = async (data: BidFormValues) => {
@@ -166,6 +186,7 @@ export function AuctionDetailPage() {
       const res = await getAuction(auction.id)
       setAuction(res.data)
       setValue('amount', String(res.data.currentPrice + res.data.bidIncrement))
+      notifyAuctionListRefresh()
       await refreshProfile()
     } catch (err) {
       const msg = isAxiosError(err) && err.response?.data
@@ -186,6 +207,7 @@ export function AuctionDetailPage() {
       await setAutoBid(auction.id, Number(data.autoLimit))
       const res = await getAuction(auction.id)
       setAuction(res.data)
+      notifyAuctionListRefresh()
       await refreshProfile()
     } catch (err) {
       const msg = isAxiosError(err) && err.response?.data
@@ -221,21 +243,36 @@ export function AuctionDetailPage() {
     auction.status === 'active' ? 'green' : auction.status === 'sold' ? 'blue' : 'gray'
   const imageSrc = resolveMediaUrl(auction.detailImageUrl ?? auction.imageUrl)
 
-  const content = (
-    <Container maxW="container.xl" px={APP_PAGE_PX} py={{ base: 4, md: 6 }}>
+  const adminEditModal =
+    user?.role === 'admin' ? (
+      <AdminAuctionEditModal
+        auction={auction}
+        open={adminEditOpen}
+        onClose={() => setAdminEditOpen(false)}
+        onSaved={(d) => {
+          setAuction(d)
+          setCountdown(formatCountdown(d.closeDateTime))
+          setValue('amount', String(d.currentPrice + d.bidIncrement))
+          notifyAuctionListRefresh()
+        }}
+      />
+    ) : null
+
+  const auctionPanel = (
+    <>
       <Box
-        maxW="920px"
-        mx="auto"
-        bg={dark.cardBg}
-        borderWidth="1px"
-        borderColor={dark.borderSubtle}
-        borderRadius="xl"
-        p={{ base: 4, md: 6 }}
-        boxShadow="0 18px 48px rgba(0,0,0,0.45)"
-        position="relative"
-        animation={isModal ? `${isClosing ? panelScaleOut : panelScaleIn} 0.18s ease-out forwards` : undefined}
-        onClick={isModal ? (event) => event.stopPropagation() : undefined}
-      >
+          maxW="920px"
+          mx="auto"
+          pointerEvents={isModal ? 'auto' : undefined}
+          bg={dark.cardBg}
+          borderWidth="1px"
+          borderColor={dark.borderSubtle}
+          borderRadius="xl"
+          p={{ base: 4, md: 6 }}
+          boxShadow="0 18px 48px rgba(0,0,0,0.45)"
+          position="relative"
+          animation={isModal ? `${isClosing ? panelScaleOut : panelScaleIn} 0.18s ease-out forwards` : undefined}
+        >
       <Box mb={6}>
         <Flex align="center" justify="space-between" gap={2} mb={2}>
           <Flex align="center" gap={2} minW={0}>
@@ -246,6 +283,19 @@ export function AuctionDetailPage() {
               {auction.status}
             </Badge>
           </Flex>
+          <Flex align="center" gap={2} flexShrink={0}>
+            {user?.role === 'admin' && (
+              <Button
+                size="sm"
+                variant="outline"
+                borderColor="red.400"
+                color="red.300"
+                _hover={{ bg: 'whiteAlpha.100', borderColor: 'red.300', color: 'red.200' }}
+                onClick={() => setAdminEditOpen(true)}
+              >
+                Edit
+              </Button>
+            )}
           {isModal && (
             <IconButton
               aria-label="Close auction details"
@@ -259,6 +309,7 @@ export function AuctionDetailPage() {
               ×
             </IconButton>
           )}
+          </Flex>
         </Flex>
         <Flex color={dark.muted} align="center" gap={2}>
           <Text>{auction.categoryName} · by</Text>
@@ -420,12 +471,7 @@ export function AuctionDetailPage() {
       </Box>
 
       {similar.length > 0 && (
-        <Box
-          maxW="1100px"
-          mx="auto"
-          mt={8}
-          onClick={isModal ? (event) => event.stopPropagation() : undefined}
-        >
+        <Box maxW="1100px" mx="auto" mt={8} pointerEvents={isModal ? 'auto' : undefined}>
           <Heading size="sm" mb={3} color="white">
             Similar items
           </Heading>
@@ -438,26 +484,55 @@ export function AuctionDetailPage() {
           </Flex>
         </Box>
       )}
-    </Container>
+    </>
+  )
+
+  const detailPageBody = (
+    <>
+      {auctionPanel}
+      {adminEditModal}
+    </>
   )
 
   if (isModal) {
     return (
-      <Box
-        position="fixed"
-        inset={0}
-        bg="blackAlpha.700"
-        backdropFilter={isClosing ? 'blur(0px)' : 'blur(2px)'}
-        zIndex={1400}
-        overflowY="auto"
-        py={{ base: 4, md: 8 }}
-        animation={`${isClosing ? overlayFadeOut : overlayFadeIn} 0.18s ease-out forwards`}
-        onClick={handleClose}
-      >
-        {content}
+      <Box position="fixed" inset={0} zIndex={1400} overflowY="auto">
+        <Box position="relative" minH="100%" w="100%">
+          {/* Full-area layer receives side/top/bottom dimmed clicks; sheet is pointer-events auto above */}
+          <Box
+            data-testid="auction-detail-modal-backdrop"
+            position="absolute"
+            inset={0}
+            minH="100%"
+            bg="blackAlpha.700"
+            backdropFilter={isClosing ? 'blur(0px)' : 'blur(2px)'}
+            animation={`${isClosing ? overlayFadeOut : overlayFadeIn} 0.18s ease-out forwards`}
+            onPointerDown={() => {
+              if (adminEditOpenRef.current) return
+              handleCloseRef.current()
+            }}
+          />
+          <Box
+            position="relative"
+            zIndex={1}
+            display="flex"
+            flexDirection="column"
+            alignItems="center"
+            pointerEvents="none"
+            px={APP_PAGE_PX}
+            py={{ base: 4, md: 8 }}
+          >
+            {/* Only cards capture clicks; horizontal strips beside 920px / 1100px content hit the backdrop */}
+            {detailPageBody}
+          </Box>
+        </Box>
       </Box>
     )
   }
 
-  return content
+  return (
+    <Container maxW="container.xl" px={APP_PAGE_PX} py={{ base: 4, md: 6 }}>
+      {detailPageBody}
+    </Container>
+  )
 }
