@@ -293,7 +293,7 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         modelRoot.position.y -= scaledBox.min.y
 
         const wheelNameRegex = /(wheel|tyre|tire|rim)/i
-        const detectedWheels: THREE.Object3D[] = []
+        const allWheelCandidates: THREE.Object3D[] = []
         const lightNodeRegex = /^(Light|LightGlass)\./
         const exteriorPaintMaterials = new Set<THREE.MeshStandardMaterial>()
 
@@ -303,7 +303,7 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         modelRoot.traverse((object: THREE.Object3D) => {
           const mesh = object as THREE.Mesh
           if (wheelNameRegex.test(object.name)) {
-            detectedWheels.push(object)
+            allWheelCandidates.push(object)
           }
 
           if (mesh.isMesh) {
@@ -352,6 +352,15 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         })
 
         paintMaterialsRef.current = Array.from(exteriorPaintMaterials)
+
+        const candidateSet = new Set(allWheelCandidates)
+        const detectedWheels = allWheelCandidates.filter((obj) => {
+          let hasDescendantCandidate = false
+          obj.traverse((child) => {
+            if (child !== obj && candidateSet.has(child)) hasDescendantCandidate = true
+          })
+          return !hasDescendantCandidate
+        })
 
         const selectedColor = currentPaintColorRef.current
         paintMaterialsRef.current.forEach((material) => {
@@ -408,6 +417,15 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     let onPointerDown: (() => void) | null = null
     let onPointerUp: (() => void) | null = null
 
+    onPointerDown = () => {
+      isDriving = true
+    }
+    onPointerUp = () => {
+      isDriving = false
+    }
+    mount.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('pointerup', onPointerUp)
+
     if (!interactive) {
       onPointerMove = (event: PointerEvent) => {
         const rect = mount.getBoundingClientRect()
@@ -420,16 +438,8 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         pointer.y = 0
         isDriving = false
       }
-      onPointerDown = () => {
-        isDriving = true
-      }
-      onPointerUp = () => {
-        isDriving = false
-      }
       mount.addEventListener('pointermove', onPointerMove)
       mount.addEventListener('pointerleave', onPointerLeave)
-      mount.addEventListener('pointerdown', onPointerDown)
-      window.addEventListener('pointerup', onPointerUp)
     }
 
     const setSize = () => {
@@ -495,6 +505,19 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         controls?.update()
         carGroup.position.x = 0
         carGroup.position.y = carVerticalOffset + Math.sin(t * 1.2) * 0.02
+
+        if (isDriving) {
+          driveSpeed = Math.min(driveSpeed + dt * 4.0, 2.8)
+        } else {
+          driveSpeed = Math.max(driveSpeed - dt * 5.0, 0)
+        }
+        const interactiveSpin = driveSpeed * 0.12
+        fallbackWheels.forEach((wheel) => {
+          wheel.rotation.z -= interactiveSpin
+        })
+        modelWheels.forEach((wheel) => {
+          wheel.rotateZ(-interactiveSpin)
+        })
       } else {
         if (isDriving) {
           driveSpeed = Math.min(driveSpeed + dt * 5.2, 3.2)
@@ -518,7 +541,7 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
           wheel.rotation.z += idleSpin + driveSpin
         })
         modelWheels.forEach((wheel) => {
-          wheel.rotateX(idleSpin + driveSpin)
+          wheel.rotateZ(idleSpin + driveSpin)
         })
 
         camera.position.x = THREE.MathUtils.lerp(camera.position.x, baseCameraPosition.x + pointer.x * 0.3, 0.05)
