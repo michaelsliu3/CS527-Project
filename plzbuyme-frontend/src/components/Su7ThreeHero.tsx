@@ -491,11 +491,10 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     }
 
     let audioCtx: AudioContext | null = null
-    let motorGain: GainNode | null = null
-    let motorOsc: OscillatorNode | null = null
-    let motorOsc2: OscillatorNode | null = null
-    let whineGain: GainNode | null = null
+    let masterGain: GainNode | null = null
+    const oscBank: OscillatorNode[] = []
     let whineOsc: OscillatorNode | null = null
+    let whineGain: GainNode | null = null
     let audioStarted = false
 
     const initAudio = () => {
@@ -503,38 +502,33 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
       audioStarted = true
       audioCtx = new AudioContext()
 
-      motorGain = audioCtx.createGain()
-      motorGain.gain.value = 0
-      motorGain.connect(audioCtx.destination)
+      const lpf = audioCtx.createBiquadFilter()
+      lpf.type = 'lowpass'
+      lpf.frequency.value = 1600
+      lpf.Q.value = 0.7
+      lpf.connect(audioCtx.destination)
 
-      motorOsc = audioCtx.createOscillator()
-      motorOsc.type = 'sine'
-      motorOsc.frequency.value = 80
-      motorOsc.connect(motorGain)
-      motorOsc.start()
+      masterGain = audioCtx.createGain()
+      masterGain.gain.value = 0
+      masterGain.connect(lpf)
 
-      motorOsc2 = audioCtx.createOscillator()
-      motorOsc2.type = 'sine'
-      motorOsc2.frequency.value = 160
-      const motor2Gain = audioCtx.createGain()
-      motor2Gain.gain.value = 0.3
-      motorOsc2.connect(motor2Gain)
-      motor2Gain.connect(motorGain)
-      motorOsc2.start()
+      const humFreqs = [100, 200, 300]
+      humFreqs.forEach((freq) => {
+        const osc = audioCtx!.createOscillator()
+        osc.type = 'sine'
+        osc.frequency.value = freq
+        osc.connect(masterGain!)
+        osc.start()
+        oscBank.push(osc)
+      })
 
       whineGain = audioCtx.createGain()
       whineGain.gain.value = 0
-      whineGain.connect(audioCtx.destination)
-
       whineOsc = audioCtx.createOscillator()
-      whineOsc.type = 'sawtooth'
-      whineOsc.frequency.value = 400
-      const whineFilter = audioCtx.createBiquadFilter()
-      whineFilter.type = 'bandpass'
-      whineFilter.frequency.value = 1800
-      whineFilter.Q.value = 1.2
-      whineOsc.connect(whineFilter)
-      whineFilter.connect(whineGain)
+      whineOsc.type = 'triangle'
+      whineOsc.frequency.value = 800
+      whineOsc.connect(whineGain)
+      whineGain.connect(lpf)
       whineOsc.start()
     }
 
@@ -617,8 +611,7 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
       carGroup.scale.setScalar(entryScaleCurrent)
       entryLightFactor = THREE.MathUtils.smootherstep(Math.max(0, (entryBlend - 0.08) / 0.92), 0, 1)
       const driveDimTarget = Math.max(0.15, 1 - driveSpeed / 10)
-      const driveDimRate = driveDimTarget < driveDimRef ? dt * 0.8 : dt * 2.5
-      driveDimRef = THREE.MathUtils.lerp(driveDimRef, driveDimTarget, driveDimRate)
+      driveDimRef = THREE.MathUtils.lerp(driveDimRef, driveDimTarget, 1 - Math.exp(-dt * 12))
       animatableLights.forEach(({ light, baseIntensity }) => {
         light.intensity = baseIntensity * entryLightFactor * driveDimRef
       })
@@ -718,14 +711,19 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         speedLines.instanceMatrix.needsUpdate = true
       }
 
-      if (audioCtx && motorOsc && motorOsc2 && motorGain && whineOsc && whineGain) {
+      if (audioCtx && masterGain && oscBank.length) {
         const speedNorm = driveSpeed / 8.0
         const now = audioCtx.currentTime
-        motorOsc.frequency.setTargetAtTime(80 + speedNorm * 220, now, 0.12)
-        motorOsc2.frequency.setTargetAtTime(160 + speedNorm * 440, now, 0.12)
-        motorGain.gain.setTargetAtTime(speedNorm * 0.35, now, 0.15)
-        whineOsc.frequency.setTargetAtTime(400 + speedNorm * 2400, now, 0.1)
-        whineGain.gain.setTargetAtTime(speedNorm * 0.15, now, 0.2)
+        const rev = 1 + speedNorm * 1.5
+        const humBase = [100, 200, 300]
+        oscBank.forEach((osc, i) => {
+          osc.frequency.setTargetAtTime(humBase[i] * rev, now, 0.1)
+        })
+        masterGain.gain.setTargetAtTime(speedNorm * 0.035, now, 0.15)
+        if (whineOsc && whineGain) {
+          whineOsc.frequency.setTargetAtTime(800 + speedNorm * 800, now, 0.08)
+          whineGain.gain.setTargetAtTime(Math.pow(speedNorm, 1.5) * 0.05, now, 0.12)
+        }
       }
 
       renderer.render(scene, camera)
@@ -733,10 +731,21 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     }
     animate()
 
+    const onVisibilityChange = () => {
+      if (audioCtx) {
+        if (document.hidden) {
+          audioCtx.suspend()
+        } else {
+          audioCtx.resume()
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
     return () => {
       window.cancelAnimationFrame(raf)
-      if (motorOsc) motorOsc.stop()
-      if (motorOsc2) motorOsc2.stop()
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      oscBank.forEach((o) => o.stop())
       if (whineOsc) whineOsc.stop()
       if (audioCtx) audioCtx.close()
       resizeObserver.disconnect()
