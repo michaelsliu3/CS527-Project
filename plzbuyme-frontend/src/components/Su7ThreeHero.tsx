@@ -187,7 +187,52 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     scene.add(fadeOverlay)
 
     const SPEED_LINE_COUNT = 400
-    const slGeo = new THREE.BoxGeometry(1, 0.014, 0.014)
+    const slGeo = (() => {
+      const segs = 10
+      const curve = 0.07
+      const th = 0.012
+      const pos: number[] = []
+      const idx: number[] = []
+
+      pos.push(-0.5, 0, 0)
+
+      for (let s = 1; s < segs; s++) {
+        const t = s / segs
+        const x = t - 0.5
+        const yOff = curve * Math.sin(Math.PI * t)
+        const r = th * Math.sin(Math.PI * t)
+        pos.push(x, yOff + r, 0)
+        pos.push(x, yOff, r)
+        pos.push(x, yOff - r, 0)
+        pos.push(x, yOff, -r)
+      }
+
+      const tipIdx = pos.length / 3
+      pos.push(0.5, 0, 0)
+
+      for (let i = 0; i < 4; i++) {
+        idx.push(0, 1 + i, 1 + ((i + 1) % 4))
+      }
+      for (let s = 0; s < segs - 2; s++) {
+        const r1 = 1 + s * 4
+        const r2 = 1 + (s + 1) * 4
+        for (let i = 0; i < 4; i++) {
+          const n = (i + 1) % 4
+          idx.push(r1 + i, r2 + i, r2 + n)
+          idx.push(r1 + i, r2 + n, r1 + n)
+        }
+      }
+      const lastR = 1 + (segs - 2) * 4
+      for (let i = 0; i < 4; i++) {
+        idx.push(lastR + i, tipIdx, lastR + ((i + 1) % 4))
+      }
+
+      const geo = new THREE.BufferGeometry()
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+      geo.setIndex(idx)
+      geo.computeVertexNormals()
+      return geo
+    })()
     const slMat = new THREE.MeshBasicMaterial({
       color: '#ffffff',
       transparent: true,
@@ -445,6 +490,54 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
       carGroup.position.y = carVerticalOffset
     }
 
+    let audioCtx: AudioContext | null = null
+    let motorGain: GainNode | null = null
+    let motorOsc: OscillatorNode | null = null
+    let motorOsc2: OscillatorNode | null = null
+    let whineGain: GainNode | null = null
+    let whineOsc: OscillatorNode | null = null
+    let audioStarted = false
+
+    const initAudio = () => {
+      if (audioStarted) return
+      audioStarted = true
+      audioCtx = new AudioContext()
+
+      motorGain = audioCtx.createGain()
+      motorGain.gain.value = 0
+      motorGain.connect(audioCtx.destination)
+
+      motorOsc = audioCtx.createOscillator()
+      motorOsc.type = 'sine'
+      motorOsc.frequency.value = 80
+      motorOsc.connect(motorGain)
+      motorOsc.start()
+
+      motorOsc2 = audioCtx.createOscillator()
+      motorOsc2.type = 'sine'
+      motorOsc2.frequency.value = 160
+      const motor2Gain = audioCtx.createGain()
+      motor2Gain.gain.value = 0.3
+      motorOsc2.connect(motor2Gain)
+      motor2Gain.connect(motorGain)
+      motorOsc2.start()
+
+      whineGain = audioCtx.createGain()
+      whineGain.gain.value = 0
+      whineGain.connect(audioCtx.destination)
+
+      whineOsc = audioCtx.createOscillator()
+      whineOsc.type = 'sawtooth'
+      whineOsc.frequency.value = 400
+      const whineFilter = audioCtx.createBiquadFilter()
+      whineFilter.type = 'bandpass'
+      whineFilter.frequency.value = 1800
+      whineFilter.Q.value = 1.2
+      whineOsc.connect(whineFilter)
+      whineFilter.connect(whineGain)
+      whineOsc.start()
+    }
+
     const pointer = { x: 0, y: 0 }
     let isDriving = false
     let driveSpeed = 0
@@ -455,6 +548,7 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     let onPointerUp: (() => void) | null = null
 
     onPointerDown = () => {
+      initAudio()
       isDriving = true
     }
     onPointerUp = () => {
@@ -497,6 +591,7 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     let elapsed = 0
     let entryBlend = 0
     let introComplete = false
+    let driveDimRef = 1
     let raf = 0
     const animate = () => {
       const dt = Math.min(clock.getDelta(), 0.05)
@@ -521,10 +616,13 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
       entryScaleCurrent = THREE.MathUtils.lerp(entryScaleCurrent, targetScale, smoothing)
       carGroup.scale.setScalar(entryScaleCurrent)
       entryLightFactor = THREE.MathUtils.smootherstep(Math.max(0, (entryBlend - 0.08) / 0.92), 0, 1)
+      const driveDimTarget = Math.max(0.15, 1 - driveSpeed / 10)
+      const driveDimRate = driveDimTarget < driveDimRef ? dt * 0.8 : dt * 2.5
+      driveDimRef = THREE.MathUtils.lerp(driveDimRef, driveDimTarget, driveDimRate)
       animatableLights.forEach(({ light, baseIntensity }) => {
-        light.intensity = baseIntensity * entryLightFactor
+        light.intensity = baseIntensity * entryLightFactor * driveDimRef
       })
-      renderer.toneMappingExposure = THREE.MathUtils.lerp(0, 1.1, entryLightFactor)
+      renderer.toneMappingExposure = THREE.MathUtils.lerp(0, 1.1, entryLightFactor) * driveDimRef
 
       if (interactive) {
         if (!introComplete) {
@@ -620,6 +718,16 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         speedLines.instanceMatrix.needsUpdate = true
       }
 
+      if (audioCtx && motorOsc && motorOsc2 && motorGain && whineOsc && whineGain) {
+        const speedNorm = driveSpeed / 8.0
+        const now = audioCtx.currentTime
+        motorOsc.frequency.setTargetAtTime(80 + speedNorm * 220, now, 0.12)
+        motorOsc2.frequency.setTargetAtTime(160 + speedNorm * 440, now, 0.12)
+        motorGain.gain.setTargetAtTime(speedNorm * 0.35, now, 0.15)
+        whineOsc.frequency.setTargetAtTime(400 + speedNorm * 2400, now, 0.1)
+        whineGain.gain.setTargetAtTime(speedNorm * 0.15, now, 0.2)
+      }
+
       renderer.render(scene, camera)
       raf = window.requestAnimationFrame(animate)
     }
@@ -627,6 +735,10 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
 
     return () => {
       window.cancelAnimationFrame(raf)
+      if (motorOsc) motorOsc.stop()
+      if (motorOsc2) motorOsc2.stop()
+      if (whineOsc) whineOsc.stop()
+      if (audioCtx) audioCtx.close()
       resizeObserver.disconnect()
       controls?.dispose()
       paintMaterialsRef.current = []
