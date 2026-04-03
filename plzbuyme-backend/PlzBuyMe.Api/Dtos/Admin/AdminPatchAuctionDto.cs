@@ -6,6 +6,10 @@ public record AdminPatchAuctionDto
     public string? Title { get; init; }
     public string? Description { get; init; }
     public int? CategoryId { get; init; }
+    /// <summary>
+    /// Optional additional subcategory tags. Null leaves tags unchanged; empty clears all tags.
+    /// </summary>
+    public List<int>? AdditionalCategoryIds { get; init; }
 
     public DateTime? CloseDateTime { get; init; }
     public decimal? BidIncrement { get; init; }

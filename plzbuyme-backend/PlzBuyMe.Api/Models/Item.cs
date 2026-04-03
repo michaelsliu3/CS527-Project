@@ -24,6 +24,7 @@ public class Item
     public Category Category { get; set; } = null!;
     public User? Winner { get; set; }
     public ICollection<ItemFieldValue> ItemFieldValues { get; set; } = new List<ItemFieldValue>();
+    public ICollection<ItemSubcategoryTag> ItemSubcategoryTags { get; set; } = new List<ItemSubcategoryTag>();
     public ICollection<Bid> Bids { get; set; } = new List<Bid>();
     public ICollection<AutoBid> AutoBids { get; set; } = new List<AutoBid>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();

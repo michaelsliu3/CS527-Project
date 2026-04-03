@@ -23,6 +23,8 @@ public class AdminAuctionsController : ControllerBase
     {
         if (dto == null)
             return BadRequest("Request body is required.");
+        if (dto.AdditionalCategoryIds is { Count: > 0 } && dto.AdditionalCategoryIds.Any(v => v <= 0))
+            return BadRequest("Additional categories must be valid IDs.");
 
         var adminId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         var (error, detail) = await _auctionService.AdminPatchAuctionAsync(id, dto, adminId);

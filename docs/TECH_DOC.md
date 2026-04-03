@@ -280,6 +280,15 @@ Self-referencing foreign key enables the hierarchical subcategory tree.
 | `winner_id`      | INT               | FK → users.id, NULLABLE           |
 | `created_at`     | DATETIME          | DEFAULT CURRENT_TIMESTAMP         |
 
+#### `ItemSubcategoryTags` *(optional extra “subtype” categories per listing)*
+
+| Column         | Type | Constraints |
+|----------------|------|-------------|
+| `ItemId`       | INT  | PK, FK → Items.Id, ON DELETE CASCADE |
+| `CategoryId`   | INT  | PK, FK → Categories.Id, ON DELETE RESTRICT |
+
+Each row tags the item with an **additional** subcategory (non-root) under the same **top-level** root as `items.category_id`. The primary category remains a single FK on `items`; tags are additive for display, filtering, and UX (e.g. Electric + Sports Cars). Composite primary key prevents duplicate tag pairs.
+
 #### `item_field_values` *(bonus: stores dynamic category-specific attributes)*
 
 | Column           | Type              | Constraints                       |
@@ -459,7 +468,8 @@ function ProtectedRoute({ roles, children }: { roles: string[]; children: ReactN
 
 - **Create auction:** title, description, category (with subcategory-specific fields), initial price, bid increment, reserve price, closing date/time.
   - The Create Auction page fetches the **category tree** from `GET /api/categories` to render cascading **category → subcategory** dropdowns.
-  - When a subcategory is selected, the UI calls `GET /api/categories/{id}/fields` to fetch the dynamic `category_fields` for that subcategory and renders the appropriate inputs (text / number / select) before submitting `CreateAuctionDto` (including `fieldValues: { fieldId, value }[]`).
+  - Sellers may attach **additional subcategory tags** (same root as the primary category); these persist in `ItemSubcategoryTags` and appear in list/detail responses as extra category names.
+  - When a subcategory is selected, the UI calls `GET /api/categories/{id}/fields` to fetch the dynamic `category_fields` for that subcategory and renders the appropriate inputs (text / number / select) before submitting `CreateAuctionDto` (including `fieldValues: { fieldId, value }[]` and optional `additionalCategoryIds`).
   - Optional image upload uses the media service; when no uploaded image is provided, backend resolves a GT7 default once on create, persists the resolved URL/key + match metadata, and reuses persisted values on subsequent reads.
 - **View own auctions:** filter by status (active / closed / sold).
 
@@ -600,7 +610,8 @@ End-user policy only (`[Authorize(Policy = "EndUser")]`). Used for **demo / deve
 - Auction list/detail responses include persisted image metadata:
   - list: `imageUrl`, `imageSource`, `imageMatchLevel`
   - detail: `imageUrl`, `detailImageUrl`, `imageSource`, `imageMatchLevel`
-- `POST api/auctions/create` accepts optional image fields:
+- List rows include `categoryName` (primary) and `categoryNames` (primary plus any subtype tags). Detail adds `additionalCategoryIds` for the tag category ids.
+- `POST api/auctions/create` accepts optional `additionalCategoryIds` (extra subcategories; server-validated). Optional image fields:
   - `imageStorageKey` (preferred) and `imageUrl` (fallback key/value input)
 
 ### Categories — `api/categories`
@@ -713,9 +724,9 @@ These endpoints are **admin-only** (`AdminOnly` policy). They exist for **demos,
 
 | Method | Route | Description | Access |
 |--------|--------|-------------|--------|
-| PATCH | `api/admin/auctions/{id}` | Partial update: title, description, **`categoryId`** (must exist in `categories`; updates `items.category_id`), close time, increment, reserve, initial/current (no bids only), or **end** active auction (`endAuction`: `natural` \| `closed` \| `sold`) — end must be sent alone | Admin |
+| PATCH | `api/admin/auctions/{id}` | Partial update: title, description, **`categoryId`** (must exist in `categories`; updates `items.category_id`), optional **`additionalCategoryIds`** (null = leave tags unchanged; `[]` = clear all tags), close time, increment, reserve, initial/current (no bids only), or **end** active auction (`endAuction`: `natural` \| `closed` \| `sold`) — end must be sent alone | Admin |
 
-**Frontend:** auction detail shows **Edit** for admins; dialog calls PATCH (including root + subcategory selects that resolve to a single `categoryId`).
+**Frontend:** auction detail shows **Edit** for admins; dialog calls PATCH (primary category plus optional extra subcategory tags).
 
 ---
 
@@ -827,7 +838,7 @@ public async Task CheckAlertsForNewItem(Item item)
 | Parameter        | Type     | Description                              |
 |------------------|----------|------------------------------------------|
 | `q`              | string   | Full-text keyword search (title + description) |
-| `category_id`    | int      | Filter by category/subcategory           |
+| `category_id`    | int      | Filter by category/subcategory: matches items whose **primary** `category_id` equals the value **or** any row in `ItemSubcategoryTags` (**OR**) |
 | `min_price`      | decimal  | Minimum current price                    |
 | `max_price`      | decimal  | Maximum current price                    |
 | `status`         | string   | active / closed / sold                   |

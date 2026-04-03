@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
+  Badge,
   Box,
   Button,
   Dialog,
   Flex,
   Input,
   NativeSelect,
+  Popover,
+  Portal,
   Stack,
   Text,
   Textarea,
@@ -16,6 +19,46 @@ import type { AuctionDetail } from '../api/auctions'
 import { fetchCategories, type CategoryDto } from '../api/categories'
 import { showErrorToast, showSuccessToast } from './ui/toaster'
 import { dark } from '../theme/colors'
+
+function normalizeCategoryName(value?: string): string {
+  return (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function hashString(value: string): number {
+  let hash = 0
+  for (let i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) | 0
+  return Math.abs(hash)
+}
+
+function getRandomCategoryGradient(normalizedCategoryName: string): string {
+  const h = hashString(normalizedCategoryName)
+  const hue1 = h % 360
+  const hue2 = (hue1 + 50 + (h % 80)) % 360
+  return `linear-gradient(92deg, hsl(${hue1} 88% 58%) 0%, hsl(${hue2} 90% 46%) 100%)`
+}
+
+function getCategoryGradient(categoryName?: string): string {
+  const normalized = normalizeCategoryName(categoryName)
+
+  if (normalized === 'sedan' || normalized === 'sedans') {
+    return 'linear-gradient(92deg, #38bdf8 0%, #0284c7 100%)'
+  }
+  if (normalized === 'sportscar' || normalized === 'sportscars') {
+    return 'linear-gradient(90deg, #ff003c 0%, #ff8a00 16%, #f9f871 32%, #00d084 48%, #00c2ff 64%, #4d65ff 80%, #b347ff 100%)'
+  }
+  if (normalized === 'suv' || normalized === 'suvs') {
+    return 'linear-gradient(92deg, #34d399 0%, #059669 100%)'
+  }
+  if (normalized === 'truck' || normalized === 'trucks') {
+    return 'linear-gradient(92deg, #f59e0b 0%, #f97316 50%, #ef4444 100%)'
+  }
+  if (normalized === 'electric' || normalized === 'ev' || normalized === 'evs') {
+    return 'linear-gradient(92deg, #a78bfa 0%, #7c3aed 100%)'
+  }
+
+  if (!normalized) return 'linear-gradient(92deg, #94a3b8 0%, #475569 100%)'
+  return getRandomCategoryGradient(normalized)
+}
 
 function toLocalDatetimeValue(iso: string): string {
   const d = new Date(iso)
@@ -53,7 +96,10 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
 
   const [categories, setCategories] = useState<CategoryDto[]>([])
   const [selectedRootId, setSelectedRootId] = useState<number | ''>('')
-  const [selectedSubId, setSelectedSubId] = useState<number | ''>('')
+  const [selectedSubcategoryIds, setSelectedSubcategoryIds] = useState<number[]>([])
+  const [additionalOpen, setAdditionalOpen] = useState(false)
+  const [rootCategoryHintActive, setRootCategoryHintActive] = useState(false)
+  const rootCategoryHintTimeoutRef = useRef<number | null>(null)
 
   const hasBids = auction.bidHistory.length > 0
   const isActive = auction.status === 'active'
@@ -68,6 +114,7 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
     setInitialPrice(String(auction.initialPrice))
     setCurrentPrice(String(auction.currentPrice))
     setEndMode('')
+    setAdditionalOpen(false)
 
     fetchCategories()
       .then((res) => {
@@ -76,32 +123,66 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
         const parentRoot = findParentRoot(roots, auction.categoryId)
         if (parentRoot) {
           setSelectedRootId(parentRoot.id)
-          setSelectedSubId(parentRoot.id === auction.categoryId ? '' : auction.categoryId)
+          const nextSelected = [auction.categoryId, ...(auction.additionalCategoryIds ?? [])]
+          setSelectedSubcategoryIds(
+            Array.from(new Set(nextSelected.filter((id) => id !== parentRoot.id))),
+          )
         } else {
           setSelectedRootId(auction.categoryId)
-          setSelectedSubId('')
+          setSelectedSubcategoryIds(auction.additionalCategoryIds ?? [])
         }
       })
       .catch(() => {
         setCategories([])
+        setSelectedSubcategoryIds([auction.categoryId, ...(auction.additionalCategoryIds ?? [])])
       })
   }, [open, auction])
 
   const selectedRoot = categories.find((c) => c.id === selectedRootId)
-  const effectiveCategoryId = selectedSubId || selectedRootId
+  const effectiveCategoryId = selectedSubcategoryIds[0] ?? selectedRootId
+
+  const toggleSubcategory = (categoryId: number) => {
+    setSelectedSubcategoryIds((prev) =>
+      prev.includes(categoryId) ? prev.filter((id) => id !== categoryId) : [...prev, categoryId],
+    )
+  }
+
+  const promptRootCategorySelection = () => {
+    setRootCategoryHintActive(true)
+    if (rootCategoryHintTimeoutRef.current != null) {
+      window.clearTimeout(rootCategoryHintTimeoutRef.current)
+    }
+    rootCategoryHintTimeoutRef.current = window.setTimeout(() => {
+      setRootCategoryHintActive(false)
+      rootCategoryHintTimeoutRef.current = null
+    }, 560)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (rootCategoryHintTimeoutRef.current != null) {
+        window.clearTimeout(rootCategoryHintTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const onSaveFields = async () => {
     setSaving(true)
     try {
-      const catId = effectiveCategoryId !== '' && effectiveCategoryId !== auction.categoryId
-        ? (effectiveCategoryId as number)
-        : undefined
+      const catId =
+        typeof effectiveCategoryId === 'number' && effectiveCategoryId !== auction.categoryId
+          ? effectiveCategoryId
+          : undefined
+      const nextAdditionalCategoryIds = selectedSubcategoryIds
+        .slice(1)
+        .sort((a, b) => a - b)
 
       if (!isActive) {
         const { data } = await patchAdminAuction(auction.id, {
           title: title.trim(),
           description: description.trim() === '' ? null : description.trim(),
           categoryId: catId,
+          additionalCategoryIds: nextAdditionalCategoryIds,
         })
         showSuccessToast('Auction updated')
         onSaved(data)
@@ -130,6 +211,7 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
         title: title.trim(),
         description: description.trim() === '' ? null : description.trim(),
         categoryId: catId,
+        additionalCategoryIds: nextAdditionalCategoryIds,
         closeDateTime: closeIso,
         bidIncrement: bi,
         reservePrice: res,
@@ -216,14 +298,26 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
               />
               {fieldLabel('Category')}
               <Flex gap={3}>
-                <Box flex="1">
+                <Box
+                  flex="1"
+                  style={{
+                    transformOrigin: 'center center',
+                    transform: rootCategoryHintActive ? 'scale(1.01)' : 'scale(1)',
+                    boxShadow: rootCategoryHintActive
+                      ? '0 0 0 1px rgba(66, 153, 225, 0.95), 0 0 0 6px rgba(66, 153, 225, 0.22), 0 0 20px rgba(66, 153, 225, 0.36)'
+                      : 'none',
+                    transition: 'transform 190ms ease, box-shadow 210ms ease',
+                    borderRadius: '6px',
+                  }}
+                >
                   <NativeSelect.Root>
                     <NativeSelect.Field
                       value={selectedRootId === '' ? '' : String(selectedRootId)}
                       onChange={(e) => {
                         const v = e.target.value
                         setSelectedRootId(v === '' ? '' : Number(v))
-                        setSelectedSubId('')
+                        setSelectedSubcategoryIds([])
+                        setAdditionalOpen(false)
                       }}
                       bg={dark.inputBg}
                       borderColor={dark.borderSubtle}
@@ -240,28 +334,112 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
                   </NativeSelect.Root>
                 </Box>
                 <Box flex="1">
-                  <NativeSelect.Root disabled={!selectedRoot?.children?.length}>
-                    <NativeSelect.Field
-                      value={selectedSubId === '' ? '' : String(selectedSubId)}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setSelectedSubId(v === '' ? '' : Number(v))
-                      }}
-                      bg={dark.inputBg}
+                <Popover.Root
+                  open={additionalOpen}
+                  onOpenChange={(e) => {
+                    if (e.open && !selectedRoot) {
+                      promptRootCategorySelection()
+                      setAdditionalOpen(false)
+                      return
+                    }
+                    setAdditionalOpen(e.open)
+                  }}
+                >
+                  <Popover.Trigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      w="full"
+                      justifyContent="space-between"
+                      variant="outline"
                       borderColor={dark.borderSubtle}
                       color="white"
+                      _hover={{ bg: 'whiteAlpha.100' }}
+                      disabled={!!selectedRoot && !selectedRoot.children?.length}
+                      onFocus={() => {
+                        if (!selectedRoot) promptRootCategorySelection()
+                      }}
                     >
-                      <option value="">— subcategory —</option>
-                      {selectedRoot?.children?.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </NativeSelect.Field>
-                    <NativeSelect.Indicator />
-                  </NativeSelect.Root>
+                      {selectedSubcategoryIds.length > 0
+                        ? `${selectedSubcategoryIds.length} subcategories selected`
+                        : 'Select subcategories'}
+                    </Button>
+                  </Popover.Trigger>
+                  <Portal>
+                    <Popover.Positioner zIndex={1700}>
+                      <Popover.Content
+                        bg={dark.cardBg}
+                        borderWidth="1px"
+                        borderColor={dark.borderSubtle}
+                        color="white"
+                        boxShadow="xl"
+                        p={3}
+                        w="320px"
+                      >
+                        <Flex gap={2} flexWrap="wrap">
+                          {(selectedRoot?.children ?? []).map((c) => {
+                            const selected = selectedSubcategoryIds.includes(c.id)
+                            const selectedIndex = selectedSubcategoryIds.indexOf(c.id)
+                            return (
+                              <Button
+                                key={c.id}
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                bg={selected ? 'whiteAlpha.100' : 'transparent'}
+                                borderColor={dark.borderSubtle}
+                                color="white"
+                                fontWeight={selected ? 'semibold' : 'medium'}
+                                _hover={{ bg: 'whiteAlpha.100' }}
+                                _active={{ bg: 'whiteAlpha.200' }}
+                                onClick={() => toggleSubcategory(c.id)}
+                              >
+                                {selectedIndex === 0 ? `${c.name} (Primary)` : c.name}
+                              </Button>
+                            )
+                          })}
+                        </Flex>
+                        <Flex justify="flex-end" mt={3} pt={3} borderTopWidth="1px" borderColor={dark.borderSubtle}>
+                          <Button
+                            type="button"
+                            size="sm"
+                            bg="brand.500"
+                            color="white"
+                            _hover={{ bg: 'brand.400' }}
+                            _active={{ bg: 'brand.300' }}
+                            onClick={() => setAdditionalOpen(false)}
+                          >
+                            Done
+                          </Button>
+                        </Flex>
+                      </Popover.Content>
+                    </Popover.Positioner>
+                  </Portal>
+                </Popover.Root>
                 </Box>
               </Flex>
+              <Box>
+                <Flex gap={2} flexWrap="wrap" mb={2}>
+                  {selectedSubcategoryIds.length === 0 ? (
+                    <Badge variant="subtle" colorPalette="gray">
+                      None selected
+                    </Badge>
+                  ) : (
+                    (selectedRoot?.children ?? [])
+                      .filter((c) => selectedSubcategoryIds.includes(c.id))
+                      .map((c) => (
+                        <Badge
+                          key={`admin-selected-${c.id}`}
+                          color="white"
+                          bg={getCategoryGradient(c.name)}
+                          textShadow="0 1px 1px rgba(0, 0, 0, 0.28)"
+                        >
+                          {selectedSubcategoryIds.indexOf(c.id) === 0 ? `${c.name} (Primary)` : c.name}
+                        </Badge>
+                      ))
+                  )}
+                </Flex>
+              </Box>
               {isActive && (
                 <>
                   {fieldLabel('Close time (local)')}

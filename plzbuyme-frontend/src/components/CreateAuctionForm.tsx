@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import {
+  Badge,
   Box,
   Button,
   DatePicker,
@@ -26,23 +27,6 @@ import {
 } from '../api/categories'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
-import { keyframes } from '@emotion/react'
-
-/** Draws attention to the main category control (e.g. subcategory clicked first). */
-const categoryFieldAttentionPop = keyframes`
-  0% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(245, 101, 101, 0.4);
-  }
-  50% {
-    transform: scale(1.014);
-    box-shadow: 0 0 0 6px rgba(245, 101, 101, 0.1);
-  }
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(245, 101, 101, 0);
-  }
-`
 
 export interface CreateAuctionFormProps {
   onCancel: () => void
@@ -58,6 +42,50 @@ interface CreateFormValues {
   reservePrice: string
   closeDateTime: string
   [key: `field_${number}`]: string
+}
+
+function normalizeFieldName(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function normalizeCategoryName(value?: string): string {
+  return (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+function hashString(value: string): number {
+  let hash = 0
+  for (let i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) | 0
+  return Math.abs(hash)
+}
+
+function getRandomCategoryGradient(normalizedCategoryName: string): string {
+  const h = hashString(normalizedCategoryName)
+  const hue1 = h % 360
+  const hue2 = (hue1 + 50 + (h % 80)) % 360
+  return `linear-gradient(92deg, hsl(${hue1} 88% 58%) 0%, hsl(${hue2} 90% 46%) 100%)`
+}
+
+function getCategoryGradient(categoryName?: string): string {
+  const normalized = normalizeCategoryName(categoryName)
+
+  if (normalized === 'sedan' || normalized === 'sedans') {
+    return 'linear-gradient(92deg, #38bdf8 0%, #0284c7 100%)'
+  }
+  if (normalized === 'sportscar' || normalized === 'sportscars') {
+    return 'linear-gradient(90deg, #ff003c 0%, #ff8a00 16%, #f9f871 32%, #00d084 48%, #00c2ff 64%, #4d65ff 80%, #b347ff 100%)'
+  }
+  if (normalized === 'suv' || normalized === 'suvs') {
+    return 'linear-gradient(92deg, #34d399 0%, #059669 100%)'
+  }
+  if (normalized === 'truck' || normalized === 'trucks') {
+    return 'linear-gradient(92deg, #f59e0b 0%, #f97316 50%, #ef4444 100%)'
+  }
+  if (normalized === 'electric' || normalized === 'ev' || normalized === 'evs') {
+    return 'linear-gradient(92deg, #a78bfa 0%, #7c3aed 100%)'
+  }
+
+  if (!normalized) return 'linear-gradient(92deg, #94a3b8 0%, #475569 100%)'
+  return getRandomCategoryGradient(normalized)
 }
 
 function formatLocalDate(date: Date): string {
@@ -771,7 +799,8 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [categoriesError, setCategoriesError] = useState<string | null>(null)
   const [selectedRootId, setSelectedRootId] = useState<number | ''>('')
-  const [categoryId, setCategoryId] = useState<number | ''>('')
+  const [selectedSubcategoryIds, setSelectedSubcategoryIds] = useState<number[]>([])
+  const [additionalSubcategoriesOpen, setAdditionalSubcategoriesOpen] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
@@ -783,11 +812,14 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
   const [closeTime, setCloseTime] = useState('')
 
   const [fieldDefs, setFieldDefs] = useState<CategoryFieldDto[]>([])
+  const [rootFieldDefs, setRootFieldDefs] = useState<CategoryFieldDto[]>([])
+  const [globalFieldDefs, setGlobalFieldDefs] = useState<CategoryFieldDto[]>([])
+  const [draftFieldValuesByName, setDraftFieldValuesByName] = useState<Record<string, string>>({})
   const [fieldsError, setFieldsError] = useState<string | null>(null)
 
   const [customErrors, setCustomErrors] = useState<Record<string, string>>({})
-  const [categoryAttentionTick, setCategoryAttentionTick] = useState(0)
   const categoryFieldAnchorRef = useRef<HTMLDivElement>(null)
+  const rootCategorySelectRef = useRef<HTMLSelectElement>(null)
 
   const { register, handleSubmit, setValue, getValues, formState } = useForm<CreateFormValues>({
     defaultValues: {
@@ -806,6 +838,23 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
   const errorAccent = '#f56565'
   const labelColor = (invalid: boolean) => (invalid ? errorAccent : dark.muted)
   const inputBorderColor = (invalid: boolean) => (invalid ? errorAccent : dark.borderSubtle)
+  const selectChevronSvg =
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none'%3E%3Cpath d='M5 7.5L10 12.5L15 7.5' stroke='%23A0AEC0' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")"
+  const baseSelectStyle = {
+    width: '100%',
+    padding: '8px 12px',
+    paddingRight: '2.25rem',
+    background: dark.inputBg,
+    borderRadius: '6px',
+    color: 'white',
+    backgroundImage: selectChevronSvg,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'calc(100% - 0.75rem) center',
+    backgroundSize: '0.95rem',
+    appearance: 'none' as const,
+    WebkitAppearance: 'none' as const,
+    MozAppearance: 'none' as const,
+  }
 
   useEffect(() => {
     if (closeEndMode !== 'custom') {
@@ -843,8 +892,11 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
     }
   }, [])
 
+  const primarySubcategoryId = selectedSubcategoryIds[0] ?? null
+  const additionalCategoryIds = selectedSubcategoryIds.slice(1)
+
   useEffect(() => {
-    if (!categoryId) {
+    if (!primarySubcategoryId) {
       setFieldDefs([])
       setFieldsError(null)
       return
@@ -853,7 +905,7 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
     const loadFields = async () => {
       try {
         setFieldsError(null)
-        const res = await fetchCategoryFields(Number(categoryId))
+        const res = await fetchCategoryFields(primarySubcategoryId)
         if (!isMounted) return
         setFieldDefs(res.data)
       } catch {
@@ -866,7 +918,7 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
     return () => {
       isMounted = false
     }
-  }, [categoryId])
+  }, [primarySubcategoryId])
 
   const rootCategories = categories.filter((c) => c.parentId === null)
 
@@ -875,10 +927,121 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
       ? rootCategories.find((c) => c.id === selectedRootId)
       : undefined
 
+  useEffect(() => {
+    if (!selectedRoot?.children?.length) {
+      setRootFieldDefs([])
+      return
+    }
+
+    let isMounted = true
+    const loadRootFields = async () => {
+      try {
+        const children = [...selectedRoot.children]
+        const responses = await Promise.all(children.map((c) => fetchCategoryFields(c.id)))
+        if (!isMounted) return
+
+        const byName = new Map<string, CategoryFieldDto>()
+        for (const res of responses) {
+          for (const f of res.data) {
+            const key = f.fieldName.trim().toLowerCase()
+            const existing = byName.get(key)
+            if (!existing) {
+              byName.set(key, { ...f, options: f.options ? [...f.options] : f.options })
+              continue
+            }
+
+            if (existing.fieldType === 'select' && f.fieldType === 'select') {
+              const mergedOptions = Array.from(new Set([...(existing.options ?? []), ...(f.options ?? [])]))
+              byName.set(key, { ...existing, options: mergedOptions })
+            }
+          }
+        }
+
+        setRootFieldDefs(Array.from(byName.values()).sort((a, b) => a.fieldName.localeCompare(b.fieldName)))
+      } catch {
+        if (!isMounted) return
+        setRootFieldDefs([])
+      }
+    }
+
+    void loadRootFields()
+    return () => {
+      isMounted = false
+    }
+  }, [selectedRoot])
+
+  useEffect(() => {
+    if (!categories.length) {
+      setGlobalFieldDefs([])
+      return
+    }
+
+    let isMounted = true
+    const loadGlobalFields = async () => {
+      try {
+        const leaves: CategoryDto[] = []
+        const walkLeaves = (nodes: CategoryDto[]) => {
+          for (const node of nodes) {
+            if (!node.children?.length) leaves.push(node)
+            else walkLeaves(node.children)
+          }
+        }
+        walkLeaves(categories)
+
+        const responses = await Promise.all(leaves.map((c) => fetchCategoryFields(c.id)))
+        if (!isMounted) return
+
+        const byName = new Map<string, CategoryFieldDto>()
+        for (const res of responses) {
+          for (const f of res.data) {
+            const key = normalizeFieldName(f.fieldName)
+            const existing = byName.get(key)
+            if (!existing) {
+              byName.set(key, { ...f, options: f.options ? [...f.options] : f.options })
+              continue
+            }
+            if (existing.fieldType === 'select' && f.fieldType === 'select') {
+              byName.set(key, {
+                ...existing,
+                options: Array.from(new Set([...(existing.options ?? []), ...(f.options ?? [])])),
+              })
+            }
+          }
+        }
+        setGlobalFieldDefs(Array.from(byName.values()).sort((a, b) => a.fieldName.localeCompare(b.fieldName)))
+      } catch {
+        if (!isMounted) return
+        setGlobalFieldDefs([])
+      }
+    }
+
+    void loadGlobalFields()
+    return () => {
+      isMounted = false
+    }
+  }, [categories])
+
+  const visibleFieldDefs =
+    fieldDefs.length > 0
+      ? fieldDefs
+      : rootFieldDefs.length > 0
+        ? rootFieldDefs
+        : globalFieldDefs
+
+  useEffect(() => {
+    for (const f of visibleFieldDefs) {
+      const draftValue = draftFieldValuesByName[normalizeFieldName(f.fieldName)]
+      if (draftValue != null) {
+        setValue(`field_${f.id}` as keyof CreateFormValues, draftValue)
+      }
+    }
+  }, [visibleFieldDefs, draftFieldValuesByName, setValue])
+
   const handleRootChange = (value: string) => {
     const id = value ? Number(value) : ''
     setSelectedRootId(id)
-    setCategoryId('')
+    setSelectedSubcategoryIds([])
+    setAdditionalSubcategoriesOpen(false)
     setFieldDefs([])
     setFieldsError(null)
     setValue('categoryId', '')
@@ -890,10 +1053,20 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
     })
   }
 
-  const handleSubcategoryChange = (value: string) => {
-    const id = value ? Number(value) : ''
-    setCategoryId(id)
-    setValue('categoryId', value)
+  const promptRootCategorySelection = () => {
+    const selectEl = rootCategorySelectRef.current
+    if (!selectEl) return
+
+    selectEl.focus()
+    if (typeof (selectEl as HTMLSelectElement & { showPicker?: () => void }).showPicker === 'function') {
+      ;(selectEl as HTMLSelectElement & { showPicker: () => void }).showPicker()
+    }
+  }
+
+  const toggleSubcategorySelection = (subcategoryId: number) => {
+    setSelectedSubcategoryIds((prev) =>
+      prev.includes(subcategoryId) ? prev.filter((id) => id !== subcategoryId) : [...prev, subcategoryId],
+    )
     setCustomErrors((prev) => {
       if (!prev.subcategory) return prev
       const next = { ...prev }
@@ -928,7 +1101,7 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
     if (!selectedRootId) {
       nextCustom.rootCategory = 'Please select a category.'
     }
-    if (!categoryId) {
+    if (!primarySubcategoryId) {
       nextCustom.subcategory = 'Please select a subcategory.'
     }
 
@@ -991,7 +1164,8 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
     const dto: CreateAuctionDto = {
       title: data.title.trim(),
       description: data.description.trim() || undefined,
-      categoryId: Number(categoryId),
+      categoryId: Number(primarySubcategoryId),
+      additionalCategoryIds,
       initialPrice: Number(data.initialPrice),
       bidIncrement: Number(data.bidIncrement),
       reservePrice: Number(data.reservePrice),
@@ -1153,23 +1327,14 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
             Category *
           </Text>
           <Box
-            key={`category-attn-${categoryAttentionTick}`}
             borderRadius="6px"
             style={{ transformOrigin: 'center center' }}
-            animation={
-              categoryAttentionTick > 0
-                ? `${categoryFieldAttentionPop} 0.45s ease-out`
-                : undefined
-            }
           >
             <select
+              ref={rootCategorySelectRef}
               style={{
-                width: '100%',
-                padding: '8px 12px',
-                background: dark.inputBg,
+                ...baseSelectStyle,
                 border: `1px solid ${inputBorderColor(!!customErrors.rootCategory)}`,
-                borderRadius: '6px',
-                color: 'white',
               }}
               value={selectedRootId === '' ? '' : String(selectedRootId)}
               onChange={(e) => handleRootChange(e.target.value)}
@@ -1191,62 +1356,122 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
         </Box>
         <Box mb={4}>
           <Text fontSize="sm" color={labelColor(!!customErrors.subcategory)} mb={1}>
-            Subcategory *
+            Subcategories *
           </Text>
-          <Box position="relative" w="100%">
-            <select
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                background: dark.inputBg,
-                border: `1px solid ${inputBorderColor(!!customErrors.subcategory)}`,
-                borderRadius: '6px',
-                color: 'white',
-              }}
-              value={categoryId === '' ? '' : String(categoryId)}
-              onChange={(e) => handleSubcategoryChange(e.target.value)}
-              disabled={
-                categoriesLoading ||
-                !selectedRoot ||
-                !selectedRoot.children ||
-                selectedRoot.children.length === 0
+          <Popover.Root
+            open={additionalSubcategoriesOpen}
+            onOpenChange={(e) => {
+              if (e.open && !selectedRoot) {
+                promptRootCategorySelection()
+                setAdditionalSubcategoriesOpen(false)
+                return
               }
-            >
-              <option value="">Select subcategory</option>
-              {[...(selectedRoot?.children ?? [])]
-                .map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-            </select>
-            {!categoriesLoading && selectedRootId === '' && (
-              <Box
-                position="absolute"
-                inset={0}
-                zIndex={1}
-                cursor="pointer"
-                borderRadius="6px"
-                aria-label="Choose a category first to pick a subcategory"
-                onClick={() => {
-                  setCustomErrors((prev) => ({
-                    ...prev,
-                    rootCategory: 'Choose a category first.',
-                  }))
-                  setCategoryAttentionTick((t) => t + 1)
-                  categoryFieldAnchorRef.current?.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'nearest',
-                  })
+              setAdditionalSubcategoriesOpen(e.open)
+            }}
+            positioning={{ placement: 'top-start' }}
+          >
+            <Popover.Trigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                w="100%"
+                justifyContent="space-between"
+                borderColor={inputBorderColor(!!customErrors.subcategory)}
+                color="white"
+                _hover={{ bg: 'whiteAlpha.100' }}
+                disabled={categoriesLoading || (!!selectedRoot && (!selectedRoot.children || selectedRoot.children.length === 0))}
+                onFocus={() => {
+                  if (!selectedRoot) promptRootCategorySelection()
                 }}
-              />
-            )}
-          </Box>
+              >
+                {selectedSubcategoryIds.length > 0
+                  ? `${selectedSubcategoryIds.length} selected`
+                  : 'Select subcategories'}
+              </Button>
+            </Popover.Trigger>
+            <Portal>
+              <Popover.Positioner zIndex={2800}>
+                <Popover.Content
+                  bg={dark.cardBg}
+                  borderWidth="1px"
+                  borderColor={dark.borderSubtle}
+                  color="white"
+                  boxShadow="xl"
+                  p={3}
+                  w="320px"
+                >
+                  <Flex gap={2} flexWrap="wrap">
+                    {(selectedRoot?.children ?? []).map((c) => {
+                      const selected = selectedSubcategoryIds.includes(c.id)
+                      const selectedIndex = selectedSubcategoryIds.indexOf(c.id)
+                      return (
+                        <Button
+                          key={c.id}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          bg={selected ? 'brand.500' : 'transparent'}
+                          borderColor={selected ? 'brand.400' : dark.borderSubtle}
+                          color="white"
+                          fontWeight={selected ? 'semibold' : 'medium'}
+                          _hover={{ bg: selected ? 'brand.400' : 'whiteAlpha.100' }}
+                          _active={{ bg: selected ? 'brand.300' : 'whiteAlpha.200' }}
+                          _focusVisible={{
+                            boxShadow: '0 0 0 1px var(--chakra-colors-brand-500)',
+                            borderColor: 'brand.500',
+                          }}
+                          onClick={() => toggleSubcategorySelection(c.id)}
+                        >
+                          {selectedIndex === 0 ? `${c.name} (Primary)` : c.name}
+                        </Button>
+                      )
+                    })}
+                  </Flex>
+                  <Flex justify="flex-end" mt={3} pt={3} borderTopWidth="1px" borderColor={dark.borderSubtle}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      bg="brand.500"
+                      color="white"
+                      _hover={{ bg: 'brand.400' }}
+                      _active={{ bg: 'brand.300' }}
+                      onClick={() => setAdditionalSubcategoriesOpen(false)}
+                    >
+                      Done
+                    </Button>
+                  </Flex>
+                </Popover.Content>
+              </Popover.Positioner>
+            </Portal>
+          </Popover.Root>
           {customErrors.subcategory && (
             <Text fontSize="xs" color={errorAccent} mt={1}>
               {customErrors.subcategory}
             </Text>
           )}
+          <Flex gap={2} flexWrap="wrap" mt={2}>
+            {selectedSubcategoryIds.length === 0 ? (
+              <Badge variant="subtle" colorPalette="gray">
+                None selected
+              </Badge>
+            ) : (
+              (selectedRoot?.children ?? [])
+                .filter((c) => selectedSubcategoryIds.includes(c.id))
+                .map((c) => {
+                  const selectedIndex = selectedSubcategoryIds.indexOf(c.id)
+                  return (
+                    <Badge
+                      key={`selected-${c.id}`}
+                      color="white"
+                      bg={getCategoryGradient(c.name)}
+                      textShadow="0 1px 1px rgba(0, 0, 0, 0.28)"
+                    >
+                      {selectedIndex === 0 ? `${c.name} (Primary)` : c.name}
+                    </Badge>
+                  )
+                })
+            )}
+          </Flex>
         </Box>
 
         {fieldsError && (
@@ -1255,13 +1480,13 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
           </Text>
         )}
 
-        {fieldDefs.length > 0 && (
-          <Box mb={0}>
-            <Text fontSize="sm" color={dark.muted} mb={3}>
-              Item details
-            </Text>
+        <Box mb={0}>
+          <Text fontSize="sm" color={dark.muted} mb={3}>
+            Item details
+          </Text>
+          {visibleFieldDefs.length > 0 ? (
             <SimpleGrid columns={{ base: 1, md: 2 }} gap={4}>
-              {fieldDefs.map((f) => {
+              {visibleFieldDefs.map((f) => {
                 const fieldKey = `field_${f.id}` as keyof CreateFormValues
                 const fieldErr = errors[fieldKey]
                 const invalid = !!fieldErr
@@ -1273,17 +1498,20 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
                     {f.fieldType === 'select' && f.options ? (
                       <select
                         style={{
-                          width: '100%',
-                          padding: '8px 12px',
-                          background: dark.inputBg,
+                          ...baseSelectStyle,
                           border: `1px solid ${inputBorderColor(invalid)}`,
-                          borderRadius: '6px',
-                          color: 'white',
                         }}
                         {...register(
                           fieldKey,
                           f.options
-                            ? { required: `${f.fieldName} is required.` }
+                            ? {
+                                required: `${f.fieldName} is required.`,
+                                onChange: (e) =>
+                                  setDraftFieldValuesByName((prev) => ({
+                                    ...prev,
+                                    [normalizeFieldName(f.fieldName)]: e.target.value,
+                                  })),
+                              }
                             : {},
                         )}
                       >
@@ -1302,7 +1530,13 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
                         color="white"
                         _placeholder={{ color: dark.placeholder }}
                         placeholder={f.fieldName}
-                        {...register(fieldKey)}
+                        {...register(fieldKey, {
+                          onChange: (e) =>
+                            setDraftFieldValuesByName((prev) => ({
+                              ...prev,
+                              [normalizeFieldName(f.fieldName)]: e.target.value,
+                            })),
+                        })}
                       />
                     )}
                     {fieldErr?.message && (
@@ -1314,8 +1548,12 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
                 )
               })}
             </SimpleGrid>
-          </Box>
-        )}
+          ) : (
+            <Text fontSize="sm" color={dark.placeholder}>
+              No item detail fields are configured for this category.
+            </Text>
+          )}
+        </Box>
       </Box>
 
       <Box borderTopWidth="1px" borderColor={dark.borderSubtle} pt={6} mb={6}>

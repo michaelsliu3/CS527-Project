@@ -11,6 +11,7 @@ export interface AuctionListItem {
   createdAt?: string
   status: string
   categoryName: string
+  categoryNames?: string[]
   sellerUsername: string
   sellerDisplayNameColor?: string | null
   bidCount: number
@@ -46,6 +47,8 @@ export interface AuctionDetail {
   detailImageUrl?: string | null
   categoryId: number
   categoryName: string
+  categoryNames?: string[]
+  additionalCategoryIds?: number[]
   sellerId: number
   sellerUsername: string
   sellerAvatarUrl?: string | null
@@ -68,6 +71,7 @@ export interface CreateAuctionDto {
   imageUrl?: string
   imageStorageKey?: string
   categoryId: number
+  additionalCategoryIds?: number[]
   initialPrice: number
   bidIncrement: number
   reservePrice: number

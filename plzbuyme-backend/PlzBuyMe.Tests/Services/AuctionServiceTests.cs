@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using PlzBuyMe.Api.Data;
+using PlzBuyMe.Api.Dtos.Admin;
 using PlzBuyMe.Api.Dtos.Auctions;
 using PlzBuyMe.Api.Models;
 using PlzBuyMe.Api.Services;
@@ -75,6 +76,43 @@ public class AuctionServiceTests
         item.CurrentPrice.Should().Be(1000m);
         var fv = db.ItemFieldValues.Single(iv => iv.ItemId == item.Id && iv.FieldId == makeFieldId);
         fv.Value.Should().Be("Toyota");
+    }
+
+    [Fact]
+    public async Task CreateAuction_WithAdditionalSubcategories_PersistsTags_AndCategorySearchMatches()
+    {
+        var (db, categoryId, makeFieldId, sellerId) = CreateSeededContext();
+        var additionalCategoryId = db.Categories.Single(c => c.Name == "Electric").Id;
+        var service = CreateService(db);
+        var dto = new CreateAuctionDto
+        {
+            Title = "Multi-tag car",
+            Description = "Tagged for multiple subcategories",
+            CategoryId = categoryId,
+            AdditionalCategoryIds = new List<int> { additionalCategoryId },
+            InitialPrice = 1000m,
+            BidIncrement = 100m,
+            ReservePrice = 1500m,
+            CloseDateTime = DateTime.UtcNow.AddDays(1),
+            FieldValues = new List<FieldValueDto> { new(makeFieldId, "Tesla") }
+        };
+
+        var created = await service.CreateAuctionAsync(dto, sellerId);
+
+        created.Should().NotBeNull();
+        created!.CategoryNames.Should().Contain("Sedans");
+        created.CategoryNames.Should().Contain("Electric");
+
+        var item = db.Items.Single(i => i.Title == "Multi-tag car");
+        db.ItemSubcategoryTags.Should().Contain(t => t.ItemId == item.Id && t.CategoryId == additionalCategoryId);
+
+        var search = await service.SearchAsync(new SearchQueryDto
+        {
+            CategoryId = additionalCategoryId,
+            Page = 1,
+            PageSize = 20
+        });
+        search.Items.Should().Contain(i => i.Id == item.Id);
     }
 
     [Fact]
@@ -592,5 +630,33 @@ public class AuctionServiceTests
         db.Entry(item).Reload();
         item.Status.Should().Be(ItemStatus.Closed);
         db.BidHolds.Should().NotContain(h => h.ItemId == item.Id);
+    }
+
+    [Fact]
+    public async Task AdminPatchAuction_WithAdditionalSubcategories_ReplacesItemTags()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var item = db.Items.First(i => i.Status == ItemStatus.Active);
+        var primaryCategory = db.Categories.Single(c => c.Id == item.CategoryId);
+        primaryCategory.ParentId.Should().NotBeNull();
+        var rootCategoryId = primaryCategory.ParentId!.Value;
+        var additionalCategoryId = db.Categories
+            .Where(c => c.ParentId == rootCategoryId && c.Id != item.CategoryId)
+            .Select(c => c.Id)
+            .First();
+
+        var (error, detail) = await service.AdminPatchAuctionAsync(
+            item.Id,
+            new AdminPatchAuctionDto
+            {
+                AdditionalCategoryIds = new List<int> { additionalCategoryId }
+            },
+            adminUserId: 1);
+
+        error.Should().BeNull();
+        detail.Should().NotBeNull();
+        detail!.AdditionalCategoryIds.Should().Contain(additionalCategoryId);
+        db.ItemSubcategoryTags.Should().Contain(t => t.ItemId == item.Id && t.CategoryId == additionalCategoryId);
     }
 }

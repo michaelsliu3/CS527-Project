@@ -11,6 +11,7 @@ public record AuctionListDto
     public DateTime CloseDateTime { get; init; }
     public string Status { get; init; } = string.Empty;
     public string CategoryName { get; init; } = string.Empty;
+    public List<string> CategoryNames { get; init; } = new();
     public string SellerUsername { get; init; } = string.Empty;
     public string? SellerDisplayNameColor { get; init; }
     public int BidCount { get; init; }

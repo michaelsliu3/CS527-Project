@@ -154,14 +154,19 @@ export function SellItemModalProvider({ children }: { children: ReactNode }) {
         <Box
           position="fixed"
           inset={0}
-          bg="blackAlpha.600"
           zIndex={1400}
           overflowY="auto"
           py={{ base: 4, md: 8 }}
-          animation={`${isClosing ? overlayFadeOut : overlayFadeIn} 0.18s ease-out forwards`}
           onClick={handleClose}
           css={hideScrollbarCss}
         >
+          <Box
+            position="fixed"
+            inset={0}
+            bg="blackAlpha.500"
+            pointerEvents="none"
+            animation={`${isClosing ? overlayFadeOut : overlayFadeIn} 0.18s ease-out forwards`}
+          />
           <Container maxW="container.xl" px={APP_PAGE_PX} py={{ base: 4, md: 6 }}>
             <Box
               role="dialog"
@@ -170,12 +175,13 @@ export function SellItemModalProvider({ children }: { children: ReactNode }) {
               maxW="920px"
               mx="auto"
               bg="rgba(24, 24, 27, 0.12)"
-              backdropFilter="blur(12px)"
+              backdropFilter="blur(4px)"
+              css={{ WebkitBackdropFilter: 'blur(4px)' }}
               borderWidth="1px"
               borderColor="whiteAlpha.200"
               borderRadius="xl"
               p={{ base: 4, md: 6 }}
-              boxShadow="0 18px 48px rgba(0,0,0,0.35)"
+              boxShadow="0 18px 48px rgba(0,0,0,0.35), 0 0 24px rgba(59,130,246,0.16)"
               position="relative"
               onClick={(event) => event.stopPropagation()}
               animation={`${isClosing ? panelScaleOut : panelScaleIn} 0.18s ease-out forwards`}

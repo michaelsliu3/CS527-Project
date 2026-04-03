@@ -61,6 +61,8 @@ public class AuctionService : IAuctionService
         if (category == null)
             return null;
 
+        var additionalCategoryIds = await ValidateAdditionalSubcategoryIdsAsync(dto.CategoryId, dto.AdditionalCategoryIds);
+
         string? imageUrl;
         string? imageStorageKey;
         string? imageSource;
@@ -136,6 +138,9 @@ public class AuctionService : IAuctionService
         _db.Items.Add(item);
         await _db.SaveChangesAsync();
 
+        if (additionalCategoryIds.Count > 0)
+            await ReplaceItemSubcategoryTagsAsync(item.Id, additionalCategoryIds);
+
         foreach (var fv in dto.FieldValues ?? new List<FieldValueDto>())
         {
             _db.ItemFieldValues.Add(new ItemFieldValue
@@ -149,6 +154,76 @@ public class AuctionService : IAuctionService
 
         await _alertService.CheckAlertsForNewItemAsync(item);
         return await GetByIdAsync(item.Id);
+    }
+
+    private async Task<int> GetRootCategoryIdAsync(int categoryId)
+    {
+        var currentId = categoryId;
+        while (true)
+        {
+            var node = await _db.Categories
+                .AsNoTracking()
+                .Where(c => c.Id == currentId)
+                .Select(c => new { c.Id, c.ParentId })
+                .FirstOrDefaultAsync();
+
+            if (node == null)
+                throw new InvalidOperationException("Category not found.");
+            if (!node.ParentId.HasValue)
+                return node.Id;
+
+            currentId = node.ParentId.Value;
+        }
+    }
+
+    private async Task<List<int>> ValidateAdditionalSubcategoryIdsAsync(int primaryCategoryId, IEnumerable<int>? requestedAdditionalCategoryIds)
+    {
+        var additionalCategoryIds = (requestedAdditionalCategoryIds ?? Array.Empty<int>())
+            .Where(id => id > 0 && id != primaryCategoryId)
+            .Distinct()
+            .ToList();
+
+        if (additionalCategoryIds.Count == 0)
+            return additionalCategoryIds;
+
+        var additionalCategories = await _db.Categories
+            .Where(c => additionalCategoryIds.Contains(c.Id))
+            .ToListAsync();
+        if (additionalCategories.Count != additionalCategoryIds.Count)
+            throw new InvalidOperationException("One or more additional subcategories were not found.");
+
+        if (additionalCategories.Any(c => c.ParentId == null))
+            throw new InvalidOperationException("Additional categories must be subcategories, not root categories.");
+
+        var rootCategoryId = await GetRootCategoryIdAsync(primaryCategoryId);
+        foreach (var taggedCategory in additionalCategories)
+        {
+            var taggedRootId = await GetRootCategoryIdAsync(taggedCategory.Id);
+            if (taggedRootId != rootCategoryId)
+                throw new InvalidOperationException("All additional subcategories must belong to the same top-level category.");
+        }
+
+        return additionalCategoryIds;
+    }
+
+    private async Task ReplaceItemSubcategoryTagsAsync(int itemId, IEnumerable<int> additionalCategoryIds)
+    {
+        var existingTags = await _db.ItemSubcategoryTags
+            .Where(t => t.ItemId == itemId)
+            .ToListAsync();
+        if (existingTags.Count > 0)
+            _db.ItemSubcategoryTags.RemoveRange(existingTags);
+
+        foreach (var additionalCategoryId in additionalCategoryIds)
+        {
+            _db.ItemSubcategoryTags.Add(new ItemSubcategoryTag
+            {
+                ItemId = itemId,
+                CategoryId = additionalCategoryId
+            });
+        }
+
+        await _db.SaveChangesAsync();
     }
 
     private static string? NormalizeMediaKey(string? explicitKey, string? fallbackValue)
@@ -280,6 +355,7 @@ public class AuctionService : IAuctionService
         DateTime closeDateTime,
         string statusLower,
         string categoryName,
+        List<string> categoryNames,
         string sellerUsername,
         string? sellerDisplayNameColor,
         int bidCount) =>
@@ -294,10 +370,28 @@ public class AuctionService : IAuctionService
             CloseDateTime = closeDateTime,
             Status = statusLower,
             CategoryName = categoryName,
+            CategoryNames = categoryNames,
             SellerUsername = sellerUsername,
             SellerDisplayNameColor = sellerDisplayNameColor,
             BidCount = bidCount
         };
+
+    private static List<string> BuildCategoryNames(string primaryCategoryName, IEnumerable<string> taggedCategoryNames)
+    {
+        var names = new List<string>();
+        if (!string.IsNullOrWhiteSpace(primaryCategoryName))
+            names.Add(primaryCategoryName);
+
+        foreach (var taggedCategoryName in taggedCategoryNames)
+        {
+            if (string.IsNullOrWhiteSpace(taggedCategoryName))
+                continue;
+            if (!names.Contains(taggedCategoryName, StringComparer.OrdinalIgnoreCase))
+                names.Add(taggedCategoryName);
+        }
+
+        return names;
+    }
 
     private async Task<CdnGt7ThumbnailResolveResult> ResolveDefaultImageForCreateAsync(Category category, List<FieldValueDto>? fieldValues)
     {
@@ -475,7 +569,7 @@ public class AuctionService : IAuctionService
                 (i.Description != null && EF.Functions.Like(i.Description, likePattern)));
         }
         if (query.CategoryId.HasValue)
-            q = q.Where(i => i.CategoryId == query.CategoryId.Value);
+            q = q.Where(i => i.CategoryId == query.CategoryId.Value || i.ItemSubcategoryTags.Any(t => t.CategoryId == query.CategoryId.Value));
         if (query.MinPrice.HasValue)
             q = q.Where(i => i.CurrentPrice >= query.MinPrice.Value);
         if (query.MaxPrice.HasValue)
@@ -566,6 +660,7 @@ public class AuctionService : IAuctionService
                     BidCount = i.Bids.Count
                 })
                 .ToListAsync();
+            var taggedNamesByItemId = await GetTaggedCategoryNamesByItemIdAsync(rows.Select(r => r.Id));
             var byId = rows.ToDictionary(r => r.Id);
             items = idsForPage.Select(id =>
             {
@@ -581,6 +676,7 @@ public class AuctionService : IAuctionService
                     r.CloseDateTime,
                     r.Status.ToString().ToLowerInvariant(),
                     r.CategoryName,
+                    BuildCategoryNames(r.CategoryName, taggedNamesByItemId.GetValueOrDefault(r.Id, new List<string>())),
                     r.SellerUsername,
                     r.SellerDisplayNameColor,
                     r.BidCount);
@@ -610,6 +706,7 @@ public class AuctionService : IAuctionService
                     BidCount = i.Bids.Count
                 })
                 .ToListAsync();
+            var taggedNamesByItemId = await GetTaggedCategoryNamesByItemIdAsync(pageRows.Select(r => r.Id));
             items = pageRows.Select(r => ToAuctionListDto(
                 r.Id,
                 r.Title,
@@ -621,6 +718,7 @@ public class AuctionService : IAuctionService
                 r.CloseDateTime,
                 r.Status.ToString().ToLowerInvariant(),
                 r.CategoryName,
+                BuildCategoryNames(r.CategoryName, taggedNamesByItemId.GetValueOrDefault(r.Id, new List<string>())),
                 r.SellerUsername,
                 r.SellerDisplayNameColor,
                 r.BidCount)).ToList();
@@ -657,6 +755,29 @@ public class AuctionService : IAuctionService
         return desc
             ? itemIds.OrderByDescending(id => parsed.GetValueOrDefault(id, 0)).ToList()
             : itemIds.OrderBy(id => parsed.GetValueOrDefault(id, int.MaxValue)).ToList();
+    }
+
+    private async Task<Dictionary<int, List<string>>> GetTaggedCategoryNamesByItemIdAsync(IEnumerable<int> itemIds)
+    {
+        var ids = itemIds.Distinct().ToList();
+        if (ids.Count == 0)
+            return new Dictionary<int, List<string>>();
+
+        var rows = await _db.ItemSubcategoryTags
+            .AsNoTracking()
+            .Where(t => ids.Contains(t.ItemId))
+            .Include(t => t.Category)
+            .Select(t => new { t.ItemId, CategoryName = t.Category.Name })
+            .ToListAsync();
+
+        return rows
+            .GroupBy(r => r.ItemId)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(x => x.CategoryName)
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList());
     }
 
     private async Task<List<(int FieldId, FieldFilterValue Filter)>> BuildFieldFiltersAsync(SearchQueryDto query)
@@ -772,6 +893,7 @@ public class AuctionService : IAuctionService
         var item = await _db.Items
             .Include(i => i.Category)
             .Include(i => i.Seller)
+            .Include(i => i.ItemSubcategoryTags).ThenInclude(t => t.Category)
             .Include(i => i.ItemFieldValues).ThenInclude(iv => iv.Field)
             .Include(i => i.Bids).ThenInclude(b => b.Bidder)
             .FirstOrDefaultAsync(i => i.Id == id);
@@ -808,6 +930,8 @@ public class AuctionService : IAuctionService
             ImageMatchLevel = item.ImageMatchLevel,
             CategoryId = item.CategoryId,
             CategoryName = item.Category.Name,
+            CategoryNames = BuildCategoryNames(item.Category.Name, item.ItemSubcategoryTags.Select(t => t.Category.Name)),
+            AdditionalCategoryIds = item.ItemSubcategoryTags.Select(t => t.CategoryId).Distinct().ToList(),
             SellerId = item.SellerId,
             SellerUsername = item.Seller.Username,
             SellerAvatarUrl = item.Seller.AvatarUrl,
@@ -854,6 +978,7 @@ public class AuctionService : IAuctionService
                 BidCount = i.Bids.Count
             })
             .ToListAsync();
+        var taggedNamesByItemId = await GetTaggedCategoryNamesByItemIdAsync(mineRows.Select(r => r.Id));
         return mineRows.Select(r => ToAuctionListDto(
             r.Id,
             r.Title,
@@ -865,6 +990,7 @@ public class AuctionService : IAuctionService
             r.CloseDateTime,
             r.Status.ToString().ToLowerInvariant(),
             r.CategoryName,
+            BuildCategoryNames(r.CategoryName, taggedNamesByItemId.GetValueOrDefault(r.Id, new List<string>())),
             r.SellerUsername,
             r.SellerDisplayNameColor,
             r.BidCount)).ToList();
@@ -882,6 +1008,7 @@ public class AuctionService : IAuctionService
         var sameCategory = await _db.Items
             .Include(i => i.Category)
             .Include(i => i.Seller)
+            .Include(i => i.ItemSubcategoryTags).ThenInclude(t => t.Category)
             .Include(i => i.ItemFieldValues)
             .Include(i => i.Bids)
             .Where(i => i.CategoryId == item.CategoryId && i.Id != itemId && i.CreatedAt >= monthAgo)
@@ -904,6 +1031,7 @@ public class AuctionService : IAuctionService
                 x.Item.CloseDateTime,
                 x.Item.Status.ToString().ToLowerInvariant(),
                 x.Item.Category.Name,
+                BuildCategoryNames(x.Item.Category.Name, x.Item.ItemSubcategoryTags.Select(t => t.Category.Name)),
                 x.Item.Seller.Username,
                 x.Item.Seller.DisplayNameColor,
                 x.Item.Bids.Count))
@@ -942,6 +1070,7 @@ public class AuctionService : IAuctionService
                 BidCount = i.Bids.Count
             })
             .ToListAsync();
+        var taggedNamesByItemId = await GetTaggedCategoryNamesByItemIdAsync(histRows.Select(r => r.Id));
         return histRows.Select(r => ToAuctionListDto(
             r.Id,
             r.Title,
@@ -953,6 +1082,7 @@ public class AuctionService : IAuctionService
             r.CloseDateTime,
             r.Status.ToString().ToLowerInvariant(),
             r.CategoryName,
+            BuildCategoryNames(r.CategoryName, taggedNamesByItemId.GetValueOrDefault(r.Id, new List<string>())),
             r.SellerUsername,
             r.SellerDisplayNameColor,
             r.BidCount)).ToList();
@@ -1022,6 +1152,7 @@ public class AuctionService : IAuctionService
 
         if (item.Status != ItemStatus.Active)
         {
+            var nextPrimaryCategoryId = item.CategoryId;
             if (dto.Title != null)
                 item.Title = dto.Title.Trim();
             if (dto.Description != null)
@@ -1032,13 +1163,29 @@ public class AuctionService : IAuctionService
                 if (!catExists)
                     return ("Category not found.", null);
                 item.CategoryId = dto.CategoryId.Value;
+                nextPrimaryCategoryId = dto.CategoryId.Value;
             }
+
+            if (dto.AdditionalCategoryIds != null)
+            {
+                try
+                {
+                    var additionalCategoryIds = await ValidateAdditionalSubcategoryIdsAsync(nextPrimaryCategoryId, dto.AdditionalCategoryIds);
+                    await ReplaceItemSubcategoryTagsAsync(itemId, additionalCategoryIds);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return (ex.Message, null);
+                }
+            }
+
             await _db.SaveChangesAsync();
             _logger.LogWarning("Admin {AdminId} updated metadata on non-active auction {ItemId}", adminUserId, itemId);
             return (null, await GetByIdAsync(itemId));
         }
 
         var hasBids = await _db.Bids.AnyAsync(b => b.ItemId == itemId);
+        var nextActivePrimaryCategoryId = item.CategoryId;
 
         if (dto.Title != null)
             item.Title = dto.Title.Trim();
@@ -1050,6 +1197,20 @@ public class AuctionService : IAuctionService
             if (!catExists)
                 return ("Category not found.", null);
             item.CategoryId = dto.CategoryId.Value;
+            nextActivePrimaryCategoryId = dto.CategoryId.Value;
+        }
+
+        if (dto.AdditionalCategoryIds != null)
+        {
+            try
+            {
+                var additionalCategoryIds = await ValidateAdditionalSubcategoryIdsAsync(nextActivePrimaryCategoryId, dto.AdditionalCategoryIds);
+                await ReplaceItemSubcategoryTagsAsync(itemId, additionalCategoryIds);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return (ex.Message, null);
+            }
         }
 
         if (dto.CloseDateTime.HasValue)
@@ -1110,6 +1271,7 @@ public class AuctionService : IAuctionService
         return dto.Title != null
             || dto.Description != null
             || dto.CategoryId.HasValue
+            || dto.AdditionalCategoryIds != null
             || dto.CloseDateTime.HasValue
             || dto.BidIncrement.HasValue
             || dto.ReservePrice.HasValue

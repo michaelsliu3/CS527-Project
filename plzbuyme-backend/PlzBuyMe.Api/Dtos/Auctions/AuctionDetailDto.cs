@@ -11,6 +11,8 @@ public record AuctionDetailDto
     public string? ImageMatchLevel { get; init; }
     public int CategoryId { get; init; }
     public string CategoryName { get; init; } = string.Empty;
+    public List<string> CategoryNames { get; init; } = new();
+    public List<int> AdditionalCategoryIds { get; init; } = new();
     public int SellerId { get; init; }
     public string SellerUsername { get; init; } = string.Empty;
     public string? SellerAvatarUrl { get; init; }

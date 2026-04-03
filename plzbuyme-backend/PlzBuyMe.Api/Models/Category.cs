@@ -14,5 +14,6 @@ public class Category
     public ICollection<Category> Children { get; set; } = new List<Category>();
     public ICollection<CategoryField> CategoryFields { get; set; } = new List<CategoryField>();
     public ICollection<Item> Items { get; set; } = new List<Item>();
+    public ICollection<ItemSubcategoryTag> TaggedItems { get; set; } = new List<ItemSubcategoryTag>();
     public ICollection<Alert> Alerts { get; set; } = new List<Alert>();
 }

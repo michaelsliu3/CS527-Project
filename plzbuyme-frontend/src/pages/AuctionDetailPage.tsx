@@ -242,6 +242,10 @@ export function AuctionDetailPage() {
   const statusColor =
     auction.status === 'active' ? 'green' : auction.status === 'sold' ? 'blue' : 'gray'
   const imageSrc = resolveMediaUrl(auction.detailImageUrl ?? auction.imageUrl)
+  const categoryNames =
+    auction.categoryNames && auction.categoryNames.length > 0
+      ? auction.categoryNames
+      : [auction.categoryName].filter((v): v is string => Boolean(v))
 
   const adminEditModal =
     user?.role === 'admin' ? (
@@ -312,7 +316,7 @@ export function AuctionDetailPage() {
           </Flex>
         </Flex>
         <Flex color={dark.muted} align="center" gap={2}>
-          <Text>{auction.categoryName} · by</Text>
+          <Text>{(categoryNames.length ? categoryNames : [auction.categoryName]).join(' · ')} · by</Text>
           <UserAvatar name={auction.sellerUsername} avatarUrl={auction.sellerAvatarUrl} size="22px" />
           <DisplayNameText
             name={auction.sellerUsername}

@@ -516,26 +516,24 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## ![1775108197598](image/TICKETS/1775108197598.png) — Multi-tag car subtypes (Electric + Sports Car, etc.)
+## PBM-29 — Multi-tag car subtypes (Electric + Sports Car, etc.)
 
 **Layer:** Backend + Frontend  
 **Branch:** `PBM-29/multi-tag-car-subtypes`  
-**PR Title:** `[PBM-29] DB-driven category metadata, search hub, GM category tools, and SearchBar polish`
+**PR Title:** `[PBM-29] item subcategory tags, OR browse filter, seller/admin UI, and category platform`
 
-**Shipped in this PR (category platform + UX):**
+**Shipped in this PR:**
 
-- **Schema & API:** `categories` gains `string_key` (unique, nullable) and `lucide_icon_key` (nullable) for UI rendering. `GET /api/categories` returns the full hierarchy (roots + nested `children`) including `stringKey` and `lucideIconKey`. Migrations: `20260402120000_CategorySearchMetadata`, `20260402140000_RenameCategorySlugToStringKey` (Pomelo-safe raw SQL rename `Slug` → `StringKey`), plus `20260402180000_CategoryLucideIconKey`, `20260402190000_SetCarsCategoryLucideIconToCar`, `20260402200000_ClearCarsExtraSortOptionsJson`, and `20260402220000_RemoveCategorySortOrderIsSearchHubExtraSortOptionsJson` (clean up legacy hub/sort columns).
-- **Seed:** Cars root and common subcategories are seeded with `lucideIconKey` mappings (e.g. `cars` → `Car`, `electric` → `Battery`), while subcategories carry string keys aligned with GT7 inference (`sedans`, `suvs`, `electric`, etc.).
-- **SearchBar:** “Cars hub” tabs are derived from the category tree by inferring the hub root via `stringKey === 'cars'` (fallback: name). Tab icons use `lucideIconKey`; selecting hub/root/child updates `categoryId` + `page` query params with no refetch loops. Top bar polish (tabs, spacing, behavior) retained/improved.
-- **Create Auction / Alerts:** Category dropdowns/selects are driven by `GET /api/categories` (removed `constants/categories.ts`); UI ordering is name-based (client-side flatten/sort), consistent across SearchBar and create/alerts flows.
-- **GM tools:** Admin-only create/update/delete categories (`POST/PATCH/DELETE api/admin/gm/categories`), including setting `lucideIconKey`; panel **Categories** tab with validation/error surfacing; manifest category mode documents string key vs name; `Gt7ManifestAuctionBuilder` uses `InferCategoryStringKey` and `StringKey*` constants.
-- **Admin auction edit:** `PATCH api/admin/auctions/{id}` accepts optional `categoryId` (validated against DB); auction detail **Edit** modal includes category + subcategory dropdowns driven by `GET /api/categories`, persisting the chosen leaf or root on `items.category_id`.
-- **Reliability:** `Program.cs` rethrows migration/seed failures in **Development** so schema drift does not leave a running API with broken `/api/categories`. GM category load errors show HTTP detail in toasts.
-- **Tests:** `SeedDataTests`, `GmToolsServiceTests`, `Gt7ManifestAuctionBuilderTests`, `SearchBar.test.tsx`, `AlertsPage.test.tsx`, and related fixture updates.
+- **Category platform (tree + metadata):** `categories` uses `string_key` (unique when set) and `lucide_icon_key` for integrations and SearchBar tab icons. `GET /api/categories` returns the hierarchy with `stringKey` and `lucideIconKey`. Search hub behavior is driven from that tree (e.g. Cars root via `stringKey === 'cars'` with name fallback). GM category CRUD, seed alignment with GT7 string keys, create/alerts flows consuming the API tree, and Development rethrow on migration/seed failure remain as earlier increments on this line of work.
+- **Per-item subtype tags:** Junction table `ItemSubcategoryTags` (`item_id`, `category_id` composite PK; FK to `Items` cascade, to `Categories` restrict). Migration `20260403040625_AddItemSubcategoryTags`. Each row is an **extra** subcategory tag beyond the item’s primary `category_id`. Validation: IDs must exist; tags must be **non-root** subcategories; must share the **same top-level root** as the primary category; duplicates and the primary id are rejected.
+- **API:** `POST api/auctions/create` accepts `additionalCategoryIds` (optional list). List rows include `categoryNames` (primary + tag names for display). Detail includes `categoryNames` and `additionalCategoryIds`. `PATCH api/admin/auctions/{id}` accepts optional `additionalCategoryIds`: **omit/null** leaves tags unchanged; **empty array** clears all tags.
+- **Browse filter:** When `category_id` is set, results include items whose **primary** `category_id` matches **or** any `ItemSubcategoryTags` row matches (**OR** semantics). Explicit AND/OR query modes are not implemented.
+- **Frontend:** Create Auction and sell modal support multi-select **additional subcategories** (chips) under the same root as the chosen primary category. Admin auction **Edit** can view/change tags. `AuctionCard` and auction detail show multiple category labels/chips.
+- **Tests:** `AuctionServiceTests` coverage for create/patch/browse/tag validation paths.
 
-**Original ticket scope not yet implemented (follow-up work):**
+**Follow-up (optional):**
 
-- Per-**item** multiple subtype tags (collection on `Item`, list/detail DTOs, browse filters with explicit AND/OR semantics, multi-chip UI on cards). The current work strengthens the **category tree** and search hub so multiple leaf types (e.g. Electric, Sports Cars) remain first-class **categories** rather than a single multi-value field on items.
+- Browse/search **AND** vs **OR** switch (or multi-select category facets). Alert matching on tag rows only (today alerts still key off primary category and criteria as before).
 
 ---
 

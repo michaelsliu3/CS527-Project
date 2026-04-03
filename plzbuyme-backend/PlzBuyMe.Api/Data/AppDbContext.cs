@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<CategoryField> CategoryFields => Set<CategoryField>();
     public DbSet<Item> Items => Set<Item>();
     public DbSet<ItemFieldValue> ItemFieldValues => Set<ItemFieldValue>();
+    public DbSet<ItemSubcategoryTag> ItemSubcategoryTags => Set<ItemSubcategoryTag>();
     public DbSet<Bid> Bids => Set<Bid>();
     public DbSet<AutoBid> AutoBids => Set<AutoBid>();
     public DbSet<Alert> Alerts => Set<Alert>();
@@ -110,6 +111,21 @@ public class AppDbContext : DbContext
             e.HasIndex(i => new { i.Status, i.CloseDateTime }).HasDatabaseName("idx_items_status_close");
             e.HasIndex(i => i.CategoryId).HasDatabaseName("idx_items_category");
             e.HasIndex(i => i.SellerId).HasDatabaseName("idx_items_seller");
+        });
+
+        // ── ItemSubcategoryTag (unique item_id + category_id) ──
+        modelBuilder.Entity<ItemSubcategoryTag>(e =>
+        {
+            e.HasKey(t => new { t.ItemId, t.CategoryId });
+            e.HasOne(t => t.Item)
+                .WithMany(i => i.ItemSubcategoryTags)
+                .HasForeignKey(t => t.ItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(t => t.Category)
+                .WithMany(c => c.TaggedItems)
+                .HasForeignKey(t => t.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(t => t.CategoryId).HasDatabaseName("idx_item_subcategory_tags_category");
         });
 
         // ── ItemFieldValue (unique item_id + field_id) ──

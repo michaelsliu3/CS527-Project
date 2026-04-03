@@ -194,6 +194,12 @@ export function AuctionCard({ auction }: AuctionCardProps) {
   const timerValue = auction.status === 'active' ? countdown : '00:00:00'
   const animateTimerBar = auction.status === 'active' && !isExpiredActiveAuction
   const timerGlow = getTimerGlow(auction.closeDateTime, auction.status)
+  const categoryNames =
+    auction.categoryNames && auction.categoryNames.length > 0
+      ? auction.categoryNames
+      : [auction.categoryName].filter((v): v is string => Boolean(v))
+  const primaryCategoryName = categoryNames[0] ?? auction.categoryName
+  const secondaryCategoryNames = categoryNames.slice(1)
 
   return (
     <RouterLink to={`/auctions/${auction.id}`} state={{ backgroundLocation }}>
@@ -310,13 +316,22 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               lineHeight="1.2"
               letterSpacing="0.01em"
               color="white"
-              bg={getCategoryGradient(auction.categoryName)}
+              bg={getCategoryGradient(primaryCategoryName)}
               textShadow="0 1px 1px rgba(0, 0, 0, 0.28)"
               boxShadow="0 6px 20px rgba(56, 189, 248, 0.22), 0 0 14px rgba(56, 189, 248, 0.2)"
             >
-              {auction.categoryName}
+              {primaryCategoryName}
             </Box>
           </Flex>
+          {secondaryCategoryNames.length > 0 ? (
+            <Flex gap={1.5} flexWrap="wrap">
+              {secondaryCategoryNames.map((name) => (
+                <Badge key={`${auction.id}-${name}`} size="sm" variant="outline" colorPalette="blue">
+                  {name}
+                </Badge>
+              ))}
+            </Flex>
+          ) : null}
           <Text fontSize="sm" color={dark.muted} lineHeight="1.5">
             by{' '}
             <DisplayNameText
