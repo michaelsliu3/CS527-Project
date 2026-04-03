@@ -186,6 +186,43 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     fadeOverlay.position.y = 0.002
     scene.add(fadeOverlay)
 
+    const SPEED_LINE_COUNT = 200
+    const slGeo = new THREE.BoxGeometry(1, 0.018, 0.018)
+    const slMat = new THREE.MeshBasicMaterial({
+      color: '#ffffff',
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+    const speedLines = new THREE.InstancedMesh(slGeo, slMat, SPEED_LINE_COUNT)
+    speedLines.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    speedLines.frustumCulled = false
+
+    const slPalette = [
+      new THREE.Color('#8b5cf6'),
+      new THREE.Color('#06b6d4'),
+      new THREE.Color('#a78bfa'),
+      new THREE.Color('#e0e7ff'),
+      new THREE.Color('#3b82f6'),
+      new THREE.Color('#ec4899'),
+      new THREE.Color('#22d3ee'),
+      new THREE.Color('#c084fc'),
+    ]
+    const slData = Array.from({ length: SPEED_LINE_COUNT }, (_, i) => {
+      speedLines.setColorAt(i, slPalette[Math.floor(Math.random() * slPalette.length)])
+      return {
+        angle: Math.random() * Math.PI * 2,
+        radius: 1.2 + Math.random() * 4.5,
+        x: (Math.random() - 0.5) * 20,
+        baseLength: 0.3 + Math.random() * 1.8,
+        speed: 0.5 + Math.random() * 0.8,
+      }
+    })
+    speedLines.instanceColor!.needsUpdate = true
+    const slDummy = new THREE.Object3D()
+    scene.add(speedLines)
+
     const carGroup = new THREE.Group()
     scene.add(carGroup)
     const carVerticalOffset = -0.18
@@ -548,6 +585,29 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         camera.position.y = THREE.MathUtils.lerp(camera.position.y, baseCameraPosition.y - pointer.y * 0.16, 0.05)
         camera.position.z = THREE.MathUtils.lerp(camera.position.z, baseCameraPosition.z + pointer.x * 0.14, 0.05)
         camera.lookAt(lookTarget.x + pointer.x * 0.05, lookTarget.y - pointer.y * 0.03, lookTarget.z)
+      }
+
+      const slTargetOpacity = driveSpeed > 0.05 ? Math.min(driveSpeed / 2.2, 0.85) : 0
+      slMat.opacity = THREE.MathUtils.lerp(slMat.opacity, slTargetOpacity, 1 - Math.exp(-dt * 5))
+
+      if (driveSpeed > 0.01 || slMat.opacity > 0.01) {
+        for (let i = 0; i < SPEED_LINE_COUNT; i++) {
+          const d = slData[i]
+          d.x -= d.speed * driveSpeed * dt * 6
+          if (d.x < -10) {
+            d.x = 10 + Math.random() * 4
+            d.angle = Math.random() * Math.PI * 2
+            d.radius = 1.2 + Math.random() * 4.5
+          }
+          const y = Math.cos(d.angle) * d.radius
+          const z = Math.sin(d.angle) * d.radius
+          const len = d.baseLength * (1 + driveSpeed * 1.2)
+          slDummy.position.set(d.x, y, z)
+          slDummy.scale.set(len, 1, 1)
+          slDummy.updateMatrix()
+          speedLines.setMatrixAt(i, slDummy.matrix)
+        }
+        speedLines.instanceMatrix.needsUpdate = true
       }
 
       renderer.render(scene, camera)
