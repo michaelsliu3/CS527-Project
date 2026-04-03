@@ -33,9 +33,18 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 1.1
+    renderer.toneMappingExposure = 0
     renderer.setClearColor('#000000', 1)
     mount.appendChild(renderer.domElement)
+
+    let entryLightFactor = 0
+    const animatableLights: Array<{ light: THREE.Light; baseIntensity: number }> = []
+    const registerAnimLight = <T extends THREE.Light>(light: T): T => {
+      const baseIntensity = light.intensity
+      animatableLights.push({ light, baseIntensity })
+      light.intensity = baseIntensity * entryLightFactor
+      return light
+    }
 
     let controls: OrbitControls | null = null
     if (interactive) {
@@ -43,11 +52,13 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
       controls.enableDamping = true
       controls.dampingFactor = 0.06
       controls.enablePan = false
+      controls.enableRotate = true
       controls.minDistance = 3
       controls.maxDistance = 14
       controls.minPolarAngle = Math.PI * 0.15
       controls.maxPolarAngle = Math.PI * 0.55
       controls.target.set(0, 0.3, 0)
+      controls.enabled = false
       controls.update()
     }
 
@@ -63,38 +74,52 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     scene.environment = envMap
     pmremGenerator.dispose()
 
-    const ambient = new THREE.AmbientLight('#ffffff', 0.08)
+    const ambient = registerAnimLight(new THREE.AmbientLight('#ffffff', 0.08))
     scene.add(ambient)
 
-    const keySpot = new THREE.SpotLight('#fff8f0', 4.0, 30, Math.PI * 0.14, 0.7, 1.2)
+    const keySpot = registerAnimLight(new THREE.SpotLight('#fff8f0', 4.0, 30, Math.PI * 0.14, 0.7, 1.2))
     keySpot.position.set(5, 8, 4)
     keySpot.target.position.set(0, 0.5, 0)
     scene.add(keySpot)
     scene.add(keySpot.target)
 
-    const fillSpot = new THREE.SpotLight('#e0e8ff', 2.0, 25, Math.PI * 0.18, 0.8, 1.0)
+    const fillSpot = registerAnimLight(new THREE.SpotLight('#ffffff', 2.0, 25, Math.PI * 0.18, 0.8, 1.0))
     fillSpot.position.set(-6, 5, 3)
     fillSpot.target.position.set(0, 0.5, 0)
     scene.add(fillSpot)
     scene.add(fillSpot.target)
 
-    const rimSpot = new THREE.SpotLight('#d0d8ff', 2.5, 25, Math.PI * 0.12, 0.5, 1.0)
+    const rimSpot = registerAnimLight(new THREE.SpotLight('#ffffff', 2.5, 25, Math.PI * 0.12, 0.5, 1.0))
     rimSpot.position.set(-3, 4, -7)
     rimSpot.target.position.set(0, 0.5, 0)
     scene.add(rimSpot)
     scene.add(rimSpot.target)
 
-    const topSpot = new THREE.SpotLight('#ffffff', 1.5, 20, Math.PI * 0.25, 0.9, 1.0)
-    topSpot.position.set(0, 10, 0)
-    topSpot.target.position.set(0, 0, 0)
-    scene.add(topSpot)
-    scene.add(topSpot.target)
+    // Overhead studio rig: positioned high enough to stay out of frame, casting white light down.
+    const overheadLightPositions: ReadonlyArray<[number, number, number]> = [
+      [0, 16, 0],
+      [3.8, 15, 2.8],
+      [-3.8, 15, -2.8],
+    ]
+    overheadLightPositions.forEach(([x, y, z]) => {
+      const overhead = registerAnimLight(new THREE.SpotLight('#ffffff', 7.5, 60, Math.PI * 0.16, 0.45, 1.0))
+      overhead.position.set(x, y, z)
+      overhead.target.position.set(0, 0.2, 0)
+      scene.add(overhead)
+      scene.add(overhead.target)
+    })
 
-    const accentFront = new THREE.PointLight('#ffffff', 0.6, 12)
+    const overheadFill = registerAnimLight(new THREE.DirectionalLight('#ffffff', 1.4))
+    overheadFill.position.set(0, 18, 0)
+    overheadFill.target.position.set(0, 0, 0)
+    scene.add(overheadFill)
+    scene.add(overheadFill.target)
+
+    const accentFront = registerAnimLight(new THREE.PointLight('#ffffff', 0.6, 12))
     accentFront.position.set(3, 0.5, 5)
     scene.add(accentFront)
 
-    const accentRear = new THREE.PointLight('#c8d0ff', 0.4, 10)
+    const accentRear = registerAnimLight(new THREE.PointLight('#ffffff', 0.3, 10))
     accentRear.position.set(-4, 0.8, -4)
     scene.add(accentRear)
 
@@ -104,7 +129,7 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
       clipBias: 0.003,
       textureWidth: 1024,
       textureHeight: 1024,
-      color: new THREE.Color('#080808'),
+      color: new THREE.Color('#c0c0c0'),
     })
     floor.rotation.x = -Math.PI / 2
     floor.position.y = 0
@@ -116,9 +141,9 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     const fadeCtx = fadeCanvas.getContext('2d')!
     const fadeGrad = fadeCtx.createRadialGradient(256, 256, 60, 256, 256, 256)
     fadeGrad.addColorStop(0, 'rgba(0,0,0,0)')
-    fadeGrad.addColorStop(0.4, 'rgba(0,0,0,0.25)')
-    fadeGrad.addColorStop(0.7, 'rgba(0,0,0,0.6)')
-    fadeGrad.addColorStop(1, 'rgba(0,0,0,0.92)')
+    fadeGrad.addColorStop(0.45, 'rgba(0,0,0,0.16)')
+    fadeGrad.addColorStop(0.75, 'rgba(0,0,0,0.38)')
+    fadeGrad.addColorStop(1, 'rgba(0,0,0,0.62)')
     fadeCtx.fillStyle = fadeGrad
     fadeCtx.fillRect(0, 0, 512, 512)
     const fadeTex = new THREE.CanvasTexture(fadeCanvas)
@@ -132,6 +157,9 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
 
     const carGroup = new THREE.Group()
     scene.add(carGroup)
+    const carVerticalOffset = -0.18
+    let entryScaleCurrent = 0.6
+    carGroup.scale.setScalar(entryScaleCurrent)
 
     // Fallback geometry while model loads
     const createFallbackCar = () => {
@@ -175,7 +203,7 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     const fallback = createFallbackCar()
     carGroup.add(fallback.root)
     let activeRoot: THREE.Object3D = fallback.root
-    let fallbackWheels = fallback.wheels
+    const fallbackWheels = fallback.wheels
     let modelWheels: THREE.Object3D[] = []
 
     const fitCameraToObject = (object: THREE.Object3D) => {
@@ -192,8 +220,12 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
       const fitDepthDistance = size.z * 1.15
       const distance = Math.max(fitHeightDistance, fitWidthDistance, fitDepthDistance) * 1.5
 
-      lookTarget.set(center.x, center.y + size.y * 0.1, center.z)
-      const direction = new THREE.Vector3(1, 0.32, 1).normalize()
+      const compositionOffsetX = 0
+      // Aim slightly above center so the car sits lower in frame.
+      lookTarget.set(center.x + compositionOffsetX, center.y + size.y * 0.25, center.z)
+      const direction = interactive
+        ? new THREE.Vector3(0, 0.0, -1).normalize()
+        : new THREE.Vector3(1, 0.32, 1).normalize()
       baseCameraPosition.copy(lookTarget).add(direction.multiplyScalar(distance))
       camera.position.copy(baseCameraPosition)
       camera.lookAt(lookTarget)
@@ -230,16 +262,42 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
 
         const wheelNameRegex = /(wheel|tyre|tire|rim)/i
         const detectedWheels: THREE.Object3D[] = []
+        const lightNodeRegex = /^(Light|LightGlass)\./
+
+        modelRoot.updateMatrixWorld(true)
+        const _wPos = new THREE.Vector3()
+
         modelRoot.traverse((object: THREE.Object3D) => {
           const mesh = object as THREE.Mesh
           if (wheelNameRegex.test(object.name)) {
             detectedWheels.push(object)
           }
+
           if (mesh.isMesh) {
-            const materials = Array.isArray(mesh.material)
-              ? mesh.material
-              : [mesh.material]
-            materials.forEach((mat) => {
+            const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+
+            const onLightNode = lightNodeRegex.test(object.name)
+              || (object.parent && lightNodeRegex.test(object.parent.name))
+
+            if (onLightNode) {
+              mesh.getWorldPosition(_wPos)
+              const isFront = _wPos.x > 0
+              mats.forEach((mat) => {
+                const stdMat = mat as THREE.MeshStandardMaterial
+                if (stdMat.emissiveMap) {
+                  stdMat.emissiveIntensity = isFront ? 5 : 4
+                } else if (stdMat.name === 'Car_window') {
+                  stdMat.emissive = new THREE.Color('#fffbe8')
+                  stdMat.emissiveIntensity = isFront ? 1.5 : 1
+                } else {
+                  stdMat.emissive = new THREE.Color('#fffbe8')
+                  stdMat.emissiveIntensity = isFront ? 3 : 1.6
+                }
+                stdMat.needsUpdate = true
+              })
+            }
+
+            mats.forEach((mat) => {
               const stdMat = mat as THREE.MeshStandardMaterial
               if (stdMat.envMapIntensity !== undefined) {
                 stdMat.envMapIntensity = 1.8
@@ -261,6 +319,23 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         activeRoot = modelRoot
         modelWheels = detectedWheels
         carGroup.add(activeRoot)
+
+        // Invisible light sources at known model positions (car faces +X)
+        const fBox = new THREE.Box3().setFromObject(modelRoot)
+        const cSize = new THREE.Vector3()
+        const cCenter = new THREE.Vector3()
+        fBox.getSize(cSize)
+        fBox.getCenter(cCenter)
+        const halfW = cSize.z * 0.42
+
+        // Headlights — two SpotLights at the front casting forward
+        ;[halfW, -halfW].forEach((z) => {
+          const spot = registerAnimLight(new THREE.SpotLight('#fffbe6', 8, 18, Math.PI * 0.3, 0.7, 1.2))
+          spot.position.set(fBox.max.x, cCenter.y * 0.5, z)
+          spot.target.position.set(fBox.max.x + 6, -0.5, z)
+          carGroup.add(spot, spot.target)
+        })
+
         fitCameraToObject(activeRoot)
         setLoaded(true)
       },
@@ -272,6 +347,12 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
 
     if (!interactive) {
       carGroup.rotation.y = -Math.PI * 0.2
+      carGroup.position.y = carVerticalOffset
+    } else {
+      // Model faces +X; this keeps the car front pointing screen-left in side view.
+      carGroup.rotation.y = 0
+      carGroup.position.x = 0
+      carGroup.position.y = carVerticalOffset
     }
 
     const pointer = { x: 0, y: 0 }
@@ -321,19 +402,44 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     const resizeObserver = new ResizeObserver(setSize)
     resizeObserver.observe(mount)
 
-    setLoaded(true)
-
     const clock = new THREE.Clock()
     let elapsed = 0
+    let entryBlend = 0
+    let introComplete = false
     let raf = 0
     const animate = () => {
       const dt = Math.min(clock.getDelta(), 0.05)
       elapsed += dt
       const t = elapsed
+      // Cinematic entry: slow -> fast -> slow zoom with smooth easing.
+      entryBlend = Math.min(entryBlend + dt / 2.8, 1)
+      const zoomEase = THREE.MathUtils.smootherstep(entryBlend, 0, 1)
+      const targetScale = THREE.MathUtils.lerp(0.5, 0.7, zoomEase)
+      const smoothing = 1 - Math.exp(-dt * 5.6)
+      entryScaleCurrent = THREE.MathUtils.lerp(entryScaleCurrent, targetScale, smoothing)
+      carGroup.scale.setScalar(entryScaleCurrent)
+      entryLightFactor = THREE.MathUtils.smootherstep(Math.max(0, (entryBlend - 0.08) / 0.92), 0, 1)
+      animatableLights.forEach(({ light, baseIntensity }) => {
+        light.intensity = baseIntensity * entryLightFactor
+      })
+      renderer.toneMappingExposure = THREE.MathUtils.lerp(0, 1.1, entryLightFactor)
 
       if (interactive) {
+        if (!introComplete) {
+          camera.position.lerp(baseCameraPosition, 0.18)
+          camera.lookAt(lookTarget)
+          controls?.target.lerp(lookTarget, 0.25)
+          if (entryBlend >= 1) {
+            introComplete = true
+            if (controls) {
+              controls.target.copy(lookTarget)
+              controls.enabled = true
+            }
+          }
+        }
         controls?.update()
-        carGroup.position.y = Math.sin(t * 1.2) * 0.02
+        carGroup.position.x = 0
+        carGroup.position.y = carVerticalOffset + Math.sin(t * 1.2) * 0.02
       } else {
         if (isDriving) {
           driveSpeed = Math.min(driveSpeed + dt * 5.2, 3.2)
@@ -348,7 +454,7 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         carGroup.rotation.y += 0.0028
         carGroup.rotation.x = THREE.MathUtils.lerp(carGroup.rotation.x, -pointer.y * 0.08, 0.06)
         carGroup.position.x = driveOffset
-        carGroup.position.y = 0.04 + Math.sin(t * 1.45) * 0.035
+        carGroup.position.y = carVerticalOffset + 0.04 + Math.sin(t * 1.45) * 0.035
         carGroup.rotation.z = THREE.MathUtils.lerp(carGroup.rotation.z, -driveSpeed * 0.015, 0.12)
 
         const idleSpin = 0.012
