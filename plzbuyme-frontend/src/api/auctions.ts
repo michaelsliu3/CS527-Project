@@ -45,10 +45,9 @@ export interface AuctionDetail {
   description: string | null
   imageUrl?: string | null
   detailImageUrl?: string | null
-  categoryId: number
+  categoryIds: number[]
   categoryName: string
   categoryNames?: string[]
-  additionalCategoryIds?: number[]
   sellerId: number
   sellerUsername: string
   sellerAvatarUrl?: string | null
@@ -70,8 +69,7 @@ export interface CreateAuctionDto {
   description?: string
   imageUrl?: string
   imageStorageKey?: string
-  categoryId: number
-  additionalCategoryIds?: number[]
+  categoryIds: number[]
   initialPrice: number
   bidIncrement: number
   reservePrice: number

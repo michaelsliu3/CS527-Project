@@ -42,10 +42,8 @@ public class AuctionsController : ControllerBase
             return Forbid();
         if (string.IsNullOrWhiteSpace(dto.Title))
             return BadRequest("Title is required.");
-        if (dto.CategoryId <= 0)
-            return BadRequest("Valid category is required.");
-        if (dto.AdditionalCategoryIds.Any(id => id <= 0))
-            return BadRequest("Additional categories must be valid IDs.");
+        if (dto.CategoryIds.Count == 0 || dto.CategoryIds.Any(id => id <= 0))
+            return BadRequest("Valid category IDs are required.");
         if (dto.InitialPrice < 0 || dto.BidIncrement <= 0 || dto.ReservePrice < 0)
             return BadRequest("Invalid prices.");
         if (dto.CloseDateTime <= DateTime.UtcNow)

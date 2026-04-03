@@ -194,8 +194,8 @@ public class GmToolsService : IGmToolsService
 
         foreach (var asset in selected)
         {
-            var category = await ResolveCategoryForManifestAsync(mode, asset);
-            if (category == null)
+            var categories = await ResolveCategoriesForManifestAsync(mode, asset);
+            if (categories.Count == 0)
             {
                 return (
                     $"Category not found for mode \"{mode}\". Use auto or a leaf name (e.g. Sedans).",
@@ -204,7 +204,7 @@ public class GmToolsService : IGmToolsService
 
             var createDto = Gt7ManifestAuctionBuilder.BuildCreateDto(
                 asset,
-                category,
+                categories,
                 dto.CloseHoursMin,
                 dto.CloseHoursMax);
             var detail = await _auctionService.CreateAuctionAsync(createDto, seller.Id);
@@ -265,28 +265,30 @@ public class GmToolsService : IGmToolsService
         return candidates.FirstOrDefault(File.Exists);
     }
 
-    private async Task<Category?> ResolveCategoryForManifestAsync(string categoryMode, Gt7ManifestAsset asset)
+    private async Task<List<Category>> ResolveCategoriesForManifestAsync(string categoryMode, Gt7ManifestAsset asset)
     {
         if (string.Equals(categoryMode, "auto", StringComparison.OrdinalIgnoreCase))
         {
             var categoryKeys = Gt7ManifestAuctionBuilder.ResolveCategoryStringKeys(asset);
+            var results = new List<Category>();
             foreach (var stringKey in categoryKeys)
             {
                 var match = await _db.Categories
                     .Include(c => c.CategoryFields)
-                    .FirstOrDefaultAsync(c => c.StringKey == stringKey && c.CategoryFields.Any());
+                    .FirstOrDefaultAsync(c => c.StringKey == stringKey);
                 if (match != null)
-                    return match;
+                    results.Add(match);
             }
 
-            return null;
+            return results;
         }
 
-        return await _db.Categories
+        var single = await _db.Categories
             .Include(c => c.CategoryFields)
             .FirstOrDefaultAsync(c =>
                 (c.StringKey == categoryMode || c.Name == categoryMode) &&
                 c.CategoryFields.Any());
+        return single != null ? [single] : [];
     }
 
     public async Task<(string? Error, GmBulkUsersResultDto? Data)> BulkCreateUsersAsync(int adminUserId, GmBulkUsersDto dto)
@@ -611,7 +613,7 @@ public class GmToolsService : IGmToolsService
         {
             Title = title,
             Description = "Bulk-seeded listing for demos, load tests, or QA.",
-            CategoryId = category.Id,
+            CategoryIds = new List<int> { category.Id },
             InitialPrice = initial,
             BidIncrement = increment,
             ReservePrice = reserve,
@@ -791,7 +793,7 @@ public class GmToolsService : IGmToolsService
         if (await _db.Categories.AnyAsync(c => c.ParentId == categoryId))
             return ("Cannot delete a category that has child categories.", null);
 
-        if (await _db.Items.AnyAsync(i => i.CategoryId == categoryId))
+        if (await _db.AnyItemWithCategoryAsync(categoryId))
             return ("Cannot delete a category that has listings.", null);
 
         if (await _db.CategoryFields.AnyAsync(f => f.CategoryId == categoryId))

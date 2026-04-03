@@ -525,9 +525,9 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 **Shipped in this PR:**
 
 - **Category platform (tree + metadata):** `categories` uses `string_key` (unique when set) and `lucide_icon_key` for integrations and SearchBar tab icons. `GET /api/categories` returns the hierarchy with `stringKey` and `lucideIconKey`. Search hub behavior is driven from that tree (e.g. Cars root via `stringKey === 'cars'` with name fallback). GM category CRUD, seed alignment with GT7 string keys, create/alerts flows consuming the API tree, and Development rethrow on migration/seed failure remain as earlier increments on this line of work.
-- **Per-item subtype tags:** Junction table `ItemSubcategoryTags` (`item_id`, `category_id` composite PK; FK to `Items` cascade, to `Categories` restrict). Migration `20260403040625_AddItemSubcategoryTags`. Each row is an **extra** subcategory tag beyond the item’s primary `category_id`. Validation: IDs must exist; tags must be **non-root** subcategories; must share the **same top-level root** as the primary category; duplicates and the primary id are rejected.
-- **API:** `POST api/auctions/create` accepts `additionalCategoryIds` (optional list). List rows include `categoryNames` (primary + tag names for display). Detail includes `categoryNames` and `additionalCategoryIds`. `PATCH api/admin/auctions/{id}` accepts optional `additionalCategoryIds`: **omit/null** leaves tags unchanged; **empty array** clears all tags.
-- **Browse filter:** When `category_id` is set, results include items whose **primary** `category_id` matches **or** any `ItemSubcategoryTags` row matches (**OR** semantics). Explicit AND/OR query modes are not implemented.
+- **Per-item multi-category:** `items.category_ids` JSON column (`List<int>`; MySQL native JSON, InMemory uses JSON string conversion). First element is the primary category; extras are subcategory tags (e.g. Electric + Sports Cars). Migration `20260403084418_ReplaceCategoryIdWithCategoryIdsJson` replaces the earlier `category_id` FK and `ItemSubcategoryTags` junction table. Validation: all IDs must exist; when >1 they must be non-root subcategories under the same top-level root; duplicates are removed.
+- **API:** `POST api/auctions/create` accepts `categoryIds` (ordered list; first is primary). List rows include `categoryNames` (resolved from `category_ids`). Detail includes `categoryNames` and `categoryIds`. `PATCH api/admin/auctions/{id}` accepts optional `categoryIds`: **omit/null** leaves unchanged; **empty array** clears.
+- **Browse filter:** When `category_id` is set, results include items whose `category_ids` JSON array contains the value (**OR** semantics via `JsonContains`). Explicit AND/OR query modes are not implemented.
 - **Frontend:** Create Auction and sell modal support multi-select **additional subcategories** (chips) under the same root as the chosen primary category. Admin auction **Edit** can view/change tags. `AuctionCard` and auction detail show multiple category labels/chips.
 - **GT7 category auto routing:** Manifest assets can carry an ordered `categories` array; seeding normalizes those values to category string keys and prefers that curated order before keyword inference, selecting the first resolvable category that has fields.
 - **Live browse refresh integration:** GM category edits emit an in-app refresh signal so open `AuctionListPage` / `SearchBar` and create-related category consumers refetch category data without manual page reload.
@@ -535,7 +535,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 **Follow-up (optional):**
 
-- Browse/search **AND** vs **OR** switch (or multi-select category facets). Alert matching on tag rows only (today alerts still key off primary category and criteria as before).
+- Browse/search **AND** vs **OR** switch (or multi-select category facets). Alert matching now checks all `CategoryIds` entries; further refinements possible.
 
 ---
 

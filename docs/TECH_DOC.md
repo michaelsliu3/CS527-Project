@@ -264,7 +264,7 @@ Self-referencing foreign key enables the hierarchical subcategory tree.
 |------------------|-------------------|-----------------------------------|
 | `id`             | INT               | PK, AUTO_INCREMENT                |
 | `seller_id`      | INT               | FK → users.id, NOT NULL           |
-| `category_id`    | INT               | FK → categories.id, NOT NULL      |
+| `category_ids`   | JSON              | NOT NULL — ordered list of category IDs; first entry is the primary category |
 | `title`          | VARCHAR(256)      | NOT NULL                          |
 | `description`    | TEXT              | NULLABLE                          |
 | `image_url`      | VARCHAR(2048)     | NULLABLE (persisted primary image URL or media key) |
@@ -280,14 +280,7 @@ Self-referencing foreign key enables the hierarchical subcategory tree.
 | `winner_id`      | INT               | FK → users.id, NULLABLE           |
 | `created_at`     | DATETIME          | DEFAULT CURRENT_TIMESTAMP         |
 
-#### `ItemSubcategoryTags` *(optional extra “subtype” categories per listing)*
-
-| Column         | Type | Constraints |
-|----------------|------|-------------|
-| `ItemId`       | INT  | PK, FK → Items.Id, ON DELETE CASCADE |
-| `CategoryId`   | INT  | PK, FK → Categories.Id, ON DELETE RESTRICT |
-
-Each row tags the item with an **additional** subcategory (non-root) under the same **top-level** root as `items.category_id`. The primary category remains a single FK on `items`; tags are additive for display, filtering, and UX (e.g. Electric + Sports Cars). Composite primary key prevents duplicate tag pairs.
+The `category_ids` JSON column replaces the earlier `category_id` FK and the `ItemSubcategoryTags` junction table. The first element is the **primary** category; subsequent entries are additional subcategory tags (e.g. Electric + Sports Cars). Validation: all IDs must exist; when multiple categories are provided they must be non-root subcategories under the same top-level root. Browse/search `category_id` filter matches any element in the array (**OR** semantics). MySQL stores as native JSON; EF `JsonContains` is used for queries. InMemory provider uses a JSON string conversion with `List<int>.Contains` fallback.
 
 #### `item_field_values` *(bonus: stores dynamic category-specific attributes)*
 
@@ -384,7 +377,6 @@ Each row tags the item with an **additional** subcategory (non-root) under the s
 
 ```sql
 CREATE INDEX idx_items_status_close ON items(status, close_datetime);
-CREATE INDEX idx_items_category      ON items(category_id);
 CREATE INDEX idx_items_seller        ON items(seller_id);
 CREATE INDEX idx_bids_item           ON bids(item_id, created_at);
 CREATE INDEX idx_bids_bidder         ON bids(bidder_id);
@@ -468,8 +460,8 @@ function ProtectedRoute({ roles, children }: { roles: string[]; children: ReactN
 
 - **Create auction:** title, description, category (with subcategory-specific fields), initial price, bid increment, reserve price, closing date/time.
   - The Create Auction page fetches the **category tree** from `GET /api/categories` to render cascading **category → subcategory** dropdowns.
-  - Sellers may attach **additional subcategory tags** (same root as the primary category); these persist in `ItemSubcategoryTags` and appear in list/detail responses as extra category names.
-  - When a subcategory is selected, the UI calls `GET /api/categories/{id}/fields` to fetch the dynamic `category_fields` for that subcategory and renders the appropriate inputs (text / number / select) before submitting `CreateAuctionDto` (including `fieldValues: { fieldId, value }[]` and optional `additionalCategoryIds`).
+  - Sellers provide one or more `categoryIds` (first is primary; extras are subcategory tags under the same root) which persist in the `category_ids` JSON column and appear in list/detail responses as `categoryNames`.
+  - When a subcategory is selected, the UI calls `GET /api/categories/{id}/fields` to fetch the dynamic `category_fields` for that subcategory and renders the appropriate inputs (text / number / select) before submitting `CreateAuctionDto` (including `fieldValues: { fieldId, value }[]` and `categoryIds`).
   - Optional image upload uses the media service; when no uploaded image is provided, backend resolves a GT7 default once on create, persists the resolved URL/key + match metadata, and reuses persisted values on subsequent reads.
 - **View own auctions:** filter by status (active / closed / sold).
 
@@ -544,7 +536,7 @@ Users configure alerts with optional filters (category, keyword, field criteria)
 |-----------------------------|--------------------------------------------------|
 | Total earnings              | SUM of `current_price` for all `sold` items      |
 | Earnings per item           | `current_price` grouped by item                  |
-| Earnings per item type      | SUM grouped by `category_id`                     |
+| Earnings per item type      | SUM grouped by primary category (first element of `category_ids`) |
 | Earnings per end-user       | SUM grouped by `seller_id` (or `winner_id`)      |
 | Best-selling items          | Items with highest sale price or most bids        |
 | Best buyers                 | Users with highest total spend                   |
@@ -610,8 +602,8 @@ End-user policy only (`[Authorize(Policy = "EndUser")]`). Used for **demo / deve
 - Auction list/detail responses include persisted image metadata:
   - list: `imageUrl`, `imageSource`, `imageMatchLevel`
   - detail: `imageUrl`, `detailImageUrl`, `imageSource`, `imageMatchLevel`
-- List rows include `categoryName` (primary) and `categoryNames` (primary plus any subtype tags). Detail adds `additionalCategoryIds` for the tag category ids.
-- `POST api/auctions/create` accepts optional `additionalCategoryIds` (extra subcategories; server-validated). Optional image fields:
+- List rows include `categoryName` (primary) and `categoryNames` (all category names from `category_ids`). Detail adds `categoryIds` (the full list).
+- `POST api/auctions/create` accepts `categoryIds` (ordered list; first is primary, extras are validated subcategory tags). Optional image fields:
   - `imageStorageKey` (preferred) and `imageUrl` (fallback key/value input)
 
 ### Categories — `api/categories`
@@ -724,9 +716,9 @@ These endpoints are **admin-only** (`AdminOnly` policy). They exist for **demos,
 
 | Method | Route | Description | Access |
 |--------|--------|-------------|--------|
-| PATCH | `api/admin/auctions/{id}` | Partial update: title, description, **`categoryId`** (must exist in `categories`; updates `items.category_id`), optional **`additionalCategoryIds`** (null = leave tags unchanged; `[]` = clear all tags), close time, increment, reserve, initial/current (no bids only), or **end** active auction (`endAuction`: `natural` \| `closed` \| `sold`) — end must be sent alone | Admin |
+| PATCH | `api/admin/auctions/{id}` | Partial update: title, description, **`categoryIds`** (replacement list for `items.category_ids`; null = leave unchanged, `[]` = clear), close time, increment, reserve, initial/current (no bids only), or **end** active auction (`endAuction`: `natural` \| `closed` \| `sold`) — end must be sent alone | Admin |
 
-**Frontend:** auction detail shows **Edit** for admins; dialog calls PATCH (primary category plus optional extra subcategory tags).
+**Frontend:** auction detail shows **Edit** for admins; dialog calls PATCH (category list including primary and optional extra subcategory tags).
 
 ---
 
@@ -806,7 +798,7 @@ public async Task CheckAlertsForNewItem(Item item)
 
     foreach (var alert in alerts)
     {
-        if (alert.CategoryId.HasValue && alert.CategoryId != item.CategoryId)
+        if (alert.CategoryId.HasValue && !item.CategoryIds.Contains(alert.CategoryId.Value))
             continue;
 
         var text = $"{item.Title} {item.Description}";
@@ -838,7 +830,7 @@ public async Task CheckAlertsForNewItem(Item item)
 | Parameter        | Type     | Description                              |
 |------------------|----------|------------------------------------------|
 | `q`              | string   | Full-text keyword search (title + description) |
-| `category_id`    | int      | Filter by category/subcategory: matches items whose **primary** `category_id` equals the value **or** any row in `ItemSubcategoryTags` (**OR**) |
+| `category_id`    | int      | Filter by category/subcategory: matches any item whose `category_ids` JSON array contains the value (**OR** semantics via `JsonContains`) |
 | `min_price`      | decimal  | Minimum current price                    |
 | `max_price`      | decimal  | Maximum current price                    |
 | `status`         | string   | active / closed / sold                   |
@@ -951,11 +943,12 @@ SELECT SUM(current_price) AS total FROM items WHERE status = 'sold';
 ```
 
 **Earnings per Item Type:**
-```sql
-SELECT c.name, SUM(i.current_price) AS earnings
-FROM items i JOIN categories c ON i.category_id = c.id
-WHERE i.status = 'sold'
-GROUP BY c.id ORDER BY earnings DESC;
+```
+-- category_ids is JSON; primary category = first element.
+-- EF implementation materializes sold items, groups by primary category ID in-memory,
+-- then looks up category names.
+Group sold items by primary category ID (CategoryIds[0]),
+SUM(current_price), ORDER BY earnings DESC.
 ```
 
 **Best-Selling Items:**

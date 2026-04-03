@@ -893,9 +893,7 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
     }
   }, [])
 
-  /** First selected id is sent as `categoryId`; rest as `additionalCategoryIds` (same storage as multi-tag). */
   const firstSelectedSubcategoryId = selectedSubcategoryIds[0] ?? null
-  const additionalCategoryIds = selectedSubcategoryIds.slice(1)
 
   useEffect(() => {
     if (!firstSelectedSubcategoryId) {
@@ -1176,8 +1174,7 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
     const dto: CreateAuctionDto = {
       title: data.title.trim(),
       description: data.description.trim() || undefined,
-      categoryId: Number(firstSelectedSubcategoryId),
-      additionalCategoryIds,
+      categoryIds: selectedSubcategoryIds,
       initialPrice: Number(data.initialPrice),
       bidIncrement: Number(data.bidIncrement),
       reservePrice: Number(data.reservePrice),

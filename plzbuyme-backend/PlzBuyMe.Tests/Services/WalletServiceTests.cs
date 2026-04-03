@@ -71,7 +71,7 @@ public class WalletServiceTests
         var item = new Item
         {
             SellerId = user.Id,
-            CategoryId = cat.Id,
+            CategoryIds = new List<int> { cat.Id },
             Title = "X",
             InitialPrice = 10m,
             BidIncrement = 1m,

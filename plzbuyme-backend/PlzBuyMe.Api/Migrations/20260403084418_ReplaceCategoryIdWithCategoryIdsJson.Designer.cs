@@ -12,8 +12,8 @@ using PlzBuyMe.Api.Data;
 namespace PlzBuyMe.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260403040625_AddItemSubcategoryTags")]
-    partial class AddItemSubcategoryTags
+    [Migration("20260403084418_ReplaceCategoryIdWithCategoryIdsJson")]
+    partial class ReplaceCategoryIdWithCategoryIdsJson
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -241,8 +241,9 @@ namespace PlzBuyMe.Api.Migrations
                         .HasPrecision(12, 2)
                         .HasColumnType("decimal(12,2)");
 
-                    b.Property<int>("CategoryId")
-                        .HasColumnType("int");
+                    b.Property<string>("CategoryIds")
+                        .IsRequired()
+                        .HasColumnType("json");
 
                     b.Property<DateTime>("CloseDateTime")
                         .HasColumnType("datetime(6)");
@@ -299,9 +300,6 @@ namespace PlzBuyMe.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CategoryId")
-                        .HasDatabaseName("idx_items_category");
-
                     b.HasIndex("SellerId")
                         .HasDatabaseName("idx_items_seller");
 
@@ -340,22 +338,6 @@ namespace PlzBuyMe.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("ItemFieldValues");
-                });
-
-            modelBuilder.Entity("PlzBuyMe.Api.Models.ItemSubcategoryTag", b =>
-                {
-                    b.Property<int>("ItemId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CategoryId")
-                        .HasColumnType("int");
-
-                    b.HasKey("ItemId", "CategoryId");
-
-                    b.HasIndex("CategoryId")
-                        .HasDatabaseName("idx_item_subcategory_tags_category");
-
-                    b.ToTable("ItemSubcategoryTags");
                 });
 
             modelBuilder.Entity("PlzBuyMe.Api.Models.Notification", b =>
@@ -672,12 +654,6 @@ namespace PlzBuyMe.Api.Migrations
 
             modelBuilder.Entity("PlzBuyMe.Api.Models.Item", b =>
                 {
-                    b.HasOne("PlzBuyMe.Api.Models.Category", "Category")
-                        .WithMany("Items")
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("PlzBuyMe.Api.Models.User", "Seller")
                         .WithMany("ItemsSold")
                         .HasForeignKey("SellerId")
@@ -688,8 +664,6 @@ namespace PlzBuyMe.Api.Migrations
                         .WithMany("ItemsWon")
                         .HasForeignKey("WinnerId")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Category");
 
                     b.Navigation("Seller");
 
@@ -711,25 +685,6 @@ namespace PlzBuyMe.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Field");
-
-                    b.Navigation("Item");
-                });
-
-            modelBuilder.Entity("PlzBuyMe.Api.Models.ItemSubcategoryTag", b =>
-                {
-                    b.HasOne("PlzBuyMe.Api.Models.Category", "Category")
-                        .WithMany("TaggedItems")
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("PlzBuyMe.Api.Models.Item", "Item")
-                        .WithMany("ItemSubcategoryTags")
-                        .HasForeignKey("ItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Category");
 
                     b.Navigation("Item");
                 });
@@ -820,10 +775,6 @@ namespace PlzBuyMe.Api.Migrations
                     b.Navigation("CategoryFields");
 
                     b.Navigation("Children");
-
-                    b.Navigation("Items");
-
-                    b.Navigation("TaggedItems");
                 });
 
             modelBuilder.Entity("PlzBuyMe.Api.Models.CategoryField", b =>
@@ -838,8 +789,6 @@ namespace PlzBuyMe.Api.Migrations
                     b.Navigation("Bids");
 
                     b.Navigation("ItemFieldValues");
-
-                    b.Navigation("ItemSubcategoryTags");
 
                     b.Navigation("Notifications");
                 });

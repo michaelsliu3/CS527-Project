@@ -6,8 +6,7 @@ public record CreateAuctionDto
     public string? Description { get; init; }
     public string? ImageUrl { get; init; }
     public string? ImageStorageKey { get; init; }
-    public int CategoryId { get; init; }
-    public List<int> AdditionalCategoryIds { get; init; } = new();
+    public List<int> CategoryIds { get; init; } = new();
     public decimal InitialPrice { get; init; }
     public decimal BidIncrement { get; init; }
     public decimal ReservePrice { get; init; }

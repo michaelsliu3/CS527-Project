@@ -4,7 +4,7 @@ public class Item
 {
     public int Id { get; set; }
     public int SellerId { get; set; }
-    public int CategoryId { get; set; }
+    public List<int> CategoryIds { get; set; } = new();
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? ImageUrl { get; set; }
@@ -21,10 +21,8 @@ public class Item
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public User Seller { get; set; } = null!;
-    public Category Category { get; set; } = null!;
     public User? Winner { get; set; }
     public ICollection<ItemFieldValue> ItemFieldValues { get; set; } = new List<ItemFieldValue>();
-    public ICollection<ItemSubcategoryTag> ItemSubcategoryTags { get; set; } = new List<ItemSubcategoryTag>();
     public ICollection<Bid> Bids { get; set; } = new List<Bid>();
     public ICollection<AutoBid> AutoBids { get; set; } = new List<AutoBid>();
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();

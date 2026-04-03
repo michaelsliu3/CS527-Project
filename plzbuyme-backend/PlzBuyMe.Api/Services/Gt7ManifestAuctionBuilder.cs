@@ -140,11 +140,12 @@ public static class Gt7ManifestAuctionBuilder
     /// </summary>
     public static CreateAuctionDto BuildCreateDto(
         Gt7ManifestAsset asset,
-        Category category,
+        List<Category> categories,
         int closeHoursMin,
         int closeHoursMax)
     {
-        var fields = category.CategoryFields.ToList();
+        var primary = categories.First(c => c.CategoryFields.Any());
+        var fields = primary.CategoryFields.ToList();
         int FieldId(string name) => fields.First(f => f.FieldName == name).Id;
 
         var year = ResolveAssetYear(asset);
@@ -168,7 +169,7 @@ public static class Gt7ManifestAuctionBuilder
             Description = $"GM seed listing (catalog id {asset.ExternalId}).",
             ImageUrl = null,
             ImageStorageKey = catalogKey,
-            CategoryId = category.Id,
+            CategoryIds = categories.Select(c => c.Id).Distinct().ToList(),
             InitialPrice = initialPrice,
             BidIncrement = bidIncrement,
             ReservePrice = reservePrice,

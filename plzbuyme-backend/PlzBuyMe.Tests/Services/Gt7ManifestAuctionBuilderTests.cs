@@ -73,7 +73,7 @@ public class Gt7ManifestAuctionBuilderTests
             Model = "Camry",
             Year = 2020
         };
-        var dto = Gt7ManifestAuctionBuilder.BuildCreateDto(asset, category, 6, 120);
+        var dto = Gt7ManifestAuctionBuilder.BuildCreateDto(asset, [category], 6, 120);
         dto.ImageStorageKey.Should().Be("102");
         dto.ImageUrl.Should().BeNull();
     }

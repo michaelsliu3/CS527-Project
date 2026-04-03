@@ -31,7 +31,7 @@ public class AlertService : IAlertService
 
         foreach (var alert in alerts)
         {
-            if (alert.CategoryId.HasValue && alert.CategoryId != itemWithFields.CategoryId)
+            if (alert.CategoryId.HasValue && !itemWithFields.CategoryIds.Contains(alert.CategoryId.Value))
                 continue;
 
             var text = $"{itemWithFields.Title} {itemWithFields.Description ?? ""}";

@@ -149,7 +149,7 @@ public static class SeedData
         var item1 = new Item
         {
             SellerId = seller.Id,
-            CategoryId = sedans.Id,
+            CategoryIds = new List<int> { sedans.Id },
             Title = "2022 Toyota Camry SE",
             Description = "Well maintained sedan, single owner.",
             InitialPrice = 22000.00m,
@@ -194,7 +194,7 @@ public static class SeedData
         var item2 = new Item
         {
             SellerId = seller.Id,
-            CategoryId = sedans.Id,
+            CategoryIds = new List<int> { sedans.Id },
             Title = "2020 Honda Civic LX",
             Description = "Reliable daily driver.",
             InitialPrice = 18000.00m,
@@ -275,7 +275,7 @@ public static class SeedData
             var item = new Item
             {
                 SellerId = seller.Id,
-                CategoryId = sedans.Id,
+                CategoryIds = new List<int> { sedans.Id },
                 Title = $"{year} {makes[i % makes.Length]} {models[i % models.Length]}",
                 Description = "Sold listing (seed data for reports).",
                 InitialPrice = price - 2000m,
@@ -324,7 +324,7 @@ public static class SeedData
             var item = new Item
             {
                 SellerId = seller.Id,
-                CategoryId = sedans.Id,
+                CategoryIds = new List<int> { sedans.Id },
                 Title = $"{year} Sedan (closed, reserve not met)",
                 Description = "Closed listing seed data.",
                 InitialPrice = price,

@@ -480,7 +480,7 @@ public class RepControllerTests
         var item = new Item
         {
             SellerId = seller.Id,
-            CategoryId = 1,
+            CategoryIds = new List<int> { 1 },
             Title = "Car",
             InitialPrice = 100m,
             BidIncrement = 10m,
@@ -552,7 +552,7 @@ public class RepControllerTests
         var item = new Item
         {
             SellerId = seller.Id,
-            CategoryId = 1,
+            CategoryIds = new List<int> { 1 },
             Title = "Car",
             InitialPrice = 100m,
             BidIncrement = 10m,
@@ -610,7 +610,7 @@ public class RepControllerTests
         var item = new Item
         {
             SellerId = seller.Id,
-            CategoryId = 1,
+            CategoryIds = new List<int> { 1 },
             Title = "Car",
             InitialPrice = 100m,
             BidIncrement = 10m,

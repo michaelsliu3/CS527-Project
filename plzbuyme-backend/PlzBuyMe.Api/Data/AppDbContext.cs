@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PlzBuyMe.Api.Models;
 
@@ -15,7 +17,6 @@ public class AppDbContext : DbContext
     public DbSet<CategoryField> CategoryFields => Set<CategoryField>();
     public DbSet<Item> Items => Set<Item>();
     public DbSet<ItemFieldValue> ItemFieldValues => Set<ItemFieldValue>();
-    public DbSet<ItemSubcategoryTag> ItemSubcategoryTags => Set<ItemSubcategoryTag>();
     public DbSet<Bid> Bids => Set<Bid>();
     public DbSet<AutoBid> AutoBids => Set<AutoBid>();
     public DbSet<Alert> Alerts => Set<Alert>();
@@ -96,36 +97,31 @@ public class AppDbContext : DbContext
             e.Property(i => i.BidIncrement).HasPrecision(12, 2);
             e.Property(i => i.ReservePrice).HasPrecision(12, 2);
             e.Property(i => i.CurrentPrice).HasPrecision(12, 2);
+            var catProp = e.Property(i => i.CategoryIds);
+            if (Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+            {
+                catProp.HasConversion(
+                    v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                    v => JsonSerializer.Deserialize<List<int>>(v, (JsonSerializerOptions?)null) ?? new List<int>(),
+                    new ValueComparer<List<int>>(
+                        (a, b) => a!.SequenceEqual(b!),
+                        c => c.Aggregate(0, (hash, i) => HashCode.Combine(hash, i)),
+                        c => c.ToList()));
+            }
+            else
+            {
+                catProp.HasColumnType("json");
+            }
             e.HasOne(i => i.Seller)
                 .WithMany(u => u.ItemsSold)
                 .HasForeignKey(i => i.SellerId)
-                .OnDelete(DeleteBehavior.Restrict);
-            e.HasOne(i => i.Category)
-                .WithMany(c => c.Items)
-                .HasForeignKey(i => i.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasOne(i => i.Winner)
                 .WithMany(u => u.ItemsWon)
                 .HasForeignKey(i => i.WinnerId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasIndex(i => new { i.Status, i.CloseDateTime }).HasDatabaseName("idx_items_status_close");
-            e.HasIndex(i => i.CategoryId).HasDatabaseName("idx_items_category");
             e.HasIndex(i => i.SellerId).HasDatabaseName("idx_items_seller");
-        });
-
-        // ── ItemSubcategoryTag (unique item_id + category_id) ──
-        modelBuilder.Entity<ItemSubcategoryTag>(e =>
-        {
-            e.HasKey(t => new { t.ItemId, t.CategoryId });
-            e.HasOne(t => t.Item)
-                .WithMany(i => i.ItemSubcategoryTags)
-                .HasForeignKey(t => t.ItemId)
-                .OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(t => t.Category)
-                .WithMany(c => c.TaggedItems)
-                .HasForeignKey(t => t.CategoryId)
-                .OnDelete(DeleteBehavior.Restrict);
-            e.HasIndex(t => t.CategoryId).HasDatabaseName("idx_item_subcategory_tags_category");
         });
 
         // ── ItemFieldValue (unique item_id + field_id) ──
@@ -307,5 +303,25 @@ public class AppDbContext : DbContext
             nextUpper = false;
         }
         return result.ToString();
+    }
+
+    /// <summary>
+    /// Pomelo 8.0.2 can't translate List&lt;int&gt;.Contains() on JSON columns.
+    /// Use EF.Functions.JsonContains for MySQL; fall back to LINQ Contains for InMemory tests.
+    /// </summary>
+    public IQueryable<Item> WhereItemCategoryContains(IQueryable<Item> query, int categoryId)
+    {
+        if (Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+            return query.Where(i => i.CategoryIds.Contains(categoryId));
+        var catIdJson = categoryId.ToString();
+        return query.Where(i => EF.Functions.JsonContains(i.CategoryIds, catIdJson));
+    }
+
+    public Task<bool> AnyItemWithCategoryAsync(int categoryId)
+    {
+        if (Database.ProviderName == "Microsoft.EntityFrameworkCore.InMemory")
+            return Items.AnyAsync(i => i.CategoryIds.Contains(categoryId));
+        var catIdJson = categoryId.ToString();
+        return Items.AnyAsync(i => EF.Functions.JsonContains(i.CategoryIds, catIdJson));
     }
 }

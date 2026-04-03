@@ -120,21 +120,27 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
       .then((res) => {
         const roots = res.data
         setCategories(roots)
-        const parentRoot = findParentRoot(roots, auction.categoryId)
-        if (parentRoot) {
-          setSelectedRootId(parentRoot.id)
-          const nextSelected = [auction.categoryId, ...(auction.additionalCategoryIds ?? [])]
-          setSelectedSubcategoryIds(
-            Array.from(new Set(nextSelected.filter((id) => id !== parentRoot.id))),
-          )
+        const catIds = auction.categoryIds ?? []
+        const firstCatId = catIds[0]
+        if (firstCatId) {
+          const parentRoot = findParentRoot(roots, firstCatId)
+          if (parentRoot) {
+            setSelectedRootId(parentRoot.id)
+            setSelectedSubcategoryIds(
+              Array.from(new Set(catIds.filter((id) => id !== parentRoot.id))),
+            )
+          } else {
+            setSelectedRootId(firstCatId)
+            setSelectedSubcategoryIds(catIds.slice(1))
+          }
         } else {
-          setSelectedRootId(auction.categoryId)
-          setSelectedSubcategoryIds(auction.additionalCategoryIds ?? [])
+          setSelectedRootId('')
+          setSelectedSubcategoryIds([])
         }
       })
       .catch(() => {
         setCategories([])
-        setSelectedSubcategoryIds([auction.categoryId, ...(auction.additionalCategoryIds ?? [])])
+        setSelectedSubcategoryIds(auction.categoryIds ?? [])
       })
   }, [open, auction])
 
@@ -169,20 +175,15 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
   const onSaveFields = async () => {
     setSaving(true)
     try {
-      const catId =
-        typeof effectiveCategoryId === 'number' && effectiveCategoryId !== auction.categoryId
-          ? effectiveCategoryId
-          : undefined
-      const nextAdditionalCategoryIds = selectedSubcategoryIds
-        .slice(1)
-        .sort((a, b) => a - b)
+      const nextCategoryIds = selectedSubcategoryIds.length > 0
+        ? selectedSubcategoryIds
+        : undefined
 
       if (!isActive) {
         const { data } = await patchAdminAuction(auction.id, {
           title: title.trim(),
           description: description.trim() === '' ? null : description.trim(),
-          categoryId: catId,
-          additionalCategoryIds: nextAdditionalCategoryIds,
+          categoryIds: nextCategoryIds,
         })
         showSuccessToast('Auction updated')
         onSaved(data)
@@ -210,8 +211,7 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
       const { data } = await patchAdminAuction(auction.id, {
         title: title.trim(),
         description: description.trim() === '' ? null : description.trim(),
-        categoryId: catId,
-        additionalCategoryIds: nextAdditionalCategoryIds,
+        categoryIds: nextCategoryIds,
         closeDateTime: closeIso,
         bidIncrement: bi,
         reservePrice: res,
