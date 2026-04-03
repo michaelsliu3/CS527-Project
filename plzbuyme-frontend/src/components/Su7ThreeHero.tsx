@@ -186,8 +186,8 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     fadeOverlay.position.y = 0.002
     scene.add(fadeOverlay)
 
-    const SPEED_LINE_COUNT = 200
-    const slGeo = new THREE.BoxGeometry(1, 0.018, 0.018)
+    const SPEED_LINE_COUNT = 400
+    const slGeo = new THREE.BoxGeometry(1, 0.014, 0.014)
     const slMat = new THREE.MeshBasicMaterial({
       color: '#ffffff',
       transparent: true,
@@ -215,7 +215,7 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         angle: Math.random() * Math.PI * 2,
         radius: 1.2 + Math.random() * 4.5,
         x: (Math.random() - 0.5) * 20,
-        baseLength: 0.3 + Math.random() * 1.8,
+        baseLength: 0.8 + Math.random() * 3.5,
         speed: 0.5 + Math.random() * 0.8,
       }
     })
@@ -544,9 +544,10 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         carGroup.position.y = carVerticalOffset + Math.sin(t * 1.2) * 0.02
 
         if (isDriving) {
-          driveSpeed = Math.min(driveSpeed + dt * 4.0, 2.8)
+          const accel = 1.2 + driveSpeed * 0.6
+          driveSpeed = Math.min(driveSpeed + dt * accel, 8.0)
         } else {
-          driveSpeed = Math.max(driveSpeed - dt * 5.0, 0)
+          driveSpeed = Math.max(driveSpeed - dt * 4.0, 0)
         }
         const interactiveSpin = driveSpeed * 0.12
         fallbackWheels.forEach((wheel) => {
@@ -587,8 +588,17 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         camera.lookAt(lookTarget.x + pointer.x * 0.05, lookTarget.y - pointer.y * 0.03, lookTarget.z)
       }
 
-      const slTargetOpacity = driveSpeed > 0.05 ? Math.min(driveSpeed / 2.2, 0.85) : 0
-      slMat.opacity = THREE.MathUtils.lerp(slMat.opacity, slTargetOpacity, 1 - Math.exp(-dt * 5))
+      const baseFov = 35
+      const maxFovRange = 40
+      const targetFov = baseFov + (driveSpeed / 8.0) * maxFovRange
+      const fovProgress = Math.abs(camera.fov - targetFov) / maxFovRange
+      const fovRate = THREE.MathUtils.smootherstep(fovProgress, 0, 0.5) * 4.0 + 0.3
+      camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 1 - Math.exp(-dt * fovRate))
+      camera.updateProjectionMatrix()
+
+      const slTargetOpacity = driveSpeed > 0.05 ? Math.min(driveSpeed / 2.5, 0.8) : 0
+      const slFadeRate = slMat.opacity < slTargetOpacity ? dt * 0.35 : dt * 3.5
+      slMat.opacity = THREE.MathUtils.lerp(slMat.opacity, slTargetOpacity, slFadeRate)
 
       if (driveSpeed > 0.01 || slMat.opacity > 0.01) {
         for (let i = 0; i < SPEED_LINE_COUNT; i++) {
@@ -601,7 +611,7 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
           }
           const y = Math.cos(d.angle) * d.radius
           const z = Math.sin(d.angle) * d.radius
-          const len = d.baseLength * (1 + driveSpeed * 1.2)
+          const len = d.baseLength
           slDummy.position.set(d.x, y, z)
           slDummy.scale.set(len, 1, 1)
           slDummy.updateMatrix()

@@ -601,6 +601,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Integrate the carousel into **`AuctionDetailPage`**: for SU7 auctions, build a multi-slide deck (3D view + primary image + angle variants derived from URL frame tags `2_01`, `2_02`); for non-SU7 auctions, show the primary image as a single slide. Lazy-load `Su7ThreeHero` via `React.lazy` + `Suspense` to avoid loading Three.js for non-SU7 pages.
 - Add static assets: `public/models/su7.glb` (compressed GLTF model) and `public/models/env_night.hdr` (HDR environment map).
 - New dependencies: `three`, `@types/three`, `meshoptimizer`.
+- **Driving mode (click-and-hold):** In both interactive and hero modes, pressing and holding the mouse triggers a driving simulation — wheels spin with progressive acceleration (max speed 8), 400 instanced speed-line streaks (additive-blended, multi-color palette) fade in around the car forming a warp tunnel, and the camera FOV widens with an ease-in-out curve (35→75) for a rush sensation. Releasing smoothly decelerates everything back to idle.
 - **Tests:** add frontend tests for carousel navigation (prev/next/dot/keyboard), slide type rendering (image vs 3D), swipe gesture thresholds, and lazy-loading behavior for the 3D component.
 
 ---
