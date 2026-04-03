@@ -145,7 +145,6 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
   }, [open, auction])
 
   const selectedRoot = categories.find((c) => c.id === selectedRootId)
-  const effectiveCategoryId = selectedSubcategoryIds[0] ?? selectedRootId
 
   const toggleSubcategory = (categoryId: number) => {
     setSelectedSubcategoryIds((prev) =>
