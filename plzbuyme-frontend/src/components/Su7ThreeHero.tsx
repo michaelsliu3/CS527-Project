@@ -13,13 +13,44 @@ interface Su7ThreeHeroProps {
   interactive?: boolean
 }
 
+const COLOR_SWATCHES = [
+  { id: 'yellow', hex: '#f5c542' },
+  { id: 'silver', hex: '#c9ccd3' },
+  { id: 'white', hex: '#f1f1f1' },
+  { id: 'orange', hex: '#ff6440' },
+  { id: 'blue-dark', hex: '#1f4aa6' },
+  { id: 'black', hex: '#151515' },
+] as const
+
+const DEFAULT_SWATCH_ID = 'yellow'
+const EXTERIOR_PAINT_MATERIAL_NAMES = new Set(['Car_body'])
+
 export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [selectedSwatchId, setSelectedSwatchId] = useState<string>(DEFAULT_SWATCH_ID)
+  const paintMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([])
+  const fallbackBodyMaterialRef = useRef<THREE.MeshPhysicalMaterial | null>(null)
+  const selectedColorRef = useRef<string>(COLOR_SWATCHES[0].hex)
+  const currentPaintColorRef = useRef(new THREE.Color(COLOR_SWATCHES[0].hex))
+  const targetPaintColorRef = useRef(new THREE.Color(COLOR_SWATCHES[0].hex))
+  const transitionStartPaintColorRef = useRef(new THREE.Color(COLOR_SWATCHES[0].hex))
+  const transitionProgressRef = useRef(1)
+
+  useEffect(() => {
+    const selected = COLOR_SWATCHES.find((swatch) => swatch.id === selectedSwatchId) ?? COLOR_SWATCHES[0]
+    selectedColorRef.current = selected.hex
+    transitionStartPaintColorRef.current.copy(currentPaintColorRef.current)
+    targetPaintColorRef.current.set(selected.hex)
+    transitionProgressRef.current = 0
+  }, [selectedSwatchId])
 
   useEffect(() => {
     const mount = mountRef.current
     if (!mount) return
+
+    paintMaterialsRef.current = []
+    fallbackBodyMaterialRef.current = null
 
     const scene = new THREE.Scene()
     scene.background = new THREE.Color('#000000')
@@ -165,12 +196,13 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     const createFallbackCar = () => {
       const root = new THREE.Group()
       const bodyMat = new THREE.MeshPhysicalMaterial({
-        color: '#0f172a',
+        color: selectedColorRef.current,
         metalness: 0.9,
         roughness: 0.24,
         clearcoat: 0.9,
         clearcoatRoughness: 0.15,
       })
+      fallbackBodyMaterialRef.current = bodyMat
       const lower = new THREE.Mesh(new THREE.BoxGeometry(4.4, 0.55, 2.0), bodyMat)
       root.add(lower)
       const upper = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.55, 1.75), bodyMat)
@@ -263,6 +295,7 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         const wheelNameRegex = /(wheel|tyre|tire|rim)/i
         const detectedWheels: THREE.Object3D[] = []
         const lightNodeRegex = /^(Light|LightGlass)\./
+        const exteriorPaintMaterials = new Set<THREE.MeshStandardMaterial>()
 
         modelRoot.updateMatrixWorld(true)
         const _wPos = new THREE.Vector3()
@@ -299,6 +332,9 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
 
             mats.forEach((mat) => {
               const stdMat = mat as THREE.MeshStandardMaterial
+              if (EXTERIOR_PAINT_MATERIAL_NAMES.has(stdMat.name) || stdMat.name.toLowerCase() === 'car_body') {
+                exteriorPaintMaterials.add(stdMat)
+              }
               if (stdMat.envMapIntensity !== undefined) {
                 stdMat.envMapIntensity = 1.8
               }
@@ -313,6 +349,14 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
               stdMat.needsUpdate = true
             })
           }
+        })
+
+        paintMaterialsRef.current = Array.from(exteriorPaintMaterials)
+
+        const selectedColor = currentPaintColorRef.current
+        paintMaterialsRef.current.forEach((material) => {
+          material.color.copy(selectedColor)
+          material.needsUpdate = true
         })
 
         carGroup.remove(activeRoot)
@@ -411,6 +455,17 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
       const dt = Math.min(clock.getDelta(), 0.05)
       elapsed += dt
       const t = elapsed
+      transitionProgressRef.current = Math.min(transitionProgressRef.current + dt / 0.9, 1)
+      const easedPaintTransition = THREE.MathUtils.smootherstep(transitionProgressRef.current, 0, 1)
+      currentPaintColorRef.current
+        .copy(transitionStartPaintColorRef.current)
+        .lerp(targetPaintColorRef.current, easedPaintTransition)
+      paintMaterialsRef.current.forEach((material) => {
+        material.color.copy(currentPaintColorRef.current)
+      })
+      if (fallbackBodyMaterialRef.current) {
+        fallbackBodyMaterialRef.current.color.copy(currentPaintColorRef.current)
+      }
       // Cinematic entry: slow -> fast -> slow zoom with smooth easing.
       entryBlend = Math.min(entryBlend + dt / 2.8, 1)
       const zoomEase = THREE.MathUtils.smootherstep(entryBlend, 0, 1)
@@ -481,6 +536,8 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
       window.cancelAnimationFrame(raf)
       resizeObserver.disconnect()
       controls?.dispose()
+      paintMaterialsRef.current = []
+      fallbackBodyMaterialRef.current = null
       if (onPointerMove) mount.removeEventListener('pointermove', onPointerMove)
       if (onPointerLeave) mount.removeEventListener('pointerleave', onPointerLeave)
       if (onPointerDown) mount.removeEventListener('pointerdown', onPointerDown)
@@ -503,13 +560,56 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
   }, [interactive, title])
 
   return (
-    <Box
-      ref={mountRef}
-      position="absolute"
-      inset={0}
-      bg="#000000"
-      opacity={loaded ? 1 : 0.6}
-      transition="opacity 0.5s ease"
-    />
+    <Box position="absolute" inset={0}>
+      <Box
+        ref={mountRef}
+        position="absolute"
+        inset={0}
+        bg="#000000"
+        opacity={loaded ? 1 : 0.6}
+        transition="opacity 0.5s ease"
+      />
+
+      <Box
+        position="absolute"
+        right={{ base: '12px', md: '20px' }}
+        top={{ base: '40px', md: '52px' }}
+        display="flex"
+        flexDirection="column"
+        alignItems="center"
+        gap={{ base: '6px', md: '7px' }}
+        px={{ base: '6px', md: '7px' }}
+        py={{ base: '7px', md: '9px' }}
+        borderRadius="22px"
+        bg="linear-gradient(180deg, rgba(25, 38, 48, 0.76) 0%, rgba(18, 28, 36, 0.72) 100%)"
+        border="1px solid rgba(255,255,255,0.22)"
+        boxShadow="0 10px 26px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.16)"
+        backdropFilter="blur(12px) saturate(125%)"
+        zIndex={3}
+        pointerEvents="auto"
+      >
+        {COLOR_SWATCHES.map((swatch) => {
+          const isSelected = swatch.id === selectedSwatchId
+          return (
+            <Box
+              as="button"
+              key={swatch.id}
+              aria-label={`Set car color ${swatch.id}`}
+              onClick={() => setSelectedSwatchId(swatch.id)}
+              w={{ base: '18px', md: '20px' }}
+              h={{ base: '18px', md: '20px' }}
+              borderRadius="full"
+              bg={swatch.hex}
+              border={isSelected ? '2px solid rgba(255,255,255,0.95)' : '1px solid rgba(255,255,255,0.45)'}
+              boxShadow={isSelected ? '0 0 0 2px rgba(255, 199, 71, 0.26), 0 2px 10px rgba(0,0,0,0.35)' : '0 1px 4px rgba(0,0,0,0.28)'}
+              transform={isSelected ? 'scale(1.06)' : 'scale(1)'}
+              transition="all 0.24s cubic-bezier(0.22, 1, 0.36, 1)"
+              _hover={{ transform: isSelected ? 'scale(1.09)' : 'scale(1.04)' }}
+              _active={{ transform: isSelected ? 'scale(1.03)' : 'scale(0.98)' }}
+            />
+          )
+        })}
+      </Box>
+    </Box>
   )
 }

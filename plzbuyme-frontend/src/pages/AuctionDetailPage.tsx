@@ -258,9 +258,9 @@ export function AuctionDetailPage() {
     if (isSu7) {
       slides.push({
         type: '3d',
-        render: () => (
+        render: ({ activationCount }) => (
           <Suspense fallback={<Box w="100%" h="100%" bg="#05070d" />}>
-            <Su7ThreeHero title={auction.title} interactive />
+            <Su7ThreeHero key={`su7-3d-${activationCount}`} title={auction.title} interactive />
           </Suspense>
         ),
       })

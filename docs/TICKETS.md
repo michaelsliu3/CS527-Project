@@ -595,6 +595,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 - Add an interactive **Three.js 3D car viewer** (`Su7ThreeHero`) for SU7-related auction listings, loaded from a compressed `.glb` model with meshopt decoding.
 - 3D viewer features: studio-grade multi-light setup (key, fill, rim, top spotlights + accent point lights), PMREM environment map, reflective floor (Reflector), ACES filmic tone mapping, orbit controls (interactive mode) or pointer-follow camera + drive animation (non-interactive mode), and auto-fit camera framing based on model bounding box.
+- Add an in-view **exterior paint color selector** for the SU7 3D slide (compact vertical swatch rail), defaulting to yellow, with smooth animated transitions and paint-only material targeting.
 - Fallback geometry (box-based car silhouette with torus wheels) renders immediately while the `.glb` model loads asynchronously.
 - Add a reusable **`ImageCarousel`** component supporting mixed `image` and `3d` slide types with swipe/drag gestures, keyboard navigation (arrow keys), prev/next arrows, dot indicators with active-state animation, a "3D" badge overlay, and a "Drag to rotate · Scroll to zoom" hint on 3D slides.
 - Integrate the carousel into **`AuctionDetailPage`**: for SU7 auctions, build a multi-slide deck (3D view + primary image + angle variants derived from URL frame tags `2_01`, `2_02`); for non-SU7 auctions, show the primary image as a single slide. Lazy-load `Su7ThreeHero` via `React.lazy` + `Suspense` to avoid loading Three.js for non-SU7 pages.

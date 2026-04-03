@@ -6,7 +6,7 @@ export interface CarouselSlide {
   type: 'image' | '3d'
   src?: string
   alt?: string
-  render?: () => ReactNode
+  render?: (context: { isActive: boolean; activationCount: number }) => ReactNode
 }
 
 interface ImageCarouselProps {
@@ -20,18 +20,34 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9 }: ImageCarouselPro
   const [current, setCurrent] = useState(0)
   const [dragOffset, setDragOffset] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
+  const [activationCounts, setActivationCounts] = useState<number[]>(() =>
+    slides.map((_, i) => (i === 0 ? 1 : 0)),
+  )
 
   const dragStart = useRef<{ x: number; y: number; time: number } | null>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const slideCount = slides.length
 
+  useEffect(() => {
+    setActivationCounts(slides.map((_, i) => (i === 0 ? 1 : 0)))
+    setCurrent(0)
+  }, [slides])
+
   const goTo = useCallback(
     (index: number) => {
       const clamped = Math.max(0, Math.min(index, slideCount - 1))
-      if (clamped === current) return
-      setCurrent(clamped)
+      setCurrent((prev) => {
+        if (clamped === prev) return prev
+        setActivationCounts((prevCounts) => {
+          const nextCounts =
+            prevCounts.length === slideCount ? [...prevCounts] : slides.map((_, i) => prevCounts[i] ?? 0)
+          nextCounts[clamped] = (nextCounts[clamped] ?? 0) + 1
+          return nextCounts
+        })
+        return clamped
+      })
     },
-    [current, slideCount],
+    [slideCount, slides],
   )
 
   const goPrev = useCallback(() => goTo(current - 1), [goTo, current])
@@ -131,7 +147,7 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9 }: ImageCarouselPro
               )}
               {slide.type === '3d' && slide.render && (
                 <Box w="100%" h="100%" position="relative">
-                  {slide.render()}
+                  {slide.render({ isActive: i === current, activationCount: activationCounts[i] ?? 0 })}
                 </Box>
               )}
             </Box>
