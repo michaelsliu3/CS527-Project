@@ -7,12 +7,21 @@ import { AlertsPage } from '../../pages/AlertsPage'
 import { AuthProvider } from '../../context/AuthContext'
 import { system } from '../../theme'
 import * as alertsApi from '../../api/alerts'
+import * as categoriesApi from '../../api/categories'
 
 vi.mock('../../api/alerts', () => ({
   listAlerts: vi.fn(),
   createAlert: vi.fn(),
   deleteAlert: vi.fn(),
 }))
+
+vi.mock('../../api/categories', async () => {
+  const actual = await vi.importActual<typeof import('../../api/categories')>('../../api/categories')
+  return {
+    ...actual,
+    fetchCategories: vi.fn(),
+  }
+})
 
 function renderAlertsPage() {
   return render(
@@ -28,11 +37,27 @@ function renderAlertsPage() {
   )
 }
 
+const mockCategoryTree = [
+  {
+    id: 1,
+    name: 'Cars',
+    parentId: null as number | null,
+    children: [{ id: 2, name: 'Sedans', parentId: 1, children: [] as never[] }],
+  },
+]
+
 describe('AlertsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(alertsApi.listAlerts).mockResolvedValue({
       data: [],
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as never)
+    vi.mocked(categoriesApi.fetchCategories).mockResolvedValue({
+      data: mockCategoryTree,
       status: 200,
       statusText: 'OK',
       headers: {},

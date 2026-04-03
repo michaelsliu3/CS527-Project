@@ -24,21 +24,69 @@ public static class SeedData
         db.SaveChanges();
 
         // ── Category hierarchy: Cars → Sedans, SUVs, Trucks, Sports Cars, Electric ──
-        var cars = new Category { Name = "Cars", ParentId = null };
+        var cars = new Category
+        {
+            Name = "Cars",
+            ParentId = null,
+            StringKey = "cars",
+            LucideIconKey = "Car",
+        };
         db.Categories.Add(cars);
         db.SaveChanges();
 
-        var sedans = new Category { Name = "Sedans", ParentId = cars.Id };
-        var suvs = new Category { Name = "SUVs", ParentId = cars.Id };
-        var trucks = new Category { Name = "Trucks", ParentId = cars.Id };
-        var sportsCars = new Category { Name = "Sports Cars", ParentId = cars.Id };
-        var electric = new Category { Name = "Electric", ParentId = cars.Id };
+        var sedans = new Category
+        {
+            Name = "Sedans",
+            ParentId = cars.Id,
+            StringKey = "sedans",
+            LucideIconKey = "CarFront",
+        };
+        var suvs = new Category
+        {
+            Name = "SUVs",
+            ParentId = cars.Id,
+            StringKey = "suvs",
+            LucideIconKey = "Truck",
+        };
+        var trucks = new Category
+        {
+            Name = "Trucks",
+            ParentId = cars.Id,
+            StringKey = "trucks",
+            LucideIconKey = "Truck",
+        };
+        var sportsCars = new Category
+        {
+            Name = "Sports Cars",
+            ParentId = cars.Id,
+            StringKey = "sports-cars",
+            LucideIconKey = "Gauge",
+        };
+        var electric = new Category
+        {
+            Name = "Electric",
+            ParentId = cars.Id,
+            StringKey = "electric",
+            LucideIconKey = "Battery",
+        };
         db.Categories.AddRange(sedans, suvs, trucks, sportsCars, electric);
         db.SaveChanges();
 
         // Third level under Sedans so hierarchy has 3+ levels (Cars → Sedans → Compact/Full-Size)
-        var compactSedans = new Category { Name = "Compact Sedans", ParentId = sedans.Id };
-        var fullSizeSedans = new Category { Name = "Full-Size Sedans", ParentId = sedans.Id };
+        var compactSedans = new Category
+        {
+            Name = "Compact Sedans",
+            ParentId = sedans.Id,
+            StringKey = "compact-sedans",
+            LucideIconKey = "CarFront",
+        };
+        var fullSizeSedans = new Category
+        {
+            Name = "Full-Size Sedans",
+            ParentId = sedans.Id,
+            StringKey = "full-size-sedans",
+            LucideIconKey = "CarFront",
+        };
         db.Categories.AddRange(compactSedans, fullSizeSedans);
         db.SaveChanges();
 
@@ -101,7 +149,7 @@ public static class SeedData
         var item1 = new Item
         {
             SellerId = seller.Id,
-            CategoryId = sedans.Id,
+            CategoryIds = new List<int> { sedans.Id },
             Title = "2022 Toyota Camry SE",
             Description = "Well maintained sedan, single owner.",
             InitialPrice = 22000.00m,
@@ -146,7 +194,7 @@ public static class SeedData
         var item2 = new Item
         {
             SellerId = seller.Id,
-            CategoryId = sedans.Id,
+            CategoryIds = new List<int> { sedans.Id },
             Title = "2020 Honda Civic LX",
             Description = "Reliable daily driver.",
             InitialPrice = 18000.00m,
@@ -227,7 +275,7 @@ public static class SeedData
             var item = new Item
             {
                 SellerId = seller.Id,
-                CategoryId = sedans.Id,
+                CategoryIds = new List<int> { sedans.Id },
                 Title = $"{year} {makes[i % makes.Length]} {models[i % models.Length]}",
                 Description = "Sold listing (seed data for reports).",
                 InitialPrice = price - 2000m,
@@ -276,7 +324,7 @@ public static class SeedData
             var item = new Item
             {
                 SellerId = seller.Id,
-                CategoryId = sedans.Id,
+                CategoryIds = new List<int> { sedans.Id },
                 Title = $"{year} Sedan (closed, reserve not met)",
                 Description = "Closed listing seed data.",
                 InitialPrice = price,

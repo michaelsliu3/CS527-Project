@@ -249,7 +249,7 @@ public class AuctionsControllerTests
         {
             Id = 42,
             Title = "Test Item",
-            CategoryId = 1,
+            CategoryIds = new List<int> { 1 },
             CategoryName = "Cars",
             SellerId = 1,
             SellerUsername = "seller1",
@@ -294,7 +294,7 @@ public class AuctionsControllerTests
         {
             Id = 10,
             Title = "New Auction",
-            CategoryId = 1,
+            CategoryIds = new List<int> { 1 },
             CategoryName = "Cars",
             SellerId = 5,
             SellerUsername = "user5",
@@ -313,7 +313,7 @@ public class AuctionsControllerTests
         var dto = new CreateAuctionDto
         {
             Title = "New Auction",
-            CategoryId = 1,
+            CategoryIds = new List<int> { 1 },
             InitialPrice = 100m,
             BidIncrement = 10m,
             ReservePrice = 150m,
@@ -337,7 +337,7 @@ public class AuctionsControllerTests
         var dto = new CreateAuctionDto
         {
             Title = "New",
-            CategoryId = 1,
+            CategoryIds = new List<int> { 1 },
             InitialPrice = 100m,
             BidIncrement = 10m,
             ReservePrice = 150m,
@@ -359,7 +359,7 @@ public class AuctionsControllerTests
         var dto = new CreateAuctionDto
         {
             Title = "   ",
-            CategoryId = 1,
+            CategoryIds = new List<int> { 1 },
             InitialPrice = 100m,
             BidIncrement = 10m,
             ReservePrice = 150m,
@@ -382,7 +382,7 @@ public class AuctionsControllerTests
         var dto = new CreateAuctionDto
         {
             Title = "Valid",
-            CategoryId = 0,
+            CategoryIds = new List<int> { 0 },
             InitialPrice = 100m,
             BidIncrement = 10m,
             ReservePrice = 150m,
@@ -392,7 +392,7 @@ public class AuctionsControllerTests
         var result = await controller.Create(dto);
 
         var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
-        badRequest.Value.Should().Be("Valid category is required.");
+        badRequest.Value.Should().Be("Valid category IDs are required.");
         mock.Verify(s => s.CreateAuctionAsync(It.IsAny<CreateAuctionDto>(), It.IsAny<int>()), Times.Never);
     }
 
@@ -405,7 +405,7 @@ public class AuctionsControllerTests
         var dto = new CreateAuctionDto
         {
             Title = "Valid",
-            CategoryId = 1,
+            CategoryIds = new List<int> { 1 },
             InitialPrice = -1m,
             BidIncrement = 10m,
             ReservePrice = 150m,
@@ -428,7 +428,7 @@ public class AuctionsControllerTests
         var dto = new CreateAuctionDto
         {
             Title = "Valid",
-            CategoryId = 1,
+            CategoryIds = new List<int> { 1 },
             InitialPrice = 100m,
             BidIncrement = 10m,
             ReservePrice = 150m,
@@ -452,7 +452,7 @@ public class AuctionsControllerTests
         var dto = new CreateAuctionDto
         {
             Title = "Valid",
-            CategoryId = 999,
+            CategoryIds = new List<int> { 999 },
             InitialPrice = 100m,
             BidIncrement = 10m,
             ReservePrice = 150m,

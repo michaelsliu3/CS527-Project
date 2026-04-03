@@ -8,10 +8,34 @@ namespace PlzBuyMe.Tests.Services;
 public class Gt7ManifestAuctionBuilderTests
 {
     [Fact]
-    public void InferCategoryName_Tesla_ReturnsElectric()
+    public void ResolveCategoryStringKeys_UsesManifestCategoriesFirst()
+    {
+        var asset = new Gt7ManifestAsset
+        {
+            Title = "Honda Civic Type R (EK) '98",
+            Categories = ["Sedans", "Sports Cars"]
+        };
+
+        var keys = Gt7ManifestAuctionBuilder.ResolveCategoryStringKeys(asset);
+
+        keys.Should().Equal(
+            Gt7ManifestAuctionBuilder.StringKeySedans,
+            Gt7ManifestAuctionBuilder.StringKeySportsCars);
+    }
+
+    [Fact]
+    public void InferCategoryStringKey_Tesla_ReturnsElectricStringKey()
     {
         var asset = new Gt7ManifestAsset { Title = "Tesla Model 3", Make = "Tesla", Model = "Model 3" };
-        Gt7ManifestAuctionBuilder.InferCategoryName(asset).Should().Be(Gt7ManifestAuctionBuilder.CategoryElectric);
+        Gt7ManifestAuctionBuilder.InferCategoryStringKey(asset).Should().Be(Gt7ManifestAuctionBuilder.StringKeyElectric);
+    }
+
+    [Fact]
+    public void ResolveCategoryStringKeys_WithoutManifestCategories_FallsBackToInference()
+    {
+        var asset = new Gt7ManifestAsset { Title = "Tesla Model 3", Make = "Tesla", Model = "Model 3" };
+        var keys = Gt7ManifestAuctionBuilder.ResolveCategoryStringKeys(asset);
+        keys.Should().Equal(Gt7ManifestAuctionBuilder.StringKeyElectric);
     }
 
     [Fact]
@@ -49,7 +73,7 @@ public class Gt7ManifestAuctionBuilderTests
             Model = "Camry",
             Year = 2020
         };
-        var dto = Gt7ManifestAuctionBuilder.BuildCreateDto(asset, category, 6, 120);
+        var dto = Gt7ManifestAuctionBuilder.BuildCreateDto(asset, [category], 6, 120);
         dto.ImageStorageKey.Should().Be("102");
         dto.ImageUrl.Should().BeNull();
     }

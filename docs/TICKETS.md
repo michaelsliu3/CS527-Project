@@ -520,14 +520,22 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 **Layer:** Backend + Frontend  
 **Branch:** `PBM-29/multi-tag-car-subtypes`  
-**PR Title:** `[PBM-29] support multiple car subtype tags per auction item`
+**PR Title:** `[PBM-29] item subcategory tags, OR browse filter, seller/admin UI, and category platform`
 
-- Add support for assigning and rendering multiple car subtype tags on a single listing (for example, a car can be both `Electric` and `Sports Car`).
-- Backend: extend item/category metadata and API DTOs so car subtype tags are modeled as a collection (not a single value), persisted, and returned in list/detail responses.
-- Backend: update search/filter behavior so subtype filtering can match multi-tag items deterministically (define AND/OR behavior explicitly in endpoint contract and docs).
-- Frontend: update create/edit/list/detail surfaces to display all relevant subtype tags with consistent visual treatment and safe fallback when no tags exist.
-- Frontend: keep existing subtype styling patterns (chips/badges/gradients) while handling multiple tags without overlap/truncation regressions across responsive breakpoints.
-- **Tests:** add/extend backend tests for multi-tag persistence/query filtering and frontend tests for multi-tag rendering, layout wrapping, and filter behavior.
+**Shipped in this PR:**
+
+- **Category platform (tree + metadata):** `categories` uses `string_key` (unique when set) and `lucide_icon_key` for integrations and SearchBar tab icons. `GET /api/categories` returns the hierarchy with `stringKey` and `lucideIconKey`. Search hub behavior is driven from that tree (e.g. Cars root via `stringKey === 'cars'` with name fallback). GM category CRUD, seed alignment with GT7 string keys, create/alerts flows consuming the API tree, and Development rethrow on migration/seed failure remain as earlier increments on this line of work.
+- **Per-item multi-category:** `items.category_ids` JSON column (`List<int>`; MySQL native JSON, InMemory uses JSON string conversion). First element is the primary category; extras are subcategory tags (e.g. Electric + Sports Cars). Migration `20260403084418_ReplaceCategoryIdWithCategoryIdsJson` replaces the earlier `category_id` FK and `ItemSubcategoryTags` junction table. Validation: all IDs must exist; when >1 they must be non-root subcategories under the same top-level root; duplicates are removed.
+- **API:** `POST api/auctions/create` accepts `categoryIds` (ordered list; first is primary). List rows include `categoryNames` (resolved from `category_ids`). Detail includes `categoryNames` and `categoryIds`. `PATCH api/admin/auctions/{id}` accepts optional `categoryIds`: **omit/null** leaves unchanged; **empty array** clears.
+- **Browse filter:** When `category_id` is set, results include items whose `category_ids` JSON array contains the value (**OR** semantics via `JsonContains`). Explicit AND/OR query modes are not implemented.
+- **Frontend:** Create Auction and sell modal support multi-select **additional subcategories** (chips) under the same root as the chosen primary category. Admin auction **Edit** can view/change tags. `AuctionCard` and auction detail show multiple category labels/chips.
+- **GT7 category auto routing:** Manifest assets can carry an ordered `categories` array; seeding normalizes those values to category string keys and prefers that curated order before keyword inference, selecting the first resolvable category that has fields.
+- **Live browse refresh integration:** GM category edits emit an in-app refresh signal so open `AuctionListPage` / `SearchBar` and create-related category consumers refetch category data without manual page reload.
+- **Tests:** `AuctionServiceTests` coverage for create/patch/browse/tag validation paths.
+
+**Follow-up (optional):**
+
+- Browse/search **AND** vs **OR** switch (or multi-select category facets). Alert matching now checks all `CategoryIds` entries; further refinements possible.
 
 ---
 

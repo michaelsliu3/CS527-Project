@@ -25,4 +25,13 @@ public interface IGmToolsService
     Task<(string? Error, GmRunCloseSweepResultDto? Data)> RunCloseSweepAsync(int adminUserId);
 
     Task<(string? Error, GmDeleteAllAuctionsResultDto? Data)> DeleteAllAuctionsAsync(int adminUserId);
+
+    Task<(string? Error, GmCategoryMutationResultDto? Data)> CreateCategoryAsync(int adminUserId, GmCreateCategoryDto dto);
+
+    Task<(string? Error, GmCategoryMutationResultDto? Data)> UpdateCategoryAsync(
+        int adminUserId,
+        int categoryId,
+        GmUpdateCategoryDto dto);
+
+    Task<(string? Error, GmDeleteCategoryResultDto? Data)> DeleteCategoryAsync(int adminUserId, int categoryId);
 }

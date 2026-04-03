@@ -11,11 +11,13 @@ public static class Gt7ManifestAuctionBuilder
     private static readonly Regex FullYearRegex = new(@"\b(19\d{2}|20\d{2})\b", RegexOptions.Compiled);
     private static readonly Regex ManifestCatalogExternalIdRegex = new(@"^\d{3,8}$", RegexOptions.Compiled);
 
-    public const string CategorySedans = "Sedans";
-    public const string CategorySuvs = "SUVs";
-    public const string CategoryTrucks = "Trucks";
-    public const string CategorySportsCars = "Sports Cars";
-    public const string CategoryElectric = "Electric";
+    public const string StringKeySedans = "sedans";
+    public const string StringKeySuvs = "suvs";
+    public const string StringKeyTrucks = "trucks";
+    public const string StringKeySportsCars = "sports-cars";
+    public const string StringKeyElectric = "electric";
+    public const string StringKeyCompactSedans = "compact-sedans";
+    public const string StringKeyFullSizeSedans = "full-size-sedans";
 
     public static List<Gt7ManifestAsset> SelectAssets(IReadOnlyList<Gt7ManifestAsset> all, int count, string? titleKeyword)
     {
@@ -48,7 +50,8 @@ public static class Gt7ManifestAuctionBuilder
         return DateTime.UtcNow.Year;
     }
 
-    public static string InferCategoryName(Gt7ManifestAsset asset)
+    /// <summary>Resolves a <see cref="Category.StringKey"/> for manifest import (matches seeded categories).</summary>
+    public static string InferCategoryStringKey(Gt7ManifestAsset asset)
     {
         var text = $"{asset.Title ?? ""} {asset.Make ?? ""} {asset.Model ?? ""}".ToLowerInvariant();
 
@@ -58,14 +61,14 @@ public static class Gt7ManifestAuctionBuilder
             "model 3", "model s", "model x", "model y"
         };
         if (electricKeywords.Any(k => text.Contains(k)))
-            return CategoryElectric;
+            return StringKeyElectric;
 
         var truckKeywords = new[]
         {
             "truck", "pickup", "f-150", "silverado", "sierra", "ram", "tacoma", "tundra", "hilux", "r1t"
         };
         if (truckKeywords.Any(k => text.Contains(k)))
-            return CategoryTrucks;
+            return StringKeyTrucks;
 
         var suvKeywords = new[]
         {
@@ -73,7 +76,7 @@ public static class Gt7ManifestAuctionBuilder
             "forester", "outback", "x5", "q5", "glc"
         };
         if (suvKeywords.Any(k => text.Contains(k)))
-            return CategorySuvs;
+            return StringKeySuvs;
 
         var sportsKeywords = new[]
         {
@@ -81,9 +84,53 @@ public static class Gt7ManifestAuctionBuilder
             "porsche", "nsx", "viper", "amg gt", "zonda", "skyline", "rx-7", "mx-5", "miata"
         };
         if (sportsKeywords.Any(k => text.Contains(k)))
-            return CategorySportsCars;
+            return StringKeySportsCars;
 
-        return CategorySedans;
+        return StringKeySedans;
+    }
+
+    /// <summary>
+    /// Returns candidate category string keys in priority order.
+    /// Prefers curated manifest categories; falls back to keyword-based inference.
+    /// </summary>
+    public static List<string> ResolveCategoryStringKeys(Gt7ManifestAsset asset)
+    {
+        var resolved = new List<string>();
+        foreach (var raw in asset.Categories)
+        {
+            var normalized = NormalizeCategoryToStringKey(raw);
+            if (normalized == null || resolved.Contains(normalized, StringComparer.Ordinal))
+                continue;
+            resolved.Add(normalized);
+        }
+
+        if (resolved.Count > 0)
+            return resolved;
+
+        return [InferCategoryStringKey(asset)];
+    }
+
+    private static string? NormalizeCategoryToStringKey(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        var trimmed = raw.Trim();
+        var compact = trimmed.Replace(" ", "", StringComparison.Ordinal)
+            .Replace("-", "", StringComparison.Ordinal)
+            .ToLowerInvariant();
+        return compact switch
+        {
+            "sedan" or "sedans" => StringKeySedans,
+            "suv" or "suvs" => StringKeySuvs,
+            "truck" or "trucks" => StringKeyTrucks,
+            "sportscar" or "sportscars" => StringKeySportsCars,
+            "electric" => StringKeyElectric,
+            "compactsedan" or "compactsedans" => StringKeyCompactSedans,
+            "fullsizesedan" or "fullsizesedans" => StringKeyFullSizeSedans,
+            "cars" => "cars",
+            _ => null
+        };
     }
 
     /// <summary>
@@ -93,11 +140,12 @@ public static class Gt7ManifestAuctionBuilder
     /// </summary>
     public static CreateAuctionDto BuildCreateDto(
         Gt7ManifestAsset asset,
-        Category category,
+        List<Category> categories,
         int closeHoursMin,
         int closeHoursMax)
     {
-        var fields = category.CategoryFields.ToList();
+        var primary = categories.First(c => c.CategoryFields.Any());
+        var fields = primary.CategoryFields.ToList();
         int FieldId(string name) => fields.First(f => f.FieldName == name).Id;
 
         var year = ResolveAssetYear(asset);
@@ -121,7 +169,7 @@ public static class Gt7ManifestAuctionBuilder
             Description = $"GM seed listing (catalog id {asset.ExternalId}).",
             ImageUrl = null,
             ImageStorageKey = catalogKey,
-            CategoryId = category.Id,
+            CategoryIds = categories.Select(c => c.Id).Distinct().ToList(),
             InitialPrice = initialPrice,
             BidIncrement = bidIncrement,
             ReservePrice = reservePrice,

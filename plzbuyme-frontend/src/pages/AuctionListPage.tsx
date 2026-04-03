@@ -122,8 +122,25 @@ export function AuctionListPage() {
   }
 
   return (
-    <Container maxW="container.xl" px={APP_PAGE_PX}>
-      <SearchBar variant="top" />
+    <Container maxW="container.xl" px={APP_PAGE_PX} position="relative">
+      {canCreateAuctions(user?.role) && (
+        <Box position="absolute" top={2} right={4} zIndex={2}>
+          <Button
+            size="sm"
+            bg="brand.500"
+            color="white"
+            _hover={{ bg: 'brand.400' }}
+            onClick={() =>
+              openSellModal({
+                onAfterCreate: () => setListRefreshToken((t) => t + 1),
+              })
+            }
+          >
+            Create Auction
+          </Button>
+        </Box>
+      )}
+      <SearchBar variant="top" topMarginBottom={0} />
 
       <Flex direction={{ base: 'column', lg: 'row' }} gap={4} align="flex-start">
         <Box w={{ base: '100%', lg: '320px' }} flexShrink={0}>
@@ -131,23 +148,6 @@ export function AuctionListPage() {
         </Box>
 
         <Box flex="1" w="100%">
-          {canCreateAuctions(user?.role) && (
-            <Flex justify="flex-end" mb={4}>
-              <Button
-                size="sm"
-                bg="brand.500"
-                color="white"
-                _hover={{ bg: 'brand.400' }}
-                onClick={() =>
-                  openSellModal({
-                    onAfterCreate: () => setListRefreshToken((t) => t + 1),
-                  })
-                }
-              >
-                Create Auction
-              </Button>
-            </Flex>
-          )}
           {error && (
             <Text color="red.400" mb={4}>
               {error}

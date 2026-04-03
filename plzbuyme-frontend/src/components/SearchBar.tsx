@@ -15,11 +15,17 @@ import {
   WrapItem,
 } from '@chakra-ui/react'
 import { HiChevronDown } from 'react-icons/hi'
-import { LuCalendar } from 'react-icons/lu'
+import {
+  LuCalendar,
+  LuChevronLeft,
+  LuChevronRight,
+} from 'react-icons/lu'
 import { useSearchParams } from 'react-router-dom'
 import { getFieldValues } from '../api/auctions'
 import { dark } from '../theme/colors'
 import { fetchCategories, type CategoryDto } from '../api/categories'
+import { resolveLucideIconForKey } from '../constants/categoryLucideIcons'
+import { subscribeAuctionListRefresh } from '../utils/auctionListRefresh'
 
 const SORT_OPTIONS = [
   { value: '', label: 'Default' },
@@ -28,13 +34,6 @@ const SORT_OPTIONS = [
   { value: 'price_asc', label: 'Price: low to high' },
   { value: 'price_desc', label: 'Price: high to low' },
   { value: 'most_bids', label: 'Most bids' },
-]
-
-const CAR_SORT_OPTIONS = [
-  { value: 'year_newest', label: 'Year: newest' },
-  { value: 'year_oldest', label: 'Year: oldest' },
-  { value: 'mileage_low', label: 'Mileage: low to high' },
-  { value: 'mileage_high', label: 'Mileage: high to low' },
 ]
 
 const STATUS_OPTIONS = [
@@ -115,6 +114,30 @@ type FilterSectionKey =
 
 interface SearchBarProps {
   variant?: SearchBarVariant
+  topMarginBottom?: number
+}
+
+function flattenCategoryNodes(roots: CategoryDto[]): CategoryDto[] {
+  const out: CategoryDto[] = []
+  const walk = (nodes: CategoryDto[]) => {
+    for (const n of nodes) {
+      out.push(n)
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(roots)
+  return out
+}
+
+function normalizeKey(s: string | null | undefined): string {
+  return s?.trim().toLowerCase() ?? ''
+}
+
+function pickCarsSearchHubRoot(roots: CategoryDto[]): CategoryDto | undefined {
+  // Prefer the explicit `stringKey` marker when present.
+  const byStringKey = roots.find((c) => normalizeKey(c.stringKey) === 'cars')
+  if (byStringKey) return byStringKey
+  return roots.find((c) => normalizeKey(c.name) === 'cars')
 }
 
 interface DateFilterPickerProps {
@@ -248,7 +271,7 @@ function DateFilterPicker({
   )
 }
 
-export function SearchBar({ variant = 'full' }: SearchBarProps) {
+export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   const hasInitializedDefaultStatus = useRef(false)
   const previousPriceQuery = useRef<{ min: string | null; max: string | null } | null>(null)
@@ -262,6 +285,10 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     const fromQuery = searchParams.get('categoryId')
     return fromQuery ? Number(fromQuery) : ''
   })
+  const [hoveredTopCategoryId, setHoveredTopCategoryId] = useState<number | null>(null)
+  const topBarScrollRef = useRef<HTMLDivElement | null>(null)
+  const [canScrollTopBarLeft, setCanScrollTopBarLeft] = useState(false)
+  const [canScrollTopBarRight, setCanScrollTopBarRight] = useState(false)
   const [makeSuggestions, setMakeSuggestions] = useState<string[]>([])
   const [modelSuggestions, setModelSuggestions] = useState<string[]>([])
   const [makeInput, setMakeInput] = useState(searchParams.get('make') ?? '')
@@ -291,6 +318,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
   const [closingBefore, setClosingBefore] = useState<string>(() =>
     getDateOnlyValue(searchParams.get('closingBefore'))
   )
+  const [categoriesRefreshToken, setCategoriesRefreshToken] = useState(0)
 
   useEffect(() => {
     if (hasInitializedDefaultStatus.current) return
@@ -300,6 +328,12 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     next.set('status', DEFAULT_STATUS)
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    return subscribeAuctionListRefresh(() => {
+      setCategoriesRefreshToken((token) => token + 1)
+    })
+  }, [])
 
   useEffect(() => {
     let isMounted = true
@@ -313,28 +347,29 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
         setCategories(data)
 
         const rootCategories = data.filter((c) => c.parentId === null)
-        const carsRoot = rootCategories.find((c) => c.name.toLowerCase() === 'cars')
+        const searchHubRoot = pickCarsSearchHubRoot(rootCategories)
+        const flatFromResponse = flattenCategoryNodes(data)
         const existing = searchParams.get('categoryId')
         if (existing) {
           const idNum = Number(existing)
           const root = rootCategories.find((c) => c.id === idNum)
           if (root) {
             setSelectedRootId(root.id)
-            if (carsRoot && root.id === carsRoot.id) {
+            if (searchHubRoot && root.id === searchHubRoot.id) {
               setSelectedCategoryId('')
             } else {
               setSelectedCategoryId(root.id)
             }
           } else {
-            const child = data.find((c) => c.id === idNum)
+            const child = flatFromResponse.find((c) => c.id === idNum)
             if (child) {
               setSelectedCategoryId(child.id)
-              const parent = data.find((c) => c.id === child.parentId)
+              const parent = child.parentId != null ? flatFromResponse.find((c) => c.id === child.parentId) : undefined
               if (parent) setSelectedRootId(parent.id)
             }
           }
-        } else if (carsRoot) {
-          setSelectedRootId(carsRoot.id)
+        } else if (searchHubRoot) {
+          setSelectedRootId(searchHubRoot.id)
           setSelectedCategoryId('')
         }
       } catch {
@@ -350,7 +385,8 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     return () => {
       isMounted = false
     }
-  }, [searchParams])
+    // Use serialized query so a new URLSearchParams instance each render does not refetch in a loop.
+  }, [searchParams.toString(), categoriesRefreshToken])
 
   useEffect(() => {
     const nextMin = searchParams.get('minPrice')
@@ -383,14 +419,27 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
   }, [searchParams])
 
   const rootCategories = categories.filter((c) => c.parentId === null)
-  const carsRootCategory = rootCategories.find((c) => c.name.toLowerCase() === 'cars')
-  const topBarCategories =
-    carsRootCategory?.children?.length
+  const searchHubRoot = pickCarsSearchHubRoot(rootCategories)
+
+  type TopBarCategoryTab = { id: number; name: string; lucideIconKey?: string | null }
+  const topBarCategories: TopBarCategoryTab[] =
+    searchHubRoot?.children?.length
       ? [
-          { id: carsRootCategory.id, name: 'All Cars' },
-          ...carsRootCategory.children.map((child) => ({ id: child.id, name: child.name })),
+          {
+            id: searchHubRoot.id,
+            name: `All ${searchHubRoot.name}`,
+            lucideIconKey: searchHubRoot.lucideIconKey,
+          },
+          ...searchHubRoot.children.map((child) => ({
+            id: child.id,
+            name: child.name,
+            lucideIconKey: child.lucideIconKey,
+          })),
+          ...rootCategories
+            .filter((root) => root.id !== searchHubRoot.id)
+            .map((root) => ({ id: root.id, name: root.name, lucideIconKey: root.lucideIconKey })),
         ]
-      : rootCategories.map((root) => ({ id: root.id, name: root.name }))
+      : rootCategories.map((root) => ({ id: root.id, name: root.name, lucideIconKey: root.lucideIconKey }))
 
   const selectedRoot: CategoryDto | undefined =
     typeof selectedRootId === 'number'
@@ -398,7 +447,7 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
       : undefined
 
   const activeTopCategoryId =
-    typeof selectedCategoryId === 'number' && carsRootCategory
+    typeof selectedCategoryId === 'number' && searchHubRoot
       ? selectedCategoryId
       : typeof selectedRootId === 'number'
         ? selectedRootId
@@ -411,7 +460,11 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
 
   const handleTopCategorySelect = (categoryId: number) => {
     const next = new URLSearchParams(searchParams)
-    if (carsRootCategory && categoryId === carsRootCategory.id) {
+    const isCarsHub = !!searchHubRoot && categoryId === searchHubRoot.id
+    const isCarsChild =
+      !!searchHubRoot && searchHubRoot.children.some((child) => child.id === categoryId)
+
+    if (isCarsHub) {
       next.delete('categoryId')
     } else {
       next.set('categoryId', String(categoryId))
@@ -419,13 +472,20 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     next.set('page', '1')
     setSearchParams(next)
 
-    if (carsRootCategory && categoryId !== carsRootCategory.id) {
-      setSelectedRootId(carsRootCategory.id)
-      setSelectedCategoryId(categoryId)
-    } else {
-      setSelectedRootId(categoryId)
+    if (isCarsHub) {
+      setSelectedRootId(searchHubRoot.id)
       setSelectedCategoryId('')
+      return
     }
+
+    if (isCarsChild) {
+      setSelectedRootId(searchHubRoot.id)
+      setSelectedCategoryId(categoryId)
+      return
+    }
+
+    setSelectedRootId(categoryId)
+    setSelectedCategoryId(categoryId)
   }
 
   const fetchMakeSuggestions = useCallback(async (prefix: string) => {
@@ -626,58 +686,239 @@ export function SearchBar({ variant = 'full' }: SearchBarProps) {
     setClosingBefore('')
   }
 
-  const allSortOptions = [...SORT_OPTIONS, ...CAR_SORT_OPTIONS]
+  const allSortOptions = SORT_OPTIONS
   const showTopBar = variant !== 'filters'
   const showFilters = variant !== 'top'
   const formColumns = variant === 'filters' ? 1 : { base: 1, md: 2, lg: 4 }
   const carFilterColumns = variant === 'filters' ? 1 : { base: 1, md: 2, lg: 4 }
+  const topBarScrollStep = 220
+
+  const syncTopBarScrollState = useCallback(() => {
+    const container = topBarScrollRef.current
+    if (!container) {
+      setCanScrollTopBarLeft(false)
+      setCanScrollTopBarRight(false)
+      return
+    }
+    const maxScrollLeft = container.scrollWidth - container.clientWidth
+    const hasOverflow = maxScrollLeft > 2
+    if (!hasOverflow) {
+      setCanScrollTopBarLeft(false)
+      setCanScrollTopBarRight(false)
+      return
+    }
+    setCanScrollTopBarLeft(container.scrollLeft > 2)
+    setCanScrollTopBarRight(container.scrollLeft < maxScrollLeft - 2)
+  }, [])
+
+  const scrollTopBar = useCallback((direction: 'left' | 'right') => {
+    const container = topBarScrollRef.current
+    if (!container) return
+    container.scrollBy({
+      left: direction === 'left' ? -topBarScrollStep : topBarScrollStep,
+      behavior: 'smooth',
+    })
+  }, [])
+
+  useEffect(() => {
+    syncTopBarScrollState()
+    window.addEventListener('resize', syncTopBarScrollState)
+    return () => window.removeEventListener('resize', syncTopBarScrollState)
+  }, [syncTopBarScrollState, topBarCategories])
 
   return (
-    <Box mb={variant === 'top' ? 3 : 0}>
+    <Box mb={variant === 'top' ? topMarginBottom : 0}>
       {showTopBar && (
-      <Box
-        bg={dark.cardBg}
-        borderWidth="1px"
-        borderColor={dark.borderSubtle}
-        borderRadius="sm"
-        overflow="hidden"
-        mb={showFilters ? 3 : 0}
-        w="full"
-      >
-        <Flex w="full">
-          {topBarCategories.map((category, index) => {
-            const isActive = activeTopCategoryId === category.id
-            const isFirst = index === 0
-            const isLast = index === topBarCategories.length - 1
-            return (
-              <Button
-                key={category.id}
-                size="sm"
-                flex={1}
-                minW={0}
-                variant="ghost"
-                borderRadius={0}
-                borderLeftRadius={isFirst ? 'xs' : 0}
-                borderRightRadius={isLast ? 'xs' : 0}
-                borderRightWidth={isLast ? '0' : '1px'}
-                borderRightColor={dark.borderSubtle}
-                bg={isActive ? 'brand.500' : 'transparent'}
-                color="white"
-                fontWeight={isActive ? 'semibold' : 'medium'}
-                px={2}
-                _hover={{
-                  bg: isActive ? 'brand.400' : 'whiteAlpha.100',
-                }}
-                _focus={{ boxShadow: 'none', outline: 'none' }}
-                _focusVisible={{ boxShadow: 'none', outline: 'none' }}
-                onClick={() => handleTopCategorySelect(category.id)}
-                disabled={categoriesLoading || !!categoriesError}
-              >
-                {category.name}
-              </Button>
-            )
-          })}
-        </Flex>
+      <Box mb={showFilters ? 3 : 0} w="full" position="relative" overflow="hidden">
+        <Box
+          ref={topBarScrollRef}
+          overflowX="auto"
+          overflowY="hidden"
+          py={4}
+          pl={{ base: canScrollTopBarLeft ? 10 : 4, md: canScrollTopBarLeft ? 12 : 4 }}
+          pr={{ base: canScrollTopBarRight ? 10 : 4, md: canScrollTopBarRight ? 12 : 4 }}
+          onScroll={syncTopBarScrollState}
+          css={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(255, 255, 255, 0.2) transparent',
+            WebkitOverflowScrolling: 'touch',
+            '&::-webkit-scrollbar': { height: '5px' },
+            '&::-webkit-scrollbar-thumb': {
+              background: 'rgba(255, 255, 255, 0.15)',
+              borderRadius: '4px',
+            },
+          }}
+        >
+          <Flex
+            as="nav"
+            aria-label="Browse by category"
+            role="tablist"
+            gap={{ base: 5, md: 8 }}
+            align="flex-start"
+            justify="flex-start"
+            w="max-content"
+            mx="auto"
+            minH="86px"
+          >
+            {topBarCategories.map((category) => {
+              const isActive = activeTopCategoryId === category.id
+              const isHovered = hoveredTopCategoryId === category.id
+              const TabIcon = resolveLucideIconForKey(category.lucideIconKey)
+              return (
+                <Button
+                  key={category.id}
+                  role="tab"
+                  aria-selected={isActive}
+                  variant="ghost"
+                  flexDirection="column"
+                  alignItems="center"
+                  justifyContent="flex-start"
+                  gap={2.5}
+                  flexShrink={0}
+                  w="auto"
+                  minW={{ base: '82px', md: '92px' }}
+                  maxW={{ base: '108px', md: '120px' }}
+                  h="auto"
+                  minH={{ base: '78px', md: '84px' }}
+                  px={2.5}
+                  py={1.5}
+                  borderRadius="md"
+                  bg="transparent"
+                  color="inherit"
+                  transition="color 0.2s ease, background 0.2s ease, transform 0.2s ease"
+                  title={category.name}
+                  _hover={{
+                    bg: 'whiteAlpha.50',
+                    transform: 'translateY(-1px)',
+                  }}
+                  _focus={{ boxShadow: 'none', outline: 'none' }}
+                  _focusVisible={{
+                    boxShadow: '0 0 0 2px var(--chakra-colors-brand-500)',
+                    outline: 'none',
+                    bg: 'whiteAlpha.50',
+                  }}
+                  onMouseEnter={() => setHoveredTopCategoryId(category.id)}
+                  onMouseLeave={() => setHoveredTopCategoryId((current) => (current === category.id ? null : current))}
+                  onClick={() => handleTopCategorySelect(category.id)}
+                  disabled={categoriesLoading || !!categoriesError}
+                >
+                  <Icon
+                    as={TabIcon}
+                    boxSize={{ base: 7.5, md: 8 }}
+                    flexShrink={0}
+                    aria-hidden
+                    transition="color 0.2s ease, filter 0.2s ease, transform 0.2s ease"
+                    opacity={isActive || isHovered ? 1 : 0.78}
+                    filter={
+                      isActive || isHovered
+                        ? 'drop-shadow(0 0 8px rgba(129, 140, 248, 0.8))'
+                        : 'drop-shadow(0 0 0 rgba(129, 140, 248, 0))'
+                    }
+                    transform={isHovered ? 'scale(1.04)' : 'scale(1)'}
+                    color={isActive ? 'brand.400' : isHovered ? 'brand.300' : 'gray.300'}
+                  />
+                  <Text
+                    as="span"
+                    fontSize="10px"
+                    fontWeight={isActive ? 'bold' : 'medium'}
+                    textTransform="uppercase"
+                    letterSpacing="0.1em"
+                    lineHeight="1.25"
+                    textAlign="center"
+                    color={isActive ? 'white' : 'whiteAlpha.500'}
+                    css={{
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {category.name}
+                  </Text>
+                  <Box
+                    h="3px"
+                    w={isActive || isHovered ? '50px' : '28px'}
+                    borderRadius="full"
+                    transition="width 0.24s ease, opacity 0.2s ease, filter 0.2s ease"
+                    bg={
+                      isActive || isHovered
+                        ? 'linear-gradient(90deg, rgba(129, 140, 248, 0.2) 0%, rgba(129, 140, 248, 1) 50%, rgba(129, 140, 248, 0.2) 100%)'
+                        : 'linear-gradient(90deg, rgba(148, 163, 184, 0) 0%, rgba(148, 163, 184, 0.55) 50%, rgba(148, 163, 184, 0) 100%)'
+                    }
+                    opacity={isActive ? 1 : isHovered ? 1 : 0.68}
+                    filter={isActive || isHovered ? 'drop-shadow(0 0 10px rgba(129, 140, 248, 0.8))' : 'none'}
+                  />
+                </Button>
+              )
+            })}
+          </Flex>
+        </Box>
+        {canScrollTopBarLeft && (
+          <Flex
+            aria-hidden
+            position="absolute"
+            left={0}
+            top={0}
+            bottom={0}
+            w={{ base: '52px', md: '60px' }}
+            align="center"
+            justify="center"
+            pointerEvents="none"
+            css={{
+              background: `linear-gradient(to right, ${dark.bg} 52%, transparent)`,
+            }}
+          >
+            <Button
+              size="sm"
+              borderRadius="full"
+              minW="30px"
+              h="30px"
+              p={0}
+              pointerEvents="auto"
+              bg="whiteAlpha.200"
+              color="white"
+              _hover={{ bg: 'whiteAlpha.300' }}
+              _active={{ bg: 'whiteAlpha.350' }}
+              onClick={() => scrollTopBar('left')}
+              aria-label="Scroll categories left"
+            >
+              <Icon as={LuChevronLeft} boxSize={4} />
+            </Button>
+          </Flex>
+        )}
+        {canScrollTopBarRight && (
+          <Flex
+            aria-hidden
+            position="absolute"
+            right={0}
+            top={0}
+            bottom={0}
+            w={{ base: '52px', md: '60px' }}
+            align="center"
+            justify="center"
+            pointerEvents="none"
+            css={{
+              background: `linear-gradient(to left, ${dark.bg} 52%, transparent)`,
+            }}
+          >
+            <Button
+              size="sm"
+              borderRadius="full"
+              minW="30px"
+              h="30px"
+              p={0}
+              pointerEvents="auto"
+              bg="whiteAlpha.200"
+              color="white"
+              _hover={{ bg: 'whiteAlpha.300' }}
+              _active={{ bg: 'whiteAlpha.350' }}
+              onClick={() => scrollTopBar('right')}
+              aria-label="Scroll categories right"
+            >
+              <Icon as={LuChevronRight} boxSize={4} />
+            </Button>
+          </Flex>
+        )}
       </Box>
       )}
 

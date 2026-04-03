@@ -237,11 +237,13 @@ CS527-Project/
 
 #### `categories`
 
-| Column          | Type              | Constraints                       |
-|-----------------|-------------------|-----------------------------------|
-| `id`            | INT               | PK, AUTO_INCREMENT                |
-| `name`          | VARCHAR(64)       | NOT NULL                          |
-| `parent_id`     | INT               | FK → categories.id, NULLABLE      |
+| Column                    | Type              | Constraints                       |
+|---------------------------|-------------------|-----------------------------------|
+| `id`                      | INT               | PK, AUTO_INCREMENT                |
+| `name`                    | VARCHAR(64)       | NOT NULL                          |
+| `parent_id`               | INT               | FK → categories.id, NULLABLE      |
+| `string_key`              | VARCHAR(64)       | NULLABLE, UNIQUE when set — stable key for integrations (e.g. GT7 manifest category mode, search routing) |
+| `lucide_icon_key`         | VARCHAR(64)       | NULLABLE — Lucide icon key used to render UI icons (e.g. SearchBar top tabs); null uses platform default |
 
 Self-referencing foreign key enables the hierarchical subcategory tree.
 
@@ -262,7 +264,7 @@ Self-referencing foreign key enables the hierarchical subcategory tree.
 |------------------|-------------------|-----------------------------------|
 | `id`             | INT               | PK, AUTO_INCREMENT                |
 | `seller_id`      | INT               | FK → users.id, NOT NULL           |
-| `category_id`    | INT               | FK → categories.id, NOT NULL      |
+| `category_ids`   | JSON              | NOT NULL — ordered list of category IDs; first entry is the primary category |
 | `title`          | VARCHAR(256)      | NOT NULL                          |
 | `description`    | TEXT              | NULLABLE                          |
 | `image_url`      | VARCHAR(2048)     | NULLABLE (persisted primary image URL or media key) |
@@ -277,6 +279,8 @@ Self-referencing foreign key enables the hierarchical subcategory tree.
 | `status`         | ENUM('active', 'closed', 'sold', 'removed') | DEFAULT 'active' |
 | `winner_id`      | INT               | FK → users.id, NULLABLE           |
 | `created_at`     | DATETIME          | DEFAULT CURRENT_TIMESTAMP         |
+
+The `category_ids` JSON column replaces the earlier `category_id` FK and the `ItemSubcategoryTags` junction table. The first element is the **primary** category; subsequent entries are additional subcategory tags (e.g. Electric + Sports Cars). Validation: all IDs must exist; when multiple categories are provided they must be non-root subcategories under the same top-level root. Browse/search `category_id` filter matches any element in the array (**OR** semantics). MySQL stores as native JSON; EF `JsonContains` is used for queries. InMemory provider uses a JSON string conversion with `List<int>.Contains` fallback.
 
 #### `item_field_values` *(bonus: stores dynamic category-specific attributes)*
 
@@ -373,7 +377,6 @@ Self-referencing foreign key enables the hierarchical subcategory tree.
 
 ```sql
 CREATE INDEX idx_items_status_close ON items(status, close_datetime);
-CREATE INDEX idx_items_category      ON items(category_id);
 CREATE INDEX idx_items_seller        ON items(seller_id);
 CREATE INDEX idx_bids_item           ON bids(item_id, created_at);
 CREATE INDEX idx_bids_bidder         ON bids(bidder_id);
@@ -457,7 +460,8 @@ function ProtectedRoute({ roles, children }: { roles: string[]; children: ReactN
 
 - **Create auction:** title, description, category (with subcategory-specific fields), initial price, bid increment, reserve price, closing date/time.
   - The Create Auction page fetches the **category tree** from `GET /api/categories` to render cascading **category → subcategory** dropdowns.
-  - When a subcategory is selected, the UI calls `GET /api/categories/{id}/fields` to fetch the dynamic `category_fields` for that subcategory and renders the appropriate inputs (text / number / select) before submitting `CreateAuctionDto` (including `fieldValues: { fieldId, value }[]`).
+  - Sellers provide one or more `categoryIds` (first is primary; extras are subcategory tags under the same root) which persist in the `category_ids` JSON column and appear in list/detail responses as `categoryNames`.
+  - When a subcategory is selected, the UI calls `GET /api/categories/{id}/fields` to fetch the dynamic `category_fields` for that subcategory and renders the appropriate inputs (text / number / select) before submitting `CreateAuctionDto` (including `fieldValues: { fieldId, value }[]` and `categoryIds`).
   - Optional image upload uses the media service; when no uploaded image is provided, backend resolves a GT7 default once on create, persists the resolved URL/key + match metadata, and reuses persisted values on subsequent reads.
 - **View own auctions:** filter by status (active / closed / sold).
 
@@ -532,7 +536,7 @@ Users configure alerts with optional filters (category, keyword, field criteria)
 |-----------------------------|--------------------------------------------------|
 | Total earnings              | SUM of `current_price` for all `sold` items      |
 | Earnings per item           | `current_price` grouped by item                  |
-| Earnings per item type      | SUM grouped by `category_id`                     |
+| Earnings per item type      | SUM grouped by primary category (first element of `category_ids`) |
 | Earnings per end-user       | SUM grouped by `seller_id` (or `winner_id`)      |
 | Best-selling items          | Items with highest sale price or most bids        |
 | Best buyers                 | Users with highest total spend                   |
@@ -598,14 +602,15 @@ End-user policy only (`[Authorize(Policy = "EndUser")]`). Used for **demo / deve
 - Auction list/detail responses include persisted image metadata:
   - list: `imageUrl`, `imageSource`, `imageMatchLevel`
   - detail: `imageUrl`, `detailImageUrl`, `imageSource`, `imageMatchLevel`
-- `POST api/auctions/create` accepts optional image fields:
+- List rows include `categoryName` (primary) and `categoryNames` (all category names from `category_ids`). Detail adds `categoryIds` (the full list).
+- `POST api/auctions/create` accepts `categoryIds` (ordered list; first is primary, extras are validated subcategory tags). Optional image fields:
   - `imageStorageKey` (preferred) and `imageUrl` (fallback key/value input)
 
 ### Categories — `api/categories`
 
 | Method | Route                               | Description                                              | Access |
 |--------|--------------------------------------|----------------------------------------------------------|--------|
-| GET    | `api/categories`                    | List category hierarchy (root categories with children)  | Public |
+| GET    | `api/categories`                    | List category hierarchy (roots with nested `children`). Each node includes `id`, `name`, `parentId`, `stringKey`, `lucideIconKey`, and `children` | Public |
 | GET    | `api/categories/{id}/fields`        | List dynamic fields for the given category/subcategory   | Public |
 
 ### Alerts — `api/alerts`
@@ -697,18 +702,23 @@ These endpoints are **admin-only** (`AdminOnly` policy). They exist for **demos,
 | POST | `api/admin/gm/auctions/close-active` | Body `{ "mode": "natural" \| "closed" }`: end every **active** listing in one batch (natural = reserve rules; closed = no sale). Max 500 active per request | Admin |
 | POST | `api/admin/gm/auctions/run-close-sweep` | Run the same **expired** close pass as the background job (active + `close_datetime` in the past) | Admin |
 | POST | `api/admin/gm/auctions/delete-all` | **Destructive (QA/demo reset):** deletes every `Item` and related bids, auto-bids, bid holds, and notifications tied to an item id. Uses a transaction and bulk `ExecuteDelete` on relational providers; in-memory tests use explicit removes. **Do not expose to untrusted production admins.** | Admin |
+| POST | `api/admin/gm/categories` | Create category: `name`, optional `parentId`, optional `stringKey` (unique, max 64), optional `lucideIconKey` | Admin |
+| PATCH | `api/admin/gm/categories/{id}` | Partial update (same fields as create where applicable). Empty `stringKey` clears the key | Admin |
+| DELETE | `api/admin/gm/categories/{id}` | Delete category if it has no children, items, fields, or alerts | Admin |
 
 **Audit:** each successful GM action is logged at **Warning** level with the admin user id and counts affected (Serilog).
 
-**Frontend:** “GM tools” opens from a **right-edge tab** (admins on any page); **slides in from the right** as a full-height panel with backdrop dismiss and error toasts. The **Seed auctions** tab combines **random/synthetic** and **GT7 manifest** sources behind one form. **Delete all auctions** is available in the panel for full environment reset alongside other GM actions. Legacy `/admin/gm` redirects to `/admin`.
+**Frontend:** “GM tools” opens from a **right-edge tab** (admins on any page); **slides in from the right** as a full-height panel with backdrop dismiss and error toasts. The **Seed auctions** tab combines **random/synthetic** and **GT7 manifest** sources behind one form. **Categories** tab: reload tree from `GET /api/categories`, create/update/delete via GM category endpoints (string keys + lucide icon keys), and emit an in-app auction-list refresh signal so open browse/search surfaces and create flows refetch category data without a full page reload. **Delete all auctions** is available in the panel for full environment reset alongside other GM actions. Legacy `/admin/gm` redirects to `/admin`.
+
+**GT7 manifest seeding:** category mode `auto` first reads the manifest's optional ordered `categories` list (normalized to category `string_key` values) and picks the first key that resolves to a category with `category_fields`; if no curated category resolves, it falls back to title/make/model text inference. Manual mode accepts a category `string_key` or display `name` (must resolve to a category that has `category_fields`).
 
 #### Admin auction edit — `api/admin/auctions`
 
 | Method | Route | Description | Access |
 |--------|--------|-------------|--------|
-| PATCH | `api/admin/auctions/{id}` | Partial update: title, description, close time, increment, reserve, initial/current (no bids only), or **end** active auction (`endAuction`: `natural` \| `closed` \| `sold`) — end must be sent alone | Admin |
+| PATCH | `api/admin/auctions/{id}` | Partial update: title, description, **`categoryIds`** (replacement list for `items.category_ids`; null = leave unchanged, `[]` = clear), close time, increment, reserve, initial/current (no bids only), or **end** active auction (`endAuction`: `natural` \| `closed` \| `sold`) — end must be sent alone | Admin |
 
-**Frontend:** auction detail shows **Edit** for admins; dialog calls PATCH.
+**Frontend:** auction detail shows **Edit** for admins; dialog calls PATCH (category list including primary and optional extra subcategory tags).
 
 ---
 
@@ -788,7 +798,7 @@ public async Task CheckAlertsForNewItem(Item item)
 
     foreach (var alert in alerts)
     {
-        if (alert.CategoryId.HasValue && alert.CategoryId != item.CategoryId)
+        if (alert.CategoryId.HasValue && !item.CategoryIds.Contains(alert.CategoryId.Value))
             continue;
 
         var text = $"{item.Title} {item.Description}";
@@ -820,7 +830,7 @@ public async Task CheckAlertsForNewItem(Item item)
 | Parameter        | Type     | Description                              |
 |------------------|----------|------------------------------------------|
 | `q`              | string   | Full-text keyword search (title + description) |
-| `category_id`    | int      | Filter by category/subcategory           |
+| `category_id`    | int      | Filter by category/subcategory: matches any item whose `category_ids` JSON array contains the value (**OR** semantics via `JsonContains`) |
 | `min_price`      | decimal  | Minimum current price                    |
 | `max_price`      | decimal  | Maximum current price                    |
 | `status`         | string   | active / closed / sold                   |
@@ -933,11 +943,12 @@ SELECT SUM(current_price) AS total FROM items WHERE status = 'sold';
 ```
 
 **Earnings per Item Type:**
-```sql
-SELECT c.name, SUM(i.current_price) AS earnings
-FROM items i JOIN categories c ON i.category_id = c.id
-WHERE i.status = 'sold'
-GROUP BY c.id ORDER BY earnings DESC;
+```
+-- category_ids is JSON; primary category = first element.
+-- EF implementation materializes sold items, groups by primary category ID in-memory,
+-- then looks up category names.
+Group sold items by primary category ID (CategoryIds[0]),
+SUM(current_price), ORDER BY earnings DESC.
 ```
 
 **Best-Selling Items:**
@@ -1196,8 +1207,8 @@ node plzbuyme-backend/scripts/create-auctions-temp.mjs
 
 Supported behavior:
 
-- `AUCTION_SEED_CATEGORY=auto` infers `Sedans`/`SUVs`/`Trucks`/`Sports Cars`/`Electric` from manifest vehicle keywords.
-- Manual category override still works by setting `AUCTION_SEED_CATEGORY` to a specific category name.
+- `AUCTION_SEED_CATEGORY=auto` prefers the manifest entry's ordered `categories` values (when present), normalized to known category `string_key` values, and chooses the first category that exists and has fields; if none resolve, it falls back to title/make/model text inference.
+- Manual override: set `AUCTION_SEED_CATEGORY` to a category **string key** or display **name** (must match a category that has fields).
 - Cars are chosen **at random** (without replacement) from the manifest up to `AUCTION_SEED_COUNT`; with `AUCTION_SEED_TITLE_KEYWORD`, the pool is filtered first, then shuffled.
 - Auction values are randomized per item (close window, initial price, reserve, bid increment, mileage) to avoid deterministic demo data.
 - Concept-car seeding is supported via `AUCTION_SEED_TITLE_KEYWORD=concept`; missing manifest year values are derived from title (or safely defaulted) so creation does not fail.

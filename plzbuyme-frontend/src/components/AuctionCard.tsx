@@ -101,6 +101,23 @@ function normalizeCategoryName(value?: string): string {
   return (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
+function hashString(value: string): number {
+  // Simple deterministic hash (stable across renders).
+  let hash = 0
+  for (let i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) | 0
+  return Math.abs(hash)
+}
+
+function getRandomCategoryGradient(normalizedCategoryName: string): string {
+  // Generate a stable, high-contrast gradient for any unknown category.
+  const h = hashString(normalizedCategoryName)
+  const hue1 = h % 360
+  const hue2 = (hue1 + 50 + (h % 80)) % 360
+
+  // Use HSL with fairly saturated, mid-bright colors so it's easy to see.
+  return `linear-gradient(92deg, hsl(${hue1} 88% 58%) 0%, hsl(${hue2} 90% 46%) 100%)`
+}
+
 function getCategoryGradient(categoryName?: string): string {
   const normalized = normalizeCategoryName(categoryName)
 
@@ -120,7 +137,9 @@ function getCategoryGradient(categoryName?: string): string {
     return 'linear-gradient(92deg, #a78bfa 0%, #7c3aed 100%)'
   }
 
-  return 'linear-gradient(92deg, #94a3b8 0%, #475569 100%)'
+  // New/unrecognized categories: random but stable gradient (instead of a single default).
+  if (!normalized) return 'linear-gradient(92deg, #94a3b8 0%, #475569 100%)'
+  return getRandomCategoryGradient(normalized)
 }
 
 export interface AuctionCardProps {
@@ -175,6 +194,10 @@ export function AuctionCard({ auction }: AuctionCardProps) {
   const timerValue = auction.status === 'active' ? countdown : '00:00:00'
   const animateTimerBar = auction.status === 'active' && !isExpiredActiveAuction
   const timerGlow = getTimerGlow(auction.closeDateTime, auction.status)
+  const categoryNames =
+    auction.categoryNames && auction.categoryNames.length > 0
+      ? auction.categoryNames
+      : [auction.categoryName].filter((v): v is string => Boolean(v))
 
   return (
     <RouterLink to={`/auctions/${auction.id}`} state={{ backgroundLocation }}>
@@ -276,27 +299,32 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               ))}
             </Flex>
           ) : null}
-          <Flex align="center" justify="space-between" gap={3}>
+          <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
             <Text fontSize="2xl" fontWeight="extrabold" color="brand.400" lineHeight="1.1">
               ${auction.currentPrice.toLocaleString()}
             </Text>
-            <Box
-              as="span"
-              flexShrink={0}
-              px={2}
-              py={0.5}
-              borderRadius="md"
-              fontSize="xs"
-              fontWeight="bold"
-              lineHeight="1.2"
-              letterSpacing="0.01em"
-              color="white"
-              bg={getCategoryGradient(auction.categoryName)}
-              textShadow="0 1px 1px rgba(0, 0, 0, 0.28)"
-              boxShadow="0 6px 20px rgba(56, 189, 248, 0.22), 0 0 14px rgba(56, 189, 248, 0.2)"
-            >
-              {auction.categoryName}
-            </Box>
+            <Flex gap={1.5} flexWrap="wrap" justify="flex-end" align="center" flexShrink={0}>
+              {categoryNames.map((name, index) => (
+                <Box
+                  key={`${auction.id}-cat-${index}-${name}`}
+                  as="span"
+                  flexShrink={0}
+                  px={2}
+                  py={0.5}
+                  borderRadius="md"
+                  fontSize="xs"
+                  fontWeight="bold"
+                  lineHeight="1.2"
+                  letterSpacing="0.01em"
+                  color="white"
+                  bg={getCategoryGradient(name)}
+                  textShadow="0 1px 1px rgba(0, 0, 0, 0.28)"
+                  boxShadow="0 6px 20px rgba(56, 189, 248, 0.22), 0 0 14px rgba(56, 189, 248, 0.2)"
+                >
+                  {name}
+                </Box>
+              ))}
+            </Flex>
           </Flex>
           <Text fontSize="sm" color={dark.muted} lineHeight="1.5">
             by{' '}

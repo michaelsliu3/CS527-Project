@@ -61,6 +61,10 @@ public class Program
                 catch (Exception ex)
                 {
                     Log.Warning(ex, "Migration or seed skipped (e.g. no DB or design-time).");
+                    // In Development, a failed Migrate() often leaves the schema out of sync (e.g. missing StringKey column)
+                    // while the API still runs, breaking /api/categories. Fail fast so the error is visible.
+                    if (app.Environment.IsDevelopment())
+                        throw;
                 }
             }
 

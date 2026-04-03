@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
 using PlzBuyMe.Api.Data;
+using PlzBuyMe.Api.Dtos.Admin;
 using PlzBuyMe.Api.Dtos.Auctions;
 using PlzBuyMe.Api.Models;
 using PlzBuyMe.Api.Services;
@@ -61,7 +62,7 @@ public class AuctionServiceTests
         {
             Title = "Test Car",
             Description = "Desc",
-            CategoryId = categoryId,
+            CategoryIds = new List<int> { categoryId },
             InitialPrice = 1000m,
             BidIncrement = 100m,
             ReservePrice = 1500m,
@@ -75,6 +76,41 @@ public class AuctionServiceTests
         item.CurrentPrice.Should().Be(1000m);
         var fv = db.ItemFieldValues.Single(iv => iv.ItemId == item.Id && iv.FieldId == makeFieldId);
         fv.Value.Should().Be("Toyota");
+    }
+
+    [Fact]
+    public async Task CreateAuction_WithAdditionalSubcategories_PersistsTags_AndCategorySearchMatches()
+    {
+        var (db, categoryId, makeFieldId, sellerId) = CreateSeededContext();
+        var additionalCategoryId = db.Categories.Single(c => c.Name == "Electric").Id;
+        var service = CreateService(db);
+        var dto = new CreateAuctionDto
+        {
+            Title = "Multi-tag car",
+            Description = "Tagged for multiple subcategories",
+            CategoryIds = new List<int> { categoryId, additionalCategoryId },
+            InitialPrice = 1000m,
+            BidIncrement = 100m,
+            ReservePrice = 1500m,
+            CloseDateTime = DateTime.UtcNow.AddDays(1),
+            FieldValues = new List<FieldValueDto> { new(makeFieldId, "Tesla") }
+        };
+
+        var created = await service.CreateAuctionAsync(dto, sellerId);
+
+        created.Should().NotBeNull();
+        created!.CategoryNames.Should().Contain("Sedans");
+        created.CategoryNames.Should().Contain("Electric");
+
+        var item = db.Items.Single(i => i.Title == "Multi-tag car");
+
+        var search = await service.SearchAsync(new SearchQueryDto
+        {
+            CategoryId = additionalCategoryId,
+            Page = 1,
+            PageSize = 20
+        });
+        search.Items.Should().Contain(i => i.Id == item.Id);
     }
 
     [Fact]
@@ -99,7 +135,7 @@ public class AuctionServiceTests
         var dto = new CreateAuctionDto
         {
             Title = "1991 Honda Beat",
-            CategoryId = categoryId,
+            CategoryIds = new List<int> { categoryId },
             InitialPrice = 12000m,
             BidIncrement = 250m,
             ReservePrice = 15000m,
@@ -158,7 +194,7 @@ public class AuctionServiceTests
         var dto = new CreateAuctionDto
         {
             Title = "Seeded from manifest id",
-            CategoryId = categoryId,
+            CategoryIds = new List<int> { categoryId },
             ImageStorageKey = "1523",
             InitialPrice = 5000m,
             BidIncrement = 100m,
@@ -203,7 +239,7 @@ public class AuctionServiceTests
         var dto = new CreateAuctionDto
         {
             Title = "2020 Honda Civic",
-            CategoryId = categoryId,
+            CategoryIds = new List<int> { categoryId },
             InitialPrice = 12000m,
             BidIncrement = 250m,
             ReservePrice = 15000m,
@@ -236,7 +272,7 @@ public class AuctionServiceTests
         var dto = new CreateAuctionDto
         {
             Title = "Unknown car",
-            CategoryId = categoryId,
+            CategoryIds = new List<int> { categoryId },
             InitialPrice = 1000m,
             BidIncrement = 100m,
             ReservePrice = 1200m,
@@ -260,7 +296,7 @@ public class AuctionServiceTests
         var dto = new CreateAuctionDto
         {
             Title = "User uploaded image car",
-            CategoryId = categoryId,
+            CategoryIds = new List<int> { categoryId },
             ImageStorageKey = "items/2026/03/uploaded-file.png",
             InitialPrice = 9000m,
             BidIncrement = 200m,
@@ -488,11 +524,11 @@ public class AuctionServiceTests
         var (db, categoryId, makeFieldId, sellerId) = CreateSeededContext();
         var sedan = db.Categories.Single(c => c.Name == "Sedans");
         var fields = db.CategoryFields.Where(f => f.CategoryId == sedan.Id).OrderBy(f => f.Id).ToList();
-        var item1 = db.Items.First(i => i.CategoryId == sedan.Id);
+        var item1 = db.Items.First(i => i.CategoryIds.Contains(sedan.Id));
         var item2 = new Item
         {
             SellerId = sellerId,
-            CategoryId = sedan.Id,
+            CategoryIds = new List<int> { sedan.Id },
             Title = "Similar Sedan",
             InitialPrice = 20000m,
             BidIncrement = 500m,
@@ -592,5 +628,33 @@ public class AuctionServiceTests
         db.Entry(item).Reload();
         item.Status.Should().Be(ItemStatus.Closed);
         db.BidHolds.Should().NotContain(h => h.ItemId == item.Id);
+    }
+
+    [Fact]
+    public async Task AdminPatchAuction_WithAdditionalSubcategories_ReplacesItemTags()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var item = db.Items.First(i => i.Status == ItemStatus.Active);
+        var primaryCategoryId = item.CategoryIds[0];
+        var primaryCategory = db.Categories.Single(c => c.Id == primaryCategoryId);
+        primaryCategory.ParentId.Should().NotBeNull();
+        var rootCategoryId = primaryCategory.ParentId!.Value;
+        var additionalCategoryId = db.Categories
+            .Where(c => c.ParentId == rootCategoryId && !item.CategoryIds.Contains(c.Id))
+            .Select(c => c.Id)
+            .First();
+
+        var (error, detail) = await service.AdminPatchAuctionAsync(
+            item.Id,
+            new AdminPatchAuctionDto
+            {
+                CategoryIds = new List<int> { primaryCategoryId, additionalCategoryId }
+            },
+            adminUserId: 1);
+
+        error.Should().BeNull();
+        detail.Should().NotBeNull();
+        detail!.CategoryIds.Should().Contain(additionalCategoryId);
     }
 }

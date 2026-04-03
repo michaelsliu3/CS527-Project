@@ -9,8 +9,9 @@ public record AuctionDetailDto
     public string? DetailImageUrl { get; init; }
     public string? ImageSource { get; init; }
     public string? ImageMatchLevel { get; init; }
-    public int CategoryId { get; init; }
+    public List<int> CategoryIds { get; init; } = new();
     public string CategoryName { get; init; } = string.Empty;
+    public List<string> CategoryNames { get; init; } = new();
     public int SellerId { get; init; }
     public string SellerUsername { get; init; } = string.Empty;
     public string? SellerAvatarUrl { get; init; }

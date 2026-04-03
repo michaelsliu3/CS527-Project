@@ -141,6 +141,39 @@ public class AdminGmController : ControllerBase
         return Ok(data);
     }
 
+    [HttpPost("categories")]
+    public async Task<IActionResult> CreateCategory([FromBody] GmCreateCategoryDto? dto)
+    {
+        if (dto == null)
+            return BadRequest("Request body is required.");
+
+        var (error, data) = await _gmToolsService.CreateCategoryAsync(GetAdminUserId(), dto);
+        if (error != null)
+            return BadRequest(error);
+        return Ok(data);
+    }
+
+    [HttpPatch("categories/{id:int}")]
+    public async Task<IActionResult> UpdateCategory(int id, [FromBody] GmUpdateCategoryDto? dto)
+    {
+        if (dto == null)
+            return BadRequest("Request body is required.");
+
+        var (error, data) = await _gmToolsService.UpdateCategoryAsync(GetAdminUserId(), id, dto);
+        if (error != null)
+            return BadRequest(error);
+        return Ok(data);
+    }
+
+    [HttpDelete("categories/{id:int}")]
+    public async Task<IActionResult> DeleteCategory(int id)
+    {
+        var (error, data) = await _gmToolsService.DeleteCategoryAsync(GetAdminUserId(), id);
+        if (error != null)
+            return BadRequest(error);
+        return Ok(data);
+    }
+
     private int GetAdminUserId()
     {
         return int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);

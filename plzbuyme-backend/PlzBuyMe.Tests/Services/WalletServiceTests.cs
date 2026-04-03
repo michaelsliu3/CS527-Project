@@ -65,13 +65,13 @@ public class WalletServiceTests
             WalletBalance = 100m
         };
         db.Users.Add(user);
-        var cat = new Category { Name = "Cars", ParentId = null };
+        var cat = new Category { Name = "Cars", ParentId = null, StringKey = "wlt-cars" };
         db.Categories.Add(cat);
         await db.SaveChangesAsync();
         var item = new Item
         {
             SellerId = user.Id,
-            CategoryId = cat.Id,
+            CategoryIds = new List<int> { cat.Id },
             Title = "X",
             InitialPrice = 10m,
             BidIncrement = 1m,

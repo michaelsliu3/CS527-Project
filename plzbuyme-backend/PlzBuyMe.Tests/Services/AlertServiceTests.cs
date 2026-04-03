@@ -39,7 +39,7 @@ public class AlertServiceTests
         var item = new Item
         {
             SellerId = sellerId,
-            CategoryId = sedanId,
+            CategoryIds = new List<int> { sedanId },
             Title = "Honda Accord",
             Description = "Clean sedan",
             InitialPrice = 15000m,
@@ -80,7 +80,7 @@ public class AlertServiceTests
         var item = new Item
         {
             SellerId = sellerId,
-            CategoryId = sedanId,
+            CategoryIds = new List<int> { sedanId },
             Title = "Tesla Model 3",
             Description = "Electric car",
             InitialPrice = 35000m,
@@ -119,7 +119,7 @@ public class AlertServiceTests
         var item = new Item
         {
             SellerId = sellerId,
-            CategoryId = sedanId,
+            CategoryIds = new List<int> { sedanId },
             Title = "Honda Civic",
             Description = "Gas car",
             InitialPrice = 20000m,
@@ -158,7 +158,7 @@ public class AlertServiceTests
         var item = new Item
         {
             SellerId = sellerId,
-            CategoryId = sedanId,
+            CategoryIds = new List<int> { sedanId },
             Title = "Sedan Only",
             Description = "Not SUV",
             InitialPrice = 10000m,
@@ -210,7 +210,7 @@ public class AlertServiceTests
         var item = new Item
         {
             SellerId = sellerId,
-            CategoryId = sedanId,
+            CategoryIds = new List<int> { sedanId },
             Title = "Toyota Camry 2022",
             Description = "Camry sedan",
             InitialPrice = 22000m,

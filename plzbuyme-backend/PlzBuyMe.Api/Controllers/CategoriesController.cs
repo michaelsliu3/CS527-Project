@@ -30,8 +30,10 @@ public class CategoriesController : ControllerBase
             {
                 Id = c.Id,
                 Name = c.Name,
+                StringKey = c.StringKey,
+                LucideIconKey = c.LucideIconKey,
                 ParentId = c.ParentId,
-                Children = new List<CategoryDto>()
+                Children = new List<CategoryDto>(),
             });
 
         foreach (var category in lookup.Values)
@@ -44,7 +46,6 @@ public class CategoriesController : ControllerBase
 
         var roots = lookup.Values
             .Where(c => c.ParentId == null)
-            .OrderBy(c => c.Name)
             .ToList();
 
         return Ok(roots);

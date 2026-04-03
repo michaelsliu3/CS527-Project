@@ -39,18 +39,35 @@ public class ReportService : IReportService
 
     public async Task<IReadOnlyList<EarningsByTypeDto>> GetEarningsByTypeAsync()
     {
-        return await _db.Items
+        var soldItems = await _db.Items
             .AsNoTracking()
             .Where(i => i.Status == ItemStatus.Sold)
-            .GroupBy(i => new { i.CategoryId, i.Category.Name })
-            .Select(g => new EarningsByTypeDto
+            .Select(i => new { i.CategoryIds, i.CurrentPrice })
+            .ToListAsync();
+
+        var earnings = new Dictionary<int, decimal>();
+        foreach (var item in soldItems)
+        {
+            var primaryCatId = item.CategoryIds.FirstOrDefault();
+            if (primaryCatId > 0)
+                earnings[primaryCatId] = earnings.GetValueOrDefault(primaryCatId) + item.CurrentPrice;
+        }
+
+        var catIds = earnings.Keys.ToList();
+        var nameMap = await _db.Categories
+            .AsNoTracking()
+            .Where(c => catIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name);
+
+        return earnings
+            .Select(kv => new EarningsByTypeDto
             {
-                CategoryId = g.Key.CategoryId,
-                CategoryName = g.Key.Name,
-                Earnings = g.Sum(i => i.CurrentPrice)
+                CategoryId = kv.Key,
+                CategoryName = nameMap.GetValueOrDefault(kv.Key, "Unknown"),
+                Earnings = kv.Value
             })
             .OrderByDescending(d => d.Earnings)
-            .ToListAsync();
+            .ToList();
     }
 
     public async Task<IReadOnlyList<EarningsByUserDto>> GetEarningsByUserAsync()
