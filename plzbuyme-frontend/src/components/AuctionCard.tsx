@@ -198,8 +198,6 @@ export function AuctionCard({ auction }: AuctionCardProps) {
     auction.categoryNames && auction.categoryNames.length > 0
       ? auction.categoryNames
       : [auction.categoryName].filter((v): v is string => Boolean(v))
-  const primaryCategoryName = categoryNames[0] ?? auction.categoryName
-  const secondaryCategoryNames = categoryNames.slice(1)
 
   return (
     <RouterLink to={`/auctions/${auction.id}`} state={{ backgroundLocation }}>
@@ -301,37 +299,33 @@ export function AuctionCard({ auction }: AuctionCardProps) {
               ))}
             </Flex>
           ) : null}
-          <Flex align="center" justify="space-between" gap={3}>
+          <Flex align="center" justify="space-between" gap={3} flexWrap="wrap">
             <Text fontSize="2xl" fontWeight="extrabold" color="brand.400" lineHeight="1.1">
               ${auction.currentPrice.toLocaleString()}
             </Text>
-            <Box
-              as="span"
-              flexShrink={0}
-              px={2}
-              py={0.5}
-              borderRadius="md"
-              fontSize="xs"
-              fontWeight="bold"
-              lineHeight="1.2"
-              letterSpacing="0.01em"
-              color="white"
-              bg={getCategoryGradient(primaryCategoryName)}
-              textShadow="0 1px 1px rgba(0, 0, 0, 0.28)"
-              boxShadow="0 6px 20px rgba(56, 189, 248, 0.22), 0 0 14px rgba(56, 189, 248, 0.2)"
-            >
-              {primaryCategoryName}
-            </Box>
-          </Flex>
-          {secondaryCategoryNames.length > 0 ? (
-            <Flex gap={1.5} flexWrap="wrap">
-              {secondaryCategoryNames.map((name) => (
-                <Badge key={`${auction.id}-${name}`} size="sm" variant="outline" colorPalette="blue">
+            <Flex gap={1.5} flexWrap="wrap" justify="flex-end" align="center" flexShrink={0}>
+              {categoryNames.map((name, index) => (
+                <Box
+                  key={`${auction.id}-cat-${index}-${name}`}
+                  as="span"
+                  flexShrink={0}
+                  px={2}
+                  py={0.5}
+                  borderRadius="md"
+                  fontSize="xs"
+                  fontWeight="bold"
+                  lineHeight="1.2"
+                  letterSpacing="0.01em"
+                  color="white"
+                  bg={getCategoryGradient(name)}
+                  textShadow="0 1px 1px rgba(0, 0, 0, 0.28)"
+                  boxShadow="0 6px 20px rgba(56, 189, 248, 0.22), 0 0 14px rgba(56, 189, 248, 0.2)"
+                >
                   {name}
-                </Badge>
+                </Box>
               ))}
             </Flex>
-          ) : null}
+          </Flex>
           <Text fontSize="sm" color={dark.muted} lineHeight="1.5">
             by{' '}
             <DisplayNameText

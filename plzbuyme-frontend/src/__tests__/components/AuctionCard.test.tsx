@@ -109,6 +109,24 @@ describe('AuctionCard', () => {
     expect(screen.getByText('No reserve')).toBeInTheDocument()
   })
 
+  it('renders all category tags with names when multiple categories are set', () => {
+    renderAuctionCard({
+      id: 58,
+      title: 'Multi-tag car',
+      currentPrice: 12000,
+      closeDateTime: new Date(Date.now() + 7200000).toISOString(),
+      status: 'active',
+      categoryName: 'Sedans',
+      categoryNames: ['Sports Cars', 'Electric', 'SUVs'],
+      sellerUsername: 'seller5',
+      bidCount: 0,
+    })
+
+    expect(screen.getByText('Sports Cars')).toBeInTheDocument()
+    expect(screen.getByText('Electric')).toBeInTheDocument()
+    expect(screen.getByText('SUVs')).toBeInTheDocument()
+  })
+
   it('renders a placeholder when no image exists', () => {
     renderAuctionCard({
       id: 57,

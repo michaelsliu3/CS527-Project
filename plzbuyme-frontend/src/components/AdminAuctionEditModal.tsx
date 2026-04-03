@@ -379,22 +379,21 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
                         <Flex gap={2} flexWrap="wrap">
                           {(selectedRoot?.children ?? []).map((c) => {
                             const selected = selectedSubcategoryIds.includes(c.id)
-                            const selectedIndex = selectedSubcategoryIds.indexOf(c.id)
                             return (
                               <Button
                                 key={c.id}
                                 type="button"
                                 size="sm"
                                 variant="outline"
-                                bg={selected ? 'whiteAlpha.100' : 'transparent'}
+                                bg={selected ? 'whiteAlpha.300' : 'transparent'}
                                 borderColor={dark.borderSubtle}
                                 color="white"
                                 fontWeight={selected ? 'semibold' : 'medium'}
-                                _hover={{ bg: 'whiteAlpha.100' }}
-                                _active={{ bg: 'whiteAlpha.200' }}
+                                _hover={{ bg: selected ? 'whiteAlpha.300' : 'whiteAlpha.100' }}
+                                _active={{ bg: selected ? 'whiteAlpha.400' : 'whiteAlpha.200' }}
                                 onClick={() => toggleSubcategory(c.id)}
                               >
-                                {selectedIndex === 0 ? `${c.name} (Primary)` : c.name}
+                                {c.name}
                               </Button>
                             )
                           })}
@@ -434,7 +433,7 @@ export function AdminAuctionEditModal({ auction, open, onClose, onSaved }: Admin
                           bg={getCategoryGradient(c.name)}
                           textShadow="0 1px 1px rgba(0, 0, 0, 0.28)"
                         >
-                          {selectedSubcategoryIds.indexOf(c.id) === 0 ? `${c.name} (Primary)` : c.name}
+                          {c.name}
                         </Badge>
                       ))
                   )}
