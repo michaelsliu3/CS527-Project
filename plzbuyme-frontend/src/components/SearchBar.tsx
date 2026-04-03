@@ -25,6 +25,7 @@ import { getFieldValues } from '../api/auctions'
 import { dark } from '../theme/colors'
 import { fetchCategories, type CategoryDto } from '../api/categories'
 import { resolveLucideIconForKey } from '../constants/categoryLucideIcons'
+import { subscribeAuctionListRefresh } from '../utils/auctionListRefresh'
 
 const SORT_OPTIONS = [
   { value: '', label: 'Default' },
@@ -317,6 +318,7 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
   const [closingBefore, setClosingBefore] = useState<string>(() =>
     getDateOnlyValue(searchParams.get('closingBefore'))
   )
+  const [categoriesRefreshToken, setCategoriesRefreshToken] = useState(0)
 
   useEffect(() => {
     if (hasInitializedDefaultStatus.current) return
@@ -326,6 +328,12 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
     next.set('status', DEFAULT_STATUS)
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    return subscribeAuctionListRefresh(() => {
+      setCategoriesRefreshToken((token) => token + 1)
+    })
+  }, [])
 
   useEffect(() => {
     let isMounted = true
@@ -378,7 +386,7 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
       isMounted = false
     }
     // Use serialized query so a new URLSearchParams instance each render does not refetch in a loop.
-  }, [searchParams.toString()])
+  }, [searchParams.toString(), categoriesRefreshToken])
 
   useEffect(() => {
     const nextMin = searchParams.get('minPrice')

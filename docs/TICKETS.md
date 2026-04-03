@@ -529,6 +529,8 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **API:** `POST api/auctions/create` accepts `additionalCategoryIds` (optional list). List rows include `categoryNames` (primary + tag names for display). Detail includes `categoryNames` and `additionalCategoryIds`. `PATCH api/admin/auctions/{id}` accepts optional `additionalCategoryIds`: **omit/null** leaves tags unchanged; **empty array** clears all tags.
 - **Browse filter:** When `category_id` is set, results include items whose **primary** `category_id` matches **or** any `ItemSubcategoryTags` row matches (**OR** semantics). Explicit AND/OR query modes are not implemented.
 - **Frontend:** Create Auction and sell modal support multi-select **additional subcategories** (chips) under the same root as the chosen primary category. Admin auction **Edit** can view/change tags. `AuctionCard` and auction detail show multiple category labels/chips.
+- **GT7 category auto routing:** Manifest assets can carry an ordered `categories` array; seeding normalizes those values to category string keys and prefers that curated order before keyword inference, selecting the first resolvable category that has fields.
+- **Live browse refresh integration:** GM category edits emit an in-app refresh signal so open `AuctionListPage` / `SearchBar` and create-related category consumers refetch category data without manual page reload.
 - **Tests:** `AuctionServiceTests` coverage for create/patch/browse/tag validation paths.
 
 **Follow-up (optional):**

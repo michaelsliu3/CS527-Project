@@ -269,10 +269,17 @@ public class GmToolsService : IGmToolsService
     {
         if (string.Equals(categoryMode, "auto", StringComparison.OrdinalIgnoreCase))
         {
-            var stringKey = Gt7ManifestAuctionBuilder.InferCategoryStringKey(asset);
-            return await _db.Categories
-                .Include(c => c.CategoryFields)
-                .FirstOrDefaultAsync(c => c.StringKey == stringKey && c.CategoryFields.Any());
+            var categoryKeys = Gt7ManifestAuctionBuilder.ResolveCategoryStringKeys(asset);
+            foreach (var stringKey in categoryKeys)
+            {
+                var match = await _db.Categories
+                    .Include(c => c.CategoryFields)
+                    .FirstOrDefaultAsync(c => c.StringKey == stringKey && c.CategoryFields.Any());
+                if (match != null)
+                    return match;
+            }
+
+            return null;
         }
 
         return await _db.Categories

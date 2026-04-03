@@ -33,4 +33,11 @@ public class Gt7ManifestAsset
 
     [JsonPropertyName("color")]
     public string? Color { get; set; }
+
+    /// <summary>
+    /// Optional curated category list (string keys or display names) ordered by primary relevance.
+    /// Example: ["sedans", "sports-cars"].
+    /// </summary>
+    [JsonPropertyName("categories")]
+    public List<string> Categories { get; set; } = new();
 }

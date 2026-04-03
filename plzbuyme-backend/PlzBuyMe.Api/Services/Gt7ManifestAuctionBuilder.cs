@@ -16,6 +16,8 @@ public static class Gt7ManifestAuctionBuilder
     public const string StringKeyTrucks = "trucks";
     public const string StringKeySportsCars = "sports-cars";
     public const string StringKeyElectric = "electric";
+    public const string StringKeyCompactSedans = "compact-sedans";
+    public const string StringKeyFullSizeSedans = "full-size-sedans";
 
     public static List<Gt7ManifestAsset> SelectAssets(IReadOnlyList<Gt7ManifestAsset> all, int count, string? titleKeyword)
     {
@@ -85,6 +87,50 @@ public static class Gt7ManifestAuctionBuilder
             return StringKeySportsCars;
 
         return StringKeySedans;
+    }
+
+    /// <summary>
+    /// Returns candidate category string keys in priority order.
+    /// Prefers curated manifest categories; falls back to keyword-based inference.
+    /// </summary>
+    public static List<string> ResolveCategoryStringKeys(Gt7ManifestAsset asset)
+    {
+        var resolved = new List<string>();
+        foreach (var raw in asset.Categories)
+        {
+            var normalized = NormalizeCategoryToStringKey(raw);
+            if (normalized == null || resolved.Contains(normalized, StringComparer.Ordinal))
+                continue;
+            resolved.Add(normalized);
+        }
+
+        if (resolved.Count > 0)
+            return resolved;
+
+        return [InferCategoryStringKey(asset)];
+    }
+
+    private static string? NormalizeCategoryToStringKey(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        var trimmed = raw.Trim();
+        var compact = trimmed.Replace(" ", "", StringComparison.Ordinal)
+            .Replace("-", "", StringComparison.Ordinal)
+            .ToLowerInvariant();
+        return compact switch
+        {
+            "sedan" or "sedans" => StringKeySedans,
+            "suv" or "suvs" => StringKeySuvs,
+            "truck" or "trucks" => StringKeyTrucks,
+            "sportscar" or "sportscars" => StringKeySportsCars,
+            "electric" => StringKeyElectric,
+            "compactsedan" or "compactsedans" => StringKeyCompactSedans,
+            "fullsizesedan" or "fullsizesedans" => StringKeyFullSizeSedans,
+            "cars" => "cars",
+            _ => null
+        };
     }
 
     /// <summary>

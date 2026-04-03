@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Box, Button, Checkbox, Flex, Icon, Input, Menu, Tabs, Text, Textarea } from '@chakra-ui/react'
+import { Box, Button, Checkbox, Flex, Icon, Input, Menu, Tabs, Text } from '@chakra-ui/react'
 import { isAxiosError } from 'axios'
 import { apiClient } from '../api/client'
 import { fetchCategories, type CategoryDto } from '../api/categories'
@@ -969,8 +969,8 @@ export function GmToolsPanel() {
                   Category catalog
                 </Text>
                 <Text fontSize="sm" color={dark.label} mb={2}>
-                  Uses the same tree as browse/search. After changes, refresh the app or reopen modals to pick up new
-                  data. String keys must be unique when set; use them for GT7 &quot;auto&quot; routing and search hub metadata.
+                  Uses the same tree as browse/search. Category changes push an in-app refresh to open browse views and
+                  modals. String keys must be unique when set; use them for GT7 &quot;auto&quot; routing and search hub metadata.
                 </Text>
                 <Flex gap={2} mb={2} flexWrap="wrap" align="center">
                   <Button

@@ -716,9 +716,9 @@ These endpoints are **admin-only** (`AdminOnly` policy). They exist for **demos,
 
 **Audit:** each successful GM action is logged at **Warning** level with the admin user id and counts affected (Serilog).
 
-**Frontend:** “GM tools” opens from a **right-edge tab** (admins on any page); **slides in from the right** as a full-height panel with backdrop dismiss and error toasts. The **Seed auctions** tab combines **random/synthetic** and **GT7 manifest** sources behind one form. **Categories** tab: reload tree from `GET /api/categories`, create/update/delete via GM category endpoints (string keys + lucide icon keys). **Delete all auctions** is available in the panel for full environment reset alongside other GM actions. Legacy `/admin/gm` redirects to `/admin`.
+**Frontend:** “GM tools” opens from a **right-edge tab** (admins on any page); **slides in from the right** as a full-height panel with backdrop dismiss and error toasts. The **Seed auctions** tab combines **random/synthetic** and **GT7 manifest** sources behind one form. **Categories** tab: reload tree from `GET /api/categories`, create/update/delete via GM category endpoints (string keys + lucide icon keys), and emit an in-app auction-list refresh signal so open browse/search surfaces and create flows refetch category data without a full page reload. **Delete all auctions** is available in the panel for full environment reset alongside other GM actions. Legacy `/admin/gm` redirects to `/admin`.
 
-**GT7 manifest seeding:** category mode `auto` infers a target subcategory `string_key` from manifest text; manual mode accepts a category `string_key` or display `name` (must resolve to a category that has `category_fields`).
+**GT7 manifest seeding:** category mode `auto` first reads the manifest's optional ordered `categories` list (normalized to category `string_key` values) and picks the first key that resolves to a category with `category_fields`; if no curated category resolves, it falls back to title/make/model text inference. Manual mode accepts a category `string_key` or display `name` (must resolve to a category that has `category_fields`).
 
 #### Admin auction edit — `api/admin/auctions`
 
@@ -1214,7 +1214,7 @@ node plzbuyme-backend/scripts/create-auctions-temp.mjs
 
 Supported behavior:
 
-- `AUCTION_SEED_CATEGORY=auto` infers a leaf category from manifest text; resolution matches seeded `categories.string_key` values (e.g. `sedans`, `electric`) where those rows exist.
+- `AUCTION_SEED_CATEGORY=auto` prefers the manifest entry's ordered `categories` values (when present), normalized to known category `string_key` values, and chooses the first category that exists and has fields; if none resolve, it falls back to title/make/model text inference.
 - Manual override: set `AUCTION_SEED_CATEGORY` to a category **string key** or display **name** (must match a category that has fields).
 - Cars are chosen **at random** (without replacement) from the manifest up to `AUCTION_SEED_COUNT`; with `AUCTION_SEED_TITLE_KEYWORD`, the pool is filtered first, then shuffled.
 - Auction values are randomized per item (close window, initial price, reserve, bid increment, mileage) to avoid deterministic demo data.
