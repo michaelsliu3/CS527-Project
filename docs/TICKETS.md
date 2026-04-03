@@ -603,6 +603,8 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - New dependencies: `three`, `@types/three`, `meshoptimizer`.
 - **Driving mode (click-and-hold):** In both interactive and hero modes, pressing and holding the mouse triggers a driving simulation — wheels spin with progressive acceleration (max speed 8), 400 instanced speed-line streaks (additive-blended, multi-color palette) fade in around the car forming a warp tunnel, and the camera FOV widens with an ease-in-out curve (35→75) for a rush sensation. Releasing smoothly decelerates everything back to idle.
 - **Tests:** add frontend tests for carousel navigation (prev/next/dot/keyboard), slide type rendering (image vs 3D), swipe gesture thresholds, and lazy-loading behavior for the 3D component.
+- **Spoiler (tail wing) animation:** The model's "WeiYi" node (尾翼) is detected at load time. During the cinematic intro it tilts up gently; while driving, the tilt scales quadratically with speed (up to ~14°) and the spoiler lifts 0.1 units. On mouse release everything smoothly retracts with exponential-decay lerping. Transition rates are asymmetric — faster when opening, slower when closing — for a natural feel.
+- **Carousel overlay hiding:** `ImageCarousel` accepts a `hideOverlays` prop that fades out arrows, dot indicators, 3D badge, and zoom hint during driving and before the intro completes. Hide is fast (0.15 s) to stay out of the way; reveal is slow (0.8 s) for a cinematic fade-in. `Su7ThreeHero` exposes `onDrivingChange` and `onIntroComplete` callbacks so `AuctionDetailPage` can coordinate overlay visibility.
 
 ---
 

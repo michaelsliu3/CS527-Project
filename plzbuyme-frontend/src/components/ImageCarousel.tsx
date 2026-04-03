@@ -12,11 +12,12 @@ export interface CarouselSlide {
 interface ImageCarouselProps {
   slides: CarouselSlide[]
   aspectRatio?: number
+  hideOverlays?: boolean
 }
 
 const SWIPE_THRESHOLD = 40
 
-export function ImageCarousel({ slides, aspectRatio = 16 / 9 }: ImageCarouselProps) {
+export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = false }: ImageCarouselProps) {
   const [current, setCurrent] = useState(0)
   const [dragOffset, setDragOffset] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
@@ -174,8 +175,10 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9 }: ImageCarouselPro
           justifyContent="center"
           zIndex={5}
           cursor="pointer"
-          transition="background 0.15s"
+          transition={hideOverlays ? 'background 0.15s, opacity 0.15s ease-out' : 'background 0.15s, opacity 0.8s ease-in-out'}
           onClick={goPrev}
+          opacity={hideOverlays ? 0 : 1}
+          pointerEvents={hideOverlays ? 'none' : 'auto'}
         >
           <LuChevronLeft size={20} />
         </Box>
@@ -198,8 +201,10 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9 }: ImageCarouselPro
           justifyContent="center"
           zIndex={5}
           cursor="pointer"
-          transition="background 0.15s"
+          transition={hideOverlays ? 'background 0.15s, opacity 0.15s ease-out' : 'background 0.15s, opacity 0.8s ease-in-out'}
           onClick={goNext}
+          opacity={hideOverlays ? 0 : 1}
+          pointerEvents={hideOverlays ? 'none' : 'auto'}
         >
           <LuChevronRight size={20} />
         </Box>
@@ -219,6 +224,9 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9 }: ImageCarouselPro
           px={3}
           py={1.5}
           backdropFilter="blur(8px)"
+          opacity={hideOverlays ? 0 : 1}
+          transition={hideOverlays ? 'opacity 0.15s ease-out' : 'opacity 0.8s ease-in-out'}
+          pointerEvents={hideOverlays ? 'none' : undefined}
         >
           {slides.map((slide, i) => (
             <Box
@@ -254,6 +262,9 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9 }: ImageCarouselPro
           gap={1.5}
           align="center"
           backdropFilter="blur(8px)"
+          opacity={hideOverlays ? 0 : 1}
+          transition={hideOverlays ? 'opacity 0.15s ease-out' : 'opacity 0.8s ease-in-out'}
+          pointerEvents={hideOverlays ? 'none' : undefined}
         >
           <LuBox size={14} color="white" />
           <Text fontSize="xs" color="white" fontWeight="semibold" letterSpacing="0.04em">
@@ -274,6 +285,8 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9 }: ImageCarouselPro
           zIndex={5}
           pointerEvents="none"
           textAlign="center"
+          opacity={hideOverlays ? 0 : 1}
+          transition={hideOverlays ? 'opacity 0.15s ease-out' : 'opacity 0.8s ease-in-out'}
         >
           Drag to rotate · Scroll to zoom
         </Text>

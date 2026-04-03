@@ -144,6 +144,8 @@ export function AuctionDetailPage() {
   const [bidError, setBidError] = useState<string | null>(null)
   const [bidSubmitting, setBidSubmitting] = useState(false)
   const [adminEditOpen, setAdminEditOpen] = useState(false)
+  const [isDriving3D, setIsDriving3D] = useState(false)
+  const [introComplete3D, setIntroComplete3D] = useState(false)
   const adminEditOpenRef = useRef(false)
   const handleCloseRef = useRef(handleClose)
   adminEditOpenRef.current = adminEditOpen
@@ -260,7 +262,7 @@ export function AuctionDetailPage() {
         type: '3d',
         render: ({ activationCount }) => (
           <Suspense fallback={<Box w="100%" h="100%" bg="#05070d" />}>
-            <Su7ThreeHero key={`su7-3d-${activationCount}`} title={auction.title} interactive />
+            <Su7ThreeHero key={`su7-3d-${activationCount}`} title={auction.title} interactive onDrivingChange={setIsDriving3D} onIntroComplete={() => setIntroComplete3D(true)} />
           </Suspense>
         ),
       })
@@ -408,7 +410,7 @@ export function AuctionDetailPage() {
               w={{ base: 'calc(100% + 2rem)', md: 'calc(100% + 3rem)' }}
               mx={{ base: '-1rem', md: '-1.5rem' }}
             >
-              <ImageCarousel slides={carouselSlides} aspectRatio={16 / 9} />
+              <ImageCarousel slides={carouselSlides} aspectRatio={16 / 9} hideOverlays={isDriving3D || !introComplete3D} />
             </Box>
           )}
           <Box mt={4}>

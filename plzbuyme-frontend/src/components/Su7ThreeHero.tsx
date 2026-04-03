@@ -11,6 +11,8 @@ interface Su7ThreeHeroProps {
   title: string
   /** When true, the viewer fills its parent and enables orbit interaction */
   interactive?: boolean
+  onDrivingChange?: (driving: boolean) => void
+  onIntroComplete?: () => void
 }
 
 const COLOR_SWATCHES = [
@@ -25,10 +27,18 @@ const COLOR_SWATCHES = [
 const DEFAULT_SWATCH_ID = 'yellow'
 const EXTERIOR_PAINT_MATERIAL_NAMES = new Set(['Car_body'])
 
-export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) {
+export function Su7ThreeHero({ title, interactive = false, onDrivingChange, onIntroComplete }: Su7ThreeHeroProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [selectedSwatchId, setSelectedSwatchId] = useState<string>(DEFAULT_SWATCH_ID)
+  const [isDrivingUI, setIsDrivingUI] = useState(false)
+  const [introCompleted, setIntroCompleted] = useState(false)
+  const onDrivingChangeRef = useRef(onDrivingChange)
+  onDrivingChangeRef.current = onDrivingChange
+  const onIntroCompleteRef = useRef(onIntroComplete)
+  onIntroCompleteRef.current = onIntroComplete
+
+  const shouldHideUI = isDrivingUI || !introCompleted
   const paintMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([])
   const fallbackBodyMaterialRef = useRef<THREE.MeshPhysicalMaterial | null>(null)
   const selectedColorRef = useRef<string>(COLOR_SWATCHES[0].hex)
@@ -319,6 +329,15 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     let activeRoot: THREE.Object3D = fallback.root
     const fallbackWheels = fallback.wheels
     let modelWheels: THREE.Object3D[] = []
+    let spoilerNode: THREE.Object3D | null = null
+    let spoilerBaseRotZ = 0
+    let spoilerBaseY = 0
+    let spoilerCurrentAngle = 0
+    let spoilerCurrentLift = 0
+    let hasUserInteracted = false
+    const SPOILER_INTRO_ANGLE = -0.08
+    const SPOILER_FULL_ANGLE = -0.25
+    const SPOILER_LIFT = 0.1
 
     const fitCameraToObject = (object: THREE.Object3D) => {
       const box = new THREE.Box3().setFromObject(object)
@@ -387,6 +406,9 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
           if (wheelNameRegex.test(object.name)) {
             allWheelCandidates.push(object)
           }
+          if (object.name === 'WeiYi') {
+            spoilerNode = object
+          }
 
           if (mesh.isMesh) {
             const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
@@ -454,6 +476,11 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         activeRoot = modelRoot
         modelWheels = detectedWheels
         carGroup.add(activeRoot)
+
+        if (spoilerNode) {
+          spoilerBaseRotZ = spoilerNode.rotation.z
+          spoilerBaseY = spoilerNode.position.y
+        }
 
         // Invisible light sources at known model positions (car faces +X)
         const fBox = new THREE.Box3().setFromObject(modelRoot)
@@ -544,9 +571,14 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
     onPointerDown = () => {
       initAudio()
       isDriving = true
+      hasUserInteracted = true
+      setIsDrivingUI(true)
+      onDrivingChangeRef.current?.(true)
     }
     onPointerUp = () => {
       isDriving = false
+      setIsDrivingUI(false)
+      onDrivingChangeRef.current?.(false)
     }
     mount.addEventListener('pointerdown', onPointerDown)
     window.addEventListener('pointerup', onPointerUp)
@@ -624,6 +656,8 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
           controls?.target.lerp(lookTarget, 0.25)
           if (entryBlend >= 1) {
             introComplete = true
+            setIntroCompleted(true)
+            onIntroCompleteRef.current?.()
             if (controls) {
               controls.target.copy(lookTarget)
               controls.enabled = true
@@ -677,6 +711,39 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         camera.position.y = THREE.MathUtils.lerp(camera.position.y, baseCameraPosition.y - pointer.y * 0.16, 0.05)
         camera.position.z = THREE.MathUtils.lerp(camera.position.z, baseCameraPosition.z + pointer.x * 0.14, 0.05)
         camera.lookAt(lookTarget.x + pointer.x * 0.05, lookTarget.y - pointer.y * 0.03, lookTarget.z)
+      }
+
+      if (spoilerNode) {
+        const speedNorm = Math.min(driveSpeed / 5, 1)
+        const eased = speedNorm * speedNorm
+
+        let targetAngle: number
+        let targetLift: number
+        if (entryBlend > 0.3 && !hasUserInteracted) {
+          targetAngle = SPOILER_INTRO_ANGLE
+          targetLift = 0
+        } else if (isDriving) {
+          targetAngle = SPOILER_INTRO_ANGLE + (SPOILER_FULL_ANGLE - SPOILER_INTRO_ANGLE) * eased
+          targetLift = SPOILER_LIFT
+        } else {
+          targetAngle = 0
+          targetLift = 0
+        }
+
+        const opening = Math.abs(targetAngle) > Math.abs(spoilerCurrentAngle)
+        const rate = opening ? 2.2 + speedNorm * 1.8 : 1.8
+        spoilerCurrentAngle = THREE.MathUtils.lerp(
+          spoilerCurrentAngle,
+          targetAngle,
+          1 - Math.exp(-dt * rate),
+        )
+        spoilerCurrentLift = THREE.MathUtils.lerp(
+          spoilerCurrentLift,
+          targetLift,
+          1 - Math.exp(-dt * rate),
+        )
+        spoilerNode.rotation.z = spoilerBaseRotZ + spoilerCurrentAngle
+        spoilerNode.position.y = spoilerBaseY + spoilerCurrentLift
       }
 
       const baseFov = 35
@@ -800,7 +867,9 @@ export function Su7ThreeHero({ title, interactive = false }: Su7ThreeHeroProps) 
         boxShadow="0 10px 26px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.16)"
         backdropFilter="blur(12px) saturate(125%)"
         zIndex={3}
-        pointerEvents="auto"
+        pointerEvents={shouldHideUI ? 'none' : 'auto'}
+        opacity={shouldHideUI ? 0 : 1}
+        transition={shouldHideUI ? 'opacity 0.15s ease-out' : 'opacity 0.8s ease-in-out'}
       >
         {COLOR_SWATCHES.map((swatch) => {
           const isSelected = swatch.id === selectedSwatchId
