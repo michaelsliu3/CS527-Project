@@ -623,7 +623,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-35 — Admin quick-create auction from car manifest
+## PBM-35 — Admin quick-create auction from car manifest ✅
 
 **Layer:** Frontend + Backend  
 **Branch:** `PBM-35/admin-quick-create-from-manifest`  
@@ -637,6 +637,18 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Data source approach: either expose a slim backend endpoint returning searchable manifest rows or preload a compact client dataset with indexing; prefer the approach that keeps modal open latency low and payload size controlled.
 - Access control: feature should only render for admin role(s); non-admin users should see no UI or API path changes.
 - **Tests:** add frontend tests for admin-only visibility, autocomplete interactions, and autofill behavior; add backend tests (if endpoint added) for auth and response shaping; include manual QA checklist for end-to-end create flow with autofill and edits.
+- **UX fix:** Opening the sell modal resets quick-create trigger state so the manifest selector does not stay open after the user closes the modal without choosing a car (regression test: close/reopen).
+- **Autofill polish:** After a manifest row is chosen, collapse the manifest selector; prefill common vehicle detail fields with baseline defaults when the manifest does not specify them (condition, fuel type, transmission).
+
+---
+
+## PBM-36 — 3D model menu improvements
+
+**Layer:** Frontend  
+**Branch:** `PBM-36/3d-model-menu-improvements`  
+**PR Title:** `[PBM-36] improve 3d model menu interactions and usability`
+
+- Placeholder description: improve the 3D model menu UX (layout, controls, discoverability, and responsiveness), including a magnifying-glass button that zooms up the view and reflective line effects on the car; detailed scope to be defined.
 
 ---
 

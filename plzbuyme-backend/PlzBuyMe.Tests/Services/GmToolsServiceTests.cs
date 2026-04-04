@@ -23,12 +23,16 @@ public class GmToolsServiceTests
         return new AppDbContext(options);
     }
 
-    private static GmToolsService CreateService(AppDbContext db, Mock<IAuctionService>? auctionMock = null)
+    private static GmToolsService CreateService(
+        AppDbContext db,
+        Mock<IAuctionService>? auctionMock = null,
+        Dictionary<string, string?>? configValues = null,
+        string? contentRootPath = null)
     {
         auctionMock ??= new Mock<IAuctionService>();
         var hostEnv = new Mock<IHostEnvironment>();
-        hostEnv.Setup(e => e.ContentRootPath).Returns(Path.GetTempPath());
-        var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
+        hostEnv.Setup(e => e.ContentRootPath).Returns(contentRootPath ?? Path.GetTempPath());
+        var config = new ConfigurationBuilder().AddInMemoryCollection(configValues).Build();
         return new GmToolsService(
             db,
             auctionMock.Object,
@@ -39,6 +43,72 @@ public class GmToolsServiceTests
             Mock.Of<ILogger<GmToolsService>>(),
             hostEnv.Object,
             config);
+    }
+
+    [Fact]
+    public async Task SearchManifestCars_ReturnsShapedRowsWithResolvedCategories()
+    {
+        await using var db = CreateDb();
+        var root = new Category { Name = "Cars", StringKey = "cars" };
+        db.Categories.Add(root);
+        await db.SaveChangesAsync();
+        var sedans = new Category { Name = "Sedans", ParentId = root.Id, StringKey = "sedans" };
+        db.Categories.Add(sedans);
+        await db.SaveChangesAsync();
+        db.CategoryFields.Add(new CategoryField
+        {
+            CategoryId = sedans.Id,
+            FieldName = "Make",
+            FieldType = FieldType.Text
+        });
+        await db.SaveChangesAsync();
+
+        var tempManifestPath = Path.Combine(Path.GetTempPath(), $"gm-manifest-{Guid.NewGuid():N}.json");
+        await File.WriteAllTextAsync(
+            tempManifestPath,
+            """
+            {
+              "assets": [
+                {
+                  "externalId": "12345",
+                  "sourceUrl": "https://example.com/car.png",
+                  "title": "Honda Civic Type R '22",
+                  "make": "Honda",
+                  "model": "Civic Type R",
+                  "year": 2022,
+                  "color": "Championship White",
+                  "categories": ["sedans"]
+                }
+              ]
+            }
+            """);
+
+        try
+        {
+            var svc = CreateService(
+                db,
+                configValues: new Dictionary<string, string?> { ["Gt7CarManifest:Path"] = tempManifestPath });
+
+            var (error, data) = await svc.SearchManifestCarsAsync(1, "civic", 5);
+
+            error.Should().BeNull();
+            data.Should().NotBeNull();
+            var rows = data ?? throw new InvalidOperationException("Expected manifest search rows.");
+            rows.Should().HaveCount(1);
+            var row = rows[0];
+            row.Make.Should().Be("Honda");
+            row.Model.Should().Be("Civic Type R");
+            row.Year.Should().Be(2022);
+            row.SourceUrl.Should().Be("https://example.com/car.png");
+            row.CategoryIds.Should().Contain(sedans.Id);
+            row.CategoryNames.Should().Contain("Sedans");
+            row.CategoryStringKeys.Should().Contain("sedans");
+        }
+        finally
+        {
+            if (File.Exists(tempManifestPath))
+                File.Delete(tempManifestPath);
+        }
     }
 
     [Fact]

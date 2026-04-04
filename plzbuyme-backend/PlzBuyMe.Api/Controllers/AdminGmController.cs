@@ -11,11 +11,24 @@ namespace PlzBuyMe.Api.Controllers;
 [Authorize(Policy = "AdminOnly")]
 public class AdminGmController : ControllerBase
 {
+    private const int DefaultManifestSearchLimit = 12;
     private readonly IGmToolsService _gmToolsService;
 
     public AdminGmController(IGmToolsService gmToolsService)
     {
         _gmToolsService = gmToolsService;
+    }
+
+    [HttpGet("manifest/cars")]
+    public async Task<IActionResult> SearchManifestCars([FromQuery] string? q, [FromQuery] int? limit)
+    {
+        var (error, data) = await _gmToolsService.SearchManifestCarsAsync(
+            GetAdminUserId(),
+            q,
+            limit ?? DefaultManifestSearchLimit);
+        if (error != null)
+            return BadRequest(error);
+        return Ok(data);
     }
 
     [HttpPost("auctions/seed")]
