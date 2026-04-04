@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { Box, Badge, Button, Container, Flex, Heading, IconButton, Image, Input, Spinner, Text } from '@chakra-ui/react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Box, Badge, Button, Container, Flex, Heading, IconButton, Input, Spinner, Text } from '@chakra-ui/react'
 import { keyframes } from '@emotion/react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
@@ -15,6 +15,7 @@ import {
 import { AdminAuctionEditModal } from '../components/AdminAuctionEditModal'
 import { BidHistory } from '../components/BidHistory'
 import { AuctionCard } from '../components/AuctionCard'
+import { ImageCarousel, type CarouselSlide } from '../components/ImageCarousel'
 import { DisplayNameText } from '../components/DisplayNameText'
 import { UserAvatar } from '../components/UserAvatar'
 import { showErrorToast } from '../components/ui/toaster'
@@ -24,6 +25,30 @@ import { APP_PAGE_PX } from '../theme/layout'
 import { resolveMediaUrl } from '../utils/mediaUrl'
 import { notifyAuctionListRefresh } from '../utils/auctionListRefresh'
 import { useScrollLock } from '../hooks/useScrollLock'
+
+const Su7ThreeHero = lazy(async () => {
+  const module = await import('../components/Su7ThreeHero')
+  return { default: module.Su7ThreeHero }
+})
+
+function buildImageVariantUrl(sourceUrl: string, frame: '01' | '02'): string | null {
+  const [withoutHash, hash = ''] = sourceUrl.split('#')
+  const [withoutQuery, query = ''] = withoutHash.split('?')
+  const replaced = withoutQuery.replace(/2_\d{2}(?:-[^/.]+)?(?=\.[^/.]+$)/i, `2_${frame}`)
+  if (replaced === withoutQuery) return null
+  const queryPart = query ? `?${query}` : ''
+  const hashPart = hash ? `#${hash}` : ''
+  return `${replaced}${queryPart}${hashPart}`
+}
+
+function getImageFrameTag(sourceUrl: string): '00' | '01' | '02' | null {
+  const match = sourceUrl.match(/2_(\d{2})/i)
+  if (!match) return null
+  if (match[1] === '00' || match[1] === '01' || match[1] === '02') {
+    return match[1]
+  }
+  return null
+}
 
 function toUtcEpochMs(value: string): number {
   const normalized = value.endsWith('Z') || /[-+]\d{2}:?\d{2}$/.test(value) ? value : `${value}Z`
@@ -119,6 +144,8 @@ export function AuctionDetailPage() {
   const [bidError, setBidError] = useState<string | null>(null)
   const [bidSubmitting, setBidSubmitting] = useState(false)
   const [adminEditOpen, setAdminEditOpen] = useState(false)
+  const [isDriving3D, setIsDriving3D] = useState(false)
+  const [introComplete3D, setIntroComplete3D] = useState(false)
   const adminEditOpenRef = useRef(false)
   const handleCloseRef = useRef(handleClose)
   adminEditOpenRef.current = adminEditOpen
@@ -220,6 +247,51 @@ export function AuctionDetailPage() {
     }
   }
 
+  const carouselSlides = useMemo<CarouselSlide[]>(() => {
+    if (!auction) return []
+    const slides: CarouselSlide[] = []
+    const seenImageUrls = new Set<string>()
+
+    const imgSrc = resolveMediaUrl(auction.detailImageUrl ?? auction.imageUrl)
+    const altImgSrc = resolveMediaUrl(auction.imageUrl)
+    const model = auction.fieldValues.find((fv) => fv.fieldName.toLowerCase() === 'model')?.value ?? ''
+    const isSu7 = `${auction.title} ${auction.description ?? ''} ${model}`.toLowerCase().includes('su7')
+
+    if (isSu7) {
+      slides.push({
+        type: '3d',
+        render: ({ activationCount }) => (
+          <Suspense fallback={<Box w="100%" h="100%" bg="#05070d" />}>
+            <Su7ThreeHero key={`su7-3d-${activationCount}`} title={auction.title} interactive onDrivingChange={setIsDriving3D} onIntroComplete={() => setIntroComplete3D(true)} />
+          </Suspense>
+        ),
+      })
+    }
+
+    if (imgSrc) {
+      slides.push({ type: 'image', src: imgSrc, alt: auction.title })
+      seenImageUrls.add(imgSrc)
+    }
+
+    if (isSu7 && imgSrc) {
+      const sourcesToInspect = [imgSrc, altImgSrc].filter((v): v is string => Boolean(v))
+
+      ;(['01', '02'] as const).forEach((frame) => {
+        const existingFrameUrl = sourcesToInspect.find((source) => getImageFrameTag(source) === frame)
+        const frameSrc = existingFrameUrl ?? buildImageVariantUrl(imgSrc, frame)
+        if (!frameSrc || seenImageUrls.has(frameSrc)) return
+        slides.push({
+          type: 'image',
+          src: frameSrc,
+          alt: `${auction.title} angle ${frame}`,
+        })
+        seenImageUrls.add(frameSrc)
+      })
+    }
+
+    return slides
+  }, [auction])
+
   if (loading || !id) {
     return (
       <Flex justify="center" py={12}>
@@ -241,7 +313,6 @@ export function AuctionDetailPage() {
 
   const statusColor =
     auction.status === 'active' ? 'green' : auction.status === 'sold' ? 'blue' : 'gray'
-  const imageSrc = resolveMediaUrl(auction.detailImageUrl ?? auction.imageUrl)
   const categoryNames =
     auction.categoryNames && auction.categoryNames.length > 0
       ? auction.categoryNames
@@ -334,17 +405,14 @@ export function AuctionDetailPage() {
 
       <Box>
         <Box mb={4}>
-          {imageSrc ? (
+          {carouselSlides.length > 0 && (
             <Box
               w={{ base: 'calc(100% + 2rem)', md: 'calc(100% + 3rem)' }}
               mx={{ base: '-1rem', md: '-1.5rem' }}
-              aspectRatio={16 / 9}
-              overflow="hidden"
-              bg="black"
             >
-              <Image src={imageSrc} alt={auction.title} w="100%" h="100%" objectFit="cover" />
+              <ImageCarousel slides={carouselSlides} aspectRatio={16 / 9} hideOverlays={isDriving3D || !introComplete3D} />
             </Box>
-          ) : null}
+          )}
           <Box mt={4}>
             <Text fontSize="2xl" fontWeight="bold" color="brand.400">
               ${auction.currentPrice.toLocaleString()}
