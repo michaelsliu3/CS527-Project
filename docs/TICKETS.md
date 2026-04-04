@@ -608,7 +608,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-34 — Auction browse sorting on auction page
+## PBM-34 — Auction browse sorting on auction page ✅
 
 **Layer:** Frontend + Backend  
 **Branch:** `PBM-34/auction-page-sorting`  
@@ -620,6 +620,23 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Backend/API: confirm browse endpoint accepts and enforces all advertised sort modes consistently (including tie-break behavior) and returns stable ordering for repeated requests.
 - UX: provide visible feedback when sort changes are applied and ensure no stale/unsorted results remain after rapid filter + sort changes.
 - **Tests:** add/extend frontend tests for sort control rendering, query param updates, API request params, and result order updates; add/extend backend tests for each supported sort mode and deterministic tie-break ordering.
+
+---
+
+## PBM-35 — Admin quick-create auction from car manifest
+
+**Layer:** Frontend + Backend  
+**Branch:** `PBM-35/admin-quick-create-from-manifest`  
+**PR Title:** `[PBM-35] add admin quick-create auction autofill from car manifest`
+
+- Add an **admin-only** action in the **Create Auction** popup: place a `Quick create` button at the top-right of the modal/popup shell, visually secondary to the final submit action.
+- Clicking `Quick create` opens or focuses a manifest-driven car selector with **autocomplete search** (make/model/year/variant keywords) sourced from the GT7 car manifest.
+- After selecting a manifest car, auto-populate create-auction form fields (at minimum: title, description template, brand/model/year, image(s), category/tags, and any car metadata already represented in the form).
+- Keep admin control: populated values remain editable before submit; do not auto-submit.
+- Define missing/partial-manifest behavior: if a field cannot be populated, leave it blank and show a non-blocking hint so admins know what still needs manual input.
+- Data source approach: either expose a slim backend endpoint returning searchable manifest rows or preload a compact client dataset with indexing; prefer the approach that keeps modal open latency low and payload size controlled.
+- Access control: feature should only render for admin role(s); non-admin users should see no UI or API path changes.
+- **Tests:** add frontend tests for admin-only visibility, autocomplete interactions, and autofill behavior; add backend tests (if endpoint added) for auth and response shaping; include manual QA checklist for end-to-end create flow with autofill and edits.
 
 ---
 
