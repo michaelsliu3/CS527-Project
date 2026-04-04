@@ -1074,7 +1074,6 @@ export function Su7ThreeHero({
     const animate = () => {
       const dt = Math.min(clock.getDelta(), 0.05)
       elapsed += dt
-      const t = elapsed
       transitionProgressRef.current = Math.min(transitionProgressRef.current + dt / 0.9, 1)
       const easedPaintTransition = THREE.MathUtils.smootherstep(transitionProgressRef.current, 0, 1)
       currentPaintColorRef.current
