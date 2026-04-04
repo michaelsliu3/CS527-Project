@@ -163,6 +163,7 @@ public class GmToolsService : IGmToolsService
         {
             return (
                 "GT7 manifest file not found. Add plzbuyme-cdn beside the repo or set Gt7CarManifest:Path to gt7-car-thumbnails.manifest.json.",
+                manifestPath,
                 null);
         }
 
