@@ -8,10 +8,11 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { Box, Container, Flex, Heading, IconButton } from '@chakra-ui/react'
+import { Box, Button, Container, Flex, Heading, IconButton } from '@chakra-ui/react'
 import { keyframes } from '@emotion/react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { CreateAuctionForm } from '../components/CreateAuctionForm'
+import { useAuth } from './AuthContext'
 import { dark } from '../theme/colors'
 import { showSuccessToast } from '../components/ui/toaster'
 import { APP_PAGE_PX } from '../theme/layout'
@@ -63,9 +64,11 @@ const SellItemModalContext = createContext<SellItemModalContextValue | null>(nul
 export function SellItemModalProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
   const [formMountKey, setFormMountKey] = useState(0)
+  const [quickCreateTrigger, setQuickCreateTrigger] = useState(0)
   const onAfterCreateRef = useRef<SellItemAfterCreateHandler | undefined>(undefined)
   const closeTimeoutRef = useRef<number | null>(null)
 
@@ -195,22 +198,37 @@ export function SellItemModalProvider({ children }: { children: ReactNode }) {
                 >
                   Create Auction
                 </Heading>
-                <IconButton
-                  aria-label="Close create auction"
-                  size="sm"
-                  variant="ghost"
-                  color={dark.muted}
-                  _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
-                  onClick={handleClose}
-                  flexShrink={0}
-                >
-                  ×
-                </IconButton>
+                <Flex align="center" gap={2} flexShrink={0}>
+                  {user?.role === 'admin' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      borderColor="red.400"
+                      color="red.300"
+                      _hover={{ bg: 'whiteAlpha.100', borderColor: 'red.300', color: 'red.200' }}
+                      onClick={() => setQuickCreateTrigger((v) => v + 1)}
+                    >
+                      Quick create
+                    </Button>
+                  )}
+                  <IconButton
+                    aria-label="Close create auction"
+                    size="sm"
+                    variant="ghost"
+                    color={dark.muted}
+                    _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+                    onClick={handleClose}
+                    flexShrink={0}
+                  >
+                    ×
+                  </IconButton>
+                </Flex>
               </Flex>
               <CreateAuctionForm
                 key={formMountKey}
                 onCancel={handleClose}
                 onSuccess={handleFormSuccess}
+                quickCreateTrigger={quickCreateTrigger}
               />
             </Box>
           </Container>

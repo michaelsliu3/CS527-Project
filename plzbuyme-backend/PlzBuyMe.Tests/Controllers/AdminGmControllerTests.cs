@@ -145,6 +145,44 @@ public class AdminGmControllerTests
         body!.ItemsDeleted.Should().BeGreaterThan(0);
     }
 
+    [Fact]
+    public async Task SearchManifestCars_AsEndUser_ReturnsForbidden()
+    {
+        var factory = new PlzBuyMeWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var loginResponse = await client.PostAsJsonAsync("api/auth/login", new { username = "seller1", password = "password" });
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var auth = await loginResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+        auth.Should().NotBeNull();
+
+        var request = new HttpRequestMessage(HttpMethod.Get, "api/admin/gm/manifest/cars?q=toyota&limit=5");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", auth!.Token);
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task SearchManifestCars_AsAdmin_ReturnsOk()
+    {
+        var factory = new PlzBuyMeWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var loginResponse = await client.PostAsJsonAsync("api/auth/login", new { username = "admin", password = "admin123" });
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var auth = await loginResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+        auth.Should().NotBeNull();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth!.Token);
+        var response = await client.GetAsync("api/admin/gm/manifest/cars?q=honda&limit=3");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<List<ManifestCarResponseStub>>();
+        body.Should().NotBeNull();
+        body!.Count.Should().BeLessOrEqualTo(3);
+    }
+
     private sealed class SeedAuctionsResponseStub
     {
         public int CreatedCount { get; set; }
@@ -159,5 +197,12 @@ public class AdminGmControllerTests
     {
         public int ItemsDeleted { get; set; }
         public int BidsDeleted { get; set; }
+    }
+
+    private sealed class ManifestCarResponseStub
+    {
+        public string? Title { get; set; }
+        public string? Make { get; set; }
+        public string? Model { get; set; }
     }
 }

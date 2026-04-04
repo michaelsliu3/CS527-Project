@@ -11,6 +11,26 @@ export interface GmSeedManifestAuctionsPayload {
   sellerUserId?: number
 }
 
+export interface GmManifestCarRow {
+  externalId?: string | null
+  title?: string | null
+  make?: string | null
+  model?: string | null
+  year?: number | null
+  color?: string | null
+  sourceUrl?: string | null
+  detailSourceUrl?: string | null
+  categoryIds: number[]
+  categoryNames: string[]
+  categoryStringKeys: string[]
+}
+
+export function searchGmManifestCars(query: string, limit = 12) {
+  return apiClient.get<GmManifestCarRow[]>('admin/gm/manifest/cars', {
+    params: { q: query, limit },
+  })
+}
+
 export function seedGmAuctionsFromManifest(payload: GmSeedManifestAuctionsPayload) {
   return apiClient.post<GmSeedAuctionsResult>('admin/gm/auctions/seed-from-manifest', payload)
 }

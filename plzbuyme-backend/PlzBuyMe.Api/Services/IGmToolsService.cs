@@ -4,6 +4,11 @@ namespace PlzBuyMe.Api.Services;
 
 public interface IGmToolsService
 {
+    Task<(string? Error, IReadOnlyList<GmManifestCarRowDto>? Data)> SearchManifestCarsAsync(
+        int adminUserId,
+        string? query,
+        int limit);
+
     Task<(string? Error, GmSeedAuctionsResultDto? Data)> SeedAuctionsAsync(int adminUserId, GmSeedAuctionsDto dto);
 
     Task<(string? Error, GmSeedAuctionsResultDto? Data)> SeedAuctionsFromManifestAsync(int adminUserId, GmSeedManifestAuctionsDto dto);

@@ -18,6 +18,7 @@ import { LuCalendar, LuClock, LuImage, LuTimer } from 'react-icons/lu'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../context/AuthContext'
 import { createAuction, type CreateAuctionDto } from '../api/auctions'
+import { searchGmManifestCars, type GmManifestCarRow } from '../api/gm'
 import { uploadFileToCdn } from '../api/cdn'
 import {
   fetchCategories,
@@ -31,6 +32,7 @@ import { isAxiosError } from 'axios'
 export interface CreateAuctionFormProps {
   onCancel: () => void
   onSuccess: (auctionId: number) => void
+  quickCreateTrigger?: number
 }
 
 interface CreateFormValues {
@@ -182,9 +184,48 @@ const MS_PER_DAY = 24 * MS_PER_HOUR
 const MS_PER_WEEK = 7 * MS_PER_DAY
 
 type QuickDurationUnit = 'hours' | 'days' | 'weeks'
+type ManifestImageSelection = { imageUrl?: string; imageStorageKey?: string } | null
 
 const MAX_QUICK_AMOUNT = 30
 const QUICK_AMOUNTS = Array.from({ length: MAX_QUICK_AMOUNT }, (_, i) => i + 1)
+const MANIFEST_EXTERNAL_ID_REGEX = /^\d{3,8}$/
+
+function normalizeManifestKeyword(value?: string | null): string {
+  return (value ?? '').trim().toLowerCase()
+}
+
+function composeManifestSearchLabel(row: GmManifestCarRow): string {
+  const title = (row.title ?? '').trim()
+  if (title) return title
+  const base = [row.make, row.model].filter(Boolean).join(' ').trim()
+  const year = row.year ? String(row.year) : ''
+  return [base, year].filter(Boolean).join(' ').trim() || 'Unknown manifest car'
+}
+
+function buildManifestTitle(row: GmManifestCarRow): string {
+  const base = [row.make, row.model].filter(Boolean).join(' ').trim()
+  const year = row.year ? String(row.year) : ''
+  const fallback = (row.title ?? '').trim()
+  const merged = [base, year].filter(Boolean).join(' ').trim()
+  return merged || fallback
+}
+
+function buildManifestDescriptionTemplate(row: GmManifestCarRow): string {
+  const title = composeManifestSearchLabel(row)
+  return `Auto-filled from GT7 manifest: ${title}. Review and adjust specs, pricing, and auction timing before publishing.`
+}
+
+function buildManifestImageSelection(row: GmManifestCarRow): ManifestImageSelection {
+  const externalId = (row.externalId ?? '').trim()
+  if (MANIFEST_EXTERNAL_ID_REGEX.test(externalId)) {
+    return { imageStorageKey: externalId }
+  }
+  const sourceUrl = (row.sourceUrl ?? '').trim()
+  if (sourceUrl) {
+    return { imageUrl: sourceUrl }
+  }
+  return null
+}
 
 function parseQuickDurationMs(amountStr: string, unit: QuickDurationUnit): number | null {
   const n = Number(String(amountStr).trim())
@@ -793,8 +834,9 @@ function AuctionEndTimePicker({
   )
 }
 
-export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProps) {
+export function CreateAuctionForm({ onCancel, onSuccess, quickCreateTrigger = 0 }: CreateAuctionFormProps) {
   const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const [categories, setCategories] = useState<CategoryDto[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [categoriesError, setCategoriesError] = useState<string | null>(null)
@@ -804,6 +846,16 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
+  const [manifestImageSelection, setManifestImageSelection] = useState<ManifestImageSelection>(null)
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false)
+  const [quickCreateQuery, setQuickCreateQuery] = useState('')
+  const [quickCreateResults, setQuickCreateResults] = useState<GmManifestCarRow[]>([])
+  const [quickCreateLoading, setQuickCreateLoading] = useState(false)
+  const [quickCreateError, setQuickCreateError] = useState<string | null>(null)
+  const [quickCreateHint, setQuickCreateHint] = useState<string | null>(null)
+  const [selectedManifestLabel, setSelectedManifestLabel] = useState<string | null>(null)
+  const quickCreateRequestIdRef = useRef(0)
+  const quickCreateInputRef = useRef<HTMLInputElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const [closeEndMode, setCloseEndMode] = useState<'quick' | 'custom'>('quick')
   const [quickDurationAmount, setQuickDurationAmount] = useState('1')
@@ -927,6 +979,35 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
       ? rootCategories.find((c) => c.id === selectedRootId)
       : undefined
 
+  const findRootAndSubcategorySelection = (requestedCategoryIds: number[]) => {
+    if (!requestedCategoryIds.length) return { rootId: '' as number | '', subcategoryIds: [] as number[] }
+
+    const walk = (nodes: CategoryDto[], currentRootId: number | null): { id: number; rootId: number | null }[] => {
+      const found: { id: number; rootId: number | null }[] = []
+      for (const node of nodes) {
+        const nextRootId = currentRootId ?? node.id
+        found.push({ id: node.id, rootId: nextRootId })
+        if (node.children?.length) {
+          found.push(...walk(node.children, nextRootId))
+        }
+      }
+      return found
+    }
+
+    const index = walk(categories, null)
+    const idToRoot = new Map<number, number>()
+    for (const node of index) {
+      if (node.rootId != null) idToRoot.set(node.id, node.rootId)
+    }
+
+    const chosen = requestedCategoryIds.filter((id) => idToRoot.has(id))
+    if (!chosen.length) return { rootId: '' as number | '', subcategoryIds: [] as number[] }
+
+    const primaryRoot = idToRoot.get(chosen[0]!)!
+    const subcategoryIds = chosen.filter((id) => id !== primaryRoot && idToRoot.get(id) === primaryRoot)
+    return { rootId: primaryRoot, subcategoryIds }
+  }
+
   useEffect(() => {
     if (!selectedRoot?.children?.length) {
       setRootFieldDefs([])
@@ -1021,12 +1102,107 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
     }
   }, [categories])
 
+  useEffect(() => {
+    if (!isAdmin || !quickCreateOpen) return
+    const query = quickCreateQuery.trim()
+    if (query.length < 2) {
+      setQuickCreateResults([])
+      setQuickCreateError(null)
+      setQuickCreateLoading(false)
+      return
+    }
+
+    quickCreateRequestIdRef.current += 1
+    const requestId = quickCreateRequestIdRef.current
+    setQuickCreateLoading(true)
+    setQuickCreateError(null)
+    const timer = window.setTimeout(() => {
+      searchGmManifestCars(query, 8)
+        .then((res) => {
+          if (requestId !== quickCreateRequestIdRef.current) return
+          setQuickCreateResults(res.data)
+        })
+        .catch(() => {
+          if (requestId !== quickCreateRequestIdRef.current) return
+          setQuickCreateResults([])
+          setQuickCreateError('Failed to search manifest cars.')
+        })
+        .finally(() => {
+          if (requestId === quickCreateRequestIdRef.current) {
+            setQuickCreateLoading(false)
+          }
+        })
+    }, 220)
+
+    return () => window.clearTimeout(timer)
+  }, [isAdmin, quickCreateOpen, quickCreateQuery])
+
   const visibleFieldDefs =
     fieldDefs.length > 0
       ? fieldDefs
       : rootFieldDefs.length > 0
         ? rootFieldDefs
         : globalFieldDefs
+
+  useEffect(() => {
+    if (!isAdmin || quickCreateTrigger <= 0) return
+    setQuickCreateOpen(true)
+    window.setTimeout(() => {
+      quickCreateInputRef.current?.focus()
+    }, 0)
+  }, [isAdmin, quickCreateTrigger])
+
+  const applyManifestSelection = (row: GmManifestCarRow) => {
+    const title = buildManifestTitle(row)
+    if (title) {
+      setValue('title', title, { shouldDirty: true, shouldValidate: true })
+    }
+
+    const descriptionTemplate = buildManifestDescriptionTemplate(row)
+    setValue('description', descriptionTemplate, { shouldDirty: true })
+
+    const nextImage = buildManifestImageSelection(row)
+    setManifestImageSelection(nextImage)
+    setSelectedImageFile(null)
+
+    const mergedDrafts: Record<string, string> = {}
+    const make = normalizeManifestKeyword(row.make)
+    if (make) mergedDrafts['make'] = row.make!.trim()
+    const model = normalizeManifestKeyword(row.model)
+    if (model) mergedDrafts['model'] = row.model!.trim()
+    if (row.year) mergedDrafts['year'] = String(row.year)
+    const color = normalizeManifestKeyword(row.color)
+    if (color) mergedDrafts['exterior color'] = row.color!.trim()
+    setDraftFieldValuesByName((prev) => ({ ...prev, ...mergedDrafts }))
+
+    const { rootId, subcategoryIds } = findRootAndSubcategorySelection(row.categoryIds)
+    if (rootId !== '') {
+      setSelectedRootId(rootId)
+      setSelectedSubcategoryIds(subcategoryIds)
+      setAdditionalSubcategoriesOpen(false)
+      setValue('categoryId', subcategoryIds.length ? String(subcategoryIds[0]!) : '')
+    }
+
+    setCustomErrors((prev) => {
+      const next = { ...prev }
+      delete next.rootCategory
+      delete next.subcategory
+      return next
+    })
+
+    const missing: string[] = []
+    if (!row.make) missing.push('Make')
+    if (!row.model) missing.push('Model')
+    if (!row.year) missing.push('Year')
+    if (!nextImage) missing.push('Image')
+    if (rootId === '' || subcategoryIds.length === 0) missing.push('Category')
+    setQuickCreateHint(
+      missing.length
+        ? `Manual input still needed: ${missing.join(', ')}.`
+        : 'Manifest autofill applied. Review values before submitting.'
+    )
+    setSelectedManifestLabel(composeManifestSearchLabel(row))
+  }
 
   useEffect(() => {
     for (const f of visibleFieldDefs) {
@@ -1186,6 +1362,10 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
       if (selectedImageFile) {
         const imageKey = await uploadFileToCdn(selectedImageFile, 'items')
         dto.imageStorageKey = imageKey
+      } else if (manifestImageSelection?.imageStorageKey) {
+        dto.imageStorageKey = manifestImageSelection.imageStorageKey
+      } else if (manifestImageSelection?.imageUrl) {
+        dto.imageUrl = manifestImageSelection.imageUrl
       }
       const res = await createAuction(dto)
       onSuccess(res.data.id)
@@ -1228,6 +1408,92 @@ export function CreateAuctionForm({ onCancel, onSuccess }: CreateAuctionFormProp
         <Text color="red.400" mb={4}>
           {categoriesError}
         </Text>
+      )}
+
+      {isAdmin && (
+        <Box mb={5}>
+          {quickCreateOpen && (
+            <Box borderWidth="1px" borderColor={dark.borderSubtle} borderRadius="md" p={3} bg={dark.inputBg}>
+              <Text fontSize="xs" color={dark.muted} mb={2} textTransform="uppercase" letterSpacing="0.08em">
+                Manifest selector
+              </Text>
+              <Input
+                ref={quickCreateInputRef}
+                bg={dark.cardBg}
+                borderColor={dark.borderSubtle}
+                color="white"
+                _placeholder={{ color: dark.placeholder }}
+                placeholder="Search make, model, year, or variant"
+                value={quickCreateQuery}
+                onChange={(event) => setQuickCreateQuery(event.target.value)}
+              />
+              {quickCreateError && (
+                <Text fontSize="xs" color="red.400" mt={2}>
+                  {quickCreateError}
+                </Text>
+              )}
+              {quickCreateLoading && (
+                <Text fontSize="xs" color={dark.muted} mt={2}>
+                  Searching manifest...
+                </Text>
+              )}
+              {!quickCreateLoading && quickCreateQuery.trim().length >= 2 && quickCreateResults.length === 0 && !quickCreateError && (
+                <Text fontSize="xs" color={dark.placeholder} mt={2}>
+                  No manifest matches found.
+                </Text>
+              )}
+              {quickCreateResults.length > 0 && (
+                <Stack gap={2} mt={3}>
+                  {quickCreateResults.map((row, index) => {
+                    const label = composeManifestSearchLabel(row)
+                    const sub = [row.make, row.model, row.year ? String(row.year) : null].filter(Boolean).join(' • ')
+                    return (
+                      <Button
+                        key={`${row.externalId ?? 'manifest'}-${index}`}
+                        type="button"
+                        justifyContent="space-between"
+                        alignItems="center"
+                        h="auto"
+                        py={2}
+                        px={3}
+                        borderWidth="1px"
+                        borderColor={dark.borderSubtle}
+                        bg="transparent"
+                        color="white"
+                        _hover={{ bg: 'whiteAlpha.100' }}
+                        onClick={() => applyManifestSelection(row)}
+                      >
+                        <Box textAlign="left" minW={0}>
+                          <Text fontSize="sm" truncate>
+                            {label}
+                          </Text>
+                          {sub && (
+                            <Text fontSize="xs" color={dark.muted} truncate>
+                              {sub}
+                            </Text>
+                          )}
+                        </Box>
+                        <Text fontSize="xs" color={dark.muted} flexShrink={0}>
+                          Autofill
+                        </Text>
+                      </Button>
+                    )
+                  })}
+                </Stack>
+              )}
+              {selectedManifestLabel && (
+                <Text fontSize="xs" color={dark.muted} mt={3}>
+                  Selected manifest car: <Text as="span" color="white">{selectedManifestLabel}</Text>
+                </Text>
+              )}
+              {quickCreateHint && (
+                <Text fontSize="xs" color={dark.muted} mt={1}>
+                  {quickCreateHint}
+                </Text>
+              )}
+            </Box>
+          )}
+        </Box>
       )}
 
       <Text {...sectionLabelProps}>Listing</Text>

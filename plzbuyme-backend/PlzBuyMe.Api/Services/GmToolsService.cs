@@ -18,6 +18,7 @@ namespace PlzBuyMe.Api.Services;
 public class GmToolsService : IGmToolsService
 {
     private const int MaxManifestAuctionsBatch = 100;
+    private const int MaxManifestSearchLimit = 50;
     private const int MaxAuctionsBatch = 50;
     private const int MaxUsersBatch = 50;
     private const int MaxQuestionsBatch = 30;
@@ -52,6 +53,7 @@ public class GmToolsService : IGmToolsService
     private readonly ILogger<GmToolsService> _logger;
     private readonly IHostEnvironment _hostEnvironment;
     private readonly IConfiguration _configuration;
+    private IReadOnlyList<Gt7ManifestAsset>? _manifestCache;
 
     public GmToolsService(
         AppDbContext db,
@@ -73,6 +75,73 @@ public class GmToolsService : IGmToolsService
         _logger = logger;
         _hostEnvironment = hostEnvironment;
         _configuration = configuration;
+    }
+
+    public async Task<(string? Error, IReadOnlyList<GmManifestCarRowDto>? Data)> SearchManifestCarsAsync(
+        int adminUserId,
+        string? query,
+        int limit)
+    {
+        if (limit < 1 || limit > MaxManifestSearchLimit)
+            return ($"Limit must be between 1 and {MaxManifestSearchLimit}.", null);
+
+        var (manifestError, assets) = await LoadManifestAssetsAsync();
+        if (manifestError != null)
+            return (manifestError, null);
+
+        var normalizedQuery = query?.Trim().ToLowerInvariant() ?? string.Empty;
+        var candidates = assets!
+            .Where(a => !string.IsNullOrWhiteSpace(a.Make) || !string.IsNullOrWhiteSpace(a.Model) || !string.IsNullOrWhiteSpace(a.Title))
+            .Where(a => normalizedQuery.Length == 0 || BuildManifestSearchText(a).Contains(normalizedQuery, StringComparison.Ordinal))
+            .Select(a => new
+            {
+                Asset = a,
+                Score = ScoreManifestAsset(a, normalizedQuery)
+            })
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Asset.Make ?? string.Empty)
+            .ThenBy(x => x.Asset.Model ?? string.Empty)
+            .ThenBy(x => x.Asset.Title ?? string.Empty)
+            .Take(limit)
+            .ToList();
+
+        var rows = new List<GmManifestCarRowDto>(candidates.Count);
+        foreach (var candidate in candidates)
+        {
+            var categories = await ResolveCategoriesForManifestAsync("auto", candidate.Asset);
+            var categoryIds = categories.Select(c => c.Id).Distinct().ToArray();
+            var categoryNames = categories.Select(c => c.Name).Distinct().ToArray();
+            var categoryStringKeys = categories
+                .Select(c => c.StringKey)
+                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .Cast<string>()
+                .Distinct()
+                .ToArray();
+
+            rows.Add(new GmManifestCarRowDto
+            {
+                ExternalId = string.IsNullOrWhiteSpace(candidate.Asset.ExternalId) ? null : candidate.Asset.ExternalId.Trim(),
+                Title = string.IsNullOrWhiteSpace(candidate.Asset.Title) ? null : candidate.Asset.Title.Trim(),
+                Make = string.IsNullOrWhiteSpace(candidate.Asset.Make) ? null : candidate.Asset.Make.Trim(),
+                Model = string.IsNullOrWhiteSpace(candidate.Asset.Model) ? null : candidate.Asset.Model.Trim(),
+                Year = candidate.Asset.Year,
+                Color = string.IsNullOrWhiteSpace(candidate.Asset.Color) ? null : candidate.Asset.Color.Trim(),
+                SourceUrl = string.IsNullOrWhiteSpace(candidate.Asset.SourceUrl) ? null : candidate.Asset.SourceUrl.Trim(),
+                DetailSourceUrl = string.IsNullOrWhiteSpace(candidate.Asset.DetailSourceUrl) ? null : candidate.Asset.DetailSourceUrl.Trim(),
+                CategoryIds = categoryIds,
+                CategoryNames = categoryNames,
+                CategoryStringKeys = categoryStringKeys
+            });
+        }
+
+        _logger.LogInformation(
+            "GM tools: admin {AdminId} searched manifest cars (query='{Query}', limit={Limit}, returned={Count})",
+            adminUserId,
+            query ?? string.Empty,
+            limit,
+            rows.Count);
+
+        return (null, rows);
     }
 
     public async Task<(string? Error, GmSeedAuctionsResultDto? Data)> SeedAuctionsAsync(int adminUserId, GmSeedAuctionsDto dto)
@@ -263,6 +332,71 @@ public class GmToolsService : IGmToolsService
             Path.GetFullPath(Path.Combine(_hostEnvironment.ContentRootPath, "..", "plzbuyme-cdn", "tools", "car-assets", "manifests", "gt7-car-thumbnails.manifest.json")),
         };
         return candidates.FirstOrDefault(File.Exists);
+    }
+
+    private async Task<(string? Error, IReadOnlyList<Gt7ManifestAsset>? Data)> LoadManifestAssetsAsync()
+    {
+        if (_manifestCache != null)
+            return (null, _manifestCache);
+
+        var manifestPath = ResolveGt7ManifestPath();
+        if (manifestPath == null || !File.Exists(manifestPath))
+        {
+            return (
+                "GT7 manifest file not found. Add plzbuyme-cdn beside the repo or set Gt7CarManifest:Path to gt7-car-thumbnails.manifest.json.",
+                null);
+        }
+
+        await using var stream = File.OpenRead(manifestPath);
+        var manifest = await JsonSerializer.DeserializeAsync<Gt7ManifestFile>(
+            stream,
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        if (manifest?.Assets == null || manifest.Assets.Count == 0)
+            return ("Manifest has no assets.", null);
+
+        _manifestCache = manifest.Assets;
+        return (null, _manifestCache);
+    }
+
+    private static string BuildManifestSearchText(Gt7ManifestAsset asset)
+    {
+        var year = asset.Year?.ToString() ?? string.Empty;
+        return string.Join(
+            ' ',
+            new[]
+            {
+                asset.Make ?? string.Empty,
+                asset.Model ?? string.Empty,
+                year,
+                asset.Title ?? string.Empty
+            })
+            .Trim()
+            .ToLowerInvariant();
+    }
+
+    private static int ScoreManifestAsset(Gt7ManifestAsset asset, string normalizedQuery)
+    {
+        if (string.IsNullOrEmpty(normalizedQuery))
+            return 0;
+
+        var score = 0;
+        var make = asset.Make?.Trim().ToLowerInvariant() ?? string.Empty;
+        var model = asset.Model?.Trim().ToLowerInvariant() ?? string.Empty;
+        var title = asset.Title?.Trim().ToLowerInvariant() ?? string.Empty;
+        var year = asset.Year?.ToString() ?? string.Empty;
+
+        if (make.StartsWith(normalizedQuery, StringComparison.Ordinal))
+            score += 4;
+        if (model.StartsWith(normalizedQuery, StringComparison.Ordinal))
+            score += 4;
+        if (title.StartsWith(normalizedQuery, StringComparison.Ordinal))
+            score += 3;
+        if (year.StartsWith(normalizedQuery, StringComparison.Ordinal))
+            score += 2;
+        if (title.Contains(normalizedQuery, StringComparison.Ordinal))
+            score += 1;
+
+        return score;
     }
 
     private async Task<List<Category>> ResolveCategoriesForManifestAsync(string categoryMode, Gt7ManifestAsset asset)
