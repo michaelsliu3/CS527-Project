@@ -127,6 +127,22 @@ describe('AuctionCard', () => {
     expect(screen.getByText('SUVs')).toBeInTheDocument()
   })
 
+  it('shows the 3D indicator for recognized 3D-model listings', () => {
+    renderAuctionCard({
+      id: 59,
+      title: 'Praga R1 track build',
+      currentPrice: 42000,
+      closeDateTime: new Date(Date.now() + 7200000).toISOString(),
+      status: 'active',
+      categoryName: 'Sports Cars',
+      sellerUsername: 'seller6',
+      bidCount: 4,
+    })
+
+    expect(screen.getByLabelText('Includes 3D view')).toBeInTheDocument()
+    expect(screen.getByText('3D')).toBeInTheDocument()
+  })
+
   it('renders a placeholder when no image exists', () => {
     renderAuctionCard({
       id: 57,

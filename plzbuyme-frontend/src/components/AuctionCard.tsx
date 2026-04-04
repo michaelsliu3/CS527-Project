@@ -2,11 +2,12 @@ import { Badge, Box, Card, Flex, Heading, Image, Text } from '@chakra-ui/react'
 import { Link as RouterLink, useLocation, type Location } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { keyframes } from '@emotion/react'
-import { LuImageOff } from 'react-icons/lu'
+import { LuBox, LuImageOff } from 'react-icons/lu'
 import type { AuctionListItem } from '../api/auctions'
 import { dark } from '../theme/colors'
 import { DisplayNameText } from './DisplayNameText'
 import { resolveMediaUrl } from '../utils/mediaUrl'
+import { hasAuction3dModel } from '../utils/auction3dModel'
 
 const timerGlowPulse = keyframes`
   0%, 100% {
@@ -198,6 +199,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
     auction.categoryNames && auction.categoryNames.length > 0
       ? auction.categoryNames
       : [auction.categoryName].filter((v): v is string => Boolean(v))
+  const has3dView = hasAuction3dModel(auction.title)
 
   return (
     <RouterLink to={`/auctions/${auction.id}`} state={{ backgroundLocation }}>
@@ -230,59 +232,88 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                 {auction.title}
               </Heading>
             </Box>
-            <Badge colorPalette={statusBadgeColor} size="sm" flexShrink={0}>
-              {statusLabel}
-            </Badge>
+            <Flex direction="column" align="flex-end" gap={1.5} flexShrink={0}>
+              <Badge colorPalette={statusBadgeColor} size="sm" flexShrink={0}>
+                {statusLabel}
+              </Badge>
+            </Flex>
           </Flex>
           <Box w="calc(100% + 2rem)" mx="-4">
             <Box
               position="relative"
               aspectRatio={4 / 3}
-              overflow="hidden"
-              style={{
-                WebkitMaskImage:
-                  'linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 24%, rgba(0, 0, 0, 1) 80%, rgba(0, 0, 0, 0) 100%)',
-                maskImage:
-                  'linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 24%, rgba(0, 0, 0, 1) 80%, rgba(0, 0, 0, 0) 100%)',
-              }}
             >
-              {cardImageSrc ? (
-                <Image
-                  src={cardImageSrc}
-                  alt={auction.title}
-                  w="100%"
-                  h="100%"
-                  objectFit="cover"
-                  objectPosition="40% center"
-                  transition="transform 0.25s ease"
-                  _groupHover={{ transform: 'scale(1.04)' }}
-                  onError={() => {
-                    if (cardImageSrc !== imageSrc && imageSrc) {
-                      setCardImageSrc(imageSrc)
-                      return
-                    }
-                    setCardImageSrc(null)
-                  }}
-                />
-              ) : (
+              <Box
+                position="absolute"
+                inset={0}
+                overflow="hidden"
+                style={{
+                  WebkitMaskImage:
+                    'linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 24%, rgba(0, 0, 0, 1) 80%, rgba(0, 0, 0, 0) 100%)',
+                  maskImage:
+                    'linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 24%, rgba(0, 0, 0, 1) 80%, rgba(0, 0, 0, 0) 100%)',
+                }}
+              >
+                {cardImageSrc ? (
+                  <Image
+                    src={cardImageSrc}
+                    alt={auction.title}
+                    w="100%"
+                    h="100%"
+                    objectFit="cover"
+                    objectPosition="40% center"
+                    transition="transform 0.25s ease"
+                    _groupHover={{ transform: 'scale(1.04)' }}
+                    onError={() => {
+                      if (cardImageSrc !== imageSrc && imageSrc) {
+                        setCardImageSrc(imageSrc)
+                        return
+                      }
+                      setCardImageSrc(null)
+                    }}
+                  />
+                ) : (
+                  <Flex
+                    h="100%"
+                    w="100%"
+                    bgGradient="linear(to-br, whiteAlpha.100, blackAlpha.400)"
+                    align="center"
+                    justify="center"
+                    direction="column"
+                    gap={1}
+                    aria-label={`No image available for ${auction.title}`}
+                  >
+                    <Box color="whiteAlpha.700" mb={1} aria-hidden="true">
+                      <LuImageOff size={24} />
+                    </Box>
+                    <Text fontSize="sm" color={dark.muted} fontWeight="semibold">
+                      No image available
+                    </Text>
+                  </Flex>
+                )}
+              </Box>
+              {has3dView ? (
                 <Flex
-                  h="100%"
-                  w="100%"
-                  bgGradient="linear(to-br, whiteAlpha.100, blackAlpha.400)"
-                  align="center"
-                  justify="center"
-                  direction="column"
+                  position="absolute"
+                  right={2}
+                  bottom={2}
+                  zIndex={2}
+                  bg="blackAlpha.700"
+                  borderRadius="md"
+                  px={2}
+                  py={0.5}
                   gap={1}
-                  aria-label={`No image available for ${auction.title}`}
+                  align="center"
+                  borderWidth="1px"
+                  borderColor="whiteAlpha.300"
+                  aria-label="Includes 3D view"
                 >
-                  <Box color="whiteAlpha.700" mb={1} aria-hidden="true">
-                    <LuImageOff size={24} />
-                  </Box>
-                  <Text fontSize="sm" color={dark.muted} fontWeight="semibold">
-                    No image available
+                  <LuBox size={12} color="white" />
+                  <Text fontSize="xs" color="white" fontWeight="semibold" letterSpacing="0.04em">
+                    3D
                   </Text>
                 </Flex>
-              )}
+              ) : null}
             </Box>
           </Box>
           {highlightTags.length > 0 ? (

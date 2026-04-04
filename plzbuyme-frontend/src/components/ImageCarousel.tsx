@@ -1,6 +1,6 @@
-import { Box, Flex, Image, Text } from '@chakra-ui/react'
+import { Box, Flex, Image, Portal, Text } from '@chakra-ui/react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { LuChevronLeft, LuChevronRight, LuBox } from 'react-icons/lu'
+import { LuChevronLeft, LuChevronRight, LuBox, LuSearch, LuMinimize2 } from 'react-icons/lu'
 
 export interface CarouselSlide {
   type: 'image' | '3d'
@@ -21,6 +21,7 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
   const [current, setCurrent] = useState(0)
   const [dragOffset, setDragOffset] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
   const [activationCounts, setActivationCounts] = useState<number[]>(() =>
     slides.map((_, i) => (i === 0 ? 1 : 0)),
   )
@@ -32,7 +33,35 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
   useEffect(() => {
     setActivationCounts(slides.map((_, i) => (i === 0 ? 1 : 0)))
     setCurrent(0)
+    setIsExpanded(false)
   }, [slides])
+
+  useEffect(() => {
+    if (!isExpanded) return
+    const previousOverflow = document.body.style.overflow
+    const previousFullscreenFlag = document.body.dataset.threeCarouselFullscreen
+    document.body.style.overflow = 'hidden'
+    document.body.dataset.threeCarouselFullscreen = 'true'
+    return () => {
+      document.body.style.overflow = previousOverflow
+      if (previousFullscreenFlag === undefined) {
+        delete document.body.dataset.threeCarouselFullscreen
+      } else {
+        document.body.dataset.threeCarouselFullscreen = previousFullscreenFlag
+      }
+    }
+  }, [isExpanded])
+
+  useEffect(() => {
+    if (!isExpanded) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsExpanded(false)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isExpanded])
 
   const goTo = useCallback(
     (index: number) => {
@@ -109,13 +138,20 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
 
   const trackTranslate = -(current * 100) + (isDragging ? (dragOffset / (trackRef.current?.offsetWidth || 1)) * 100 : 0)
 
-  return (
-    <Box position="relative" w="100%" bg="black" borderRadius="lg" overflow="hidden">
+  const renderCarousel = (expanded: boolean) => (
+    <Box
+      position="relative"
+      w="100%"
+      bg="black"
+      borderRadius={expanded ? 'none' : 'lg'}
+      overflow="hidden"
+    >
       <Box
         ref={trackRef}
         position="relative"
         w="100%"
-        aspectRatio={aspectRatio}
+        aspectRatio={expanded ? undefined : aspectRatio}
+        h={expanded ? '100vh' : undefined}
         overflow="hidden"
         cursor={slides[current]?.type === '3d' ? 'grab' : slideCount > 1 ? 'grab' : 'default'}
         onPointerDown={handlePointerDown}
@@ -291,6 +327,51 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
           Drag to rotate · Scroll to zoom
         </Text>
       )}
+
+      {/* Expand/Collapse 3D section control */}
+      {slides[current]?.type === '3d' && (
+        <Box
+          as="button"
+          type="button"
+          position="absolute"
+          right={3}
+          bottom={3}
+          zIndex={6}
+          bg="blackAlpha.700"
+          color="white"
+          borderRadius="full"
+          w={12}
+          h={12}
+          display="inline-flex"
+          alignItems="center"
+          justifyContent="center"
+          backdropFilter="blur(8px)"
+          _hover={{ bg: 'blackAlpha.800' }}
+          _active={{ transform: 'scale(0.98)' }}
+          _focusVisible={{ boxShadow: 'none' }}
+          outline="none"
+          opacity={hideOverlays ? 0 : 1}
+          transition={hideOverlays ? 'opacity 0.15s ease-out' : 'opacity 0.8s ease-in-out'}
+          pointerEvents={hideOverlays ? 'none' : 'auto'}
+          onClick={() => setIsExpanded((prev) => !prev)}
+          aria-label={isExpanded ? 'Minimize 3D section' : 'Expand 3D section to full tab'}
+          title={isExpanded ? 'Minimize' : 'Expand to full tab'}
+        >
+          {isExpanded ? <LuMinimize2 size={18} /> : <LuSearch size={18} />}
+        </Box>
+      )}
     </Box>
   )
+
+  if (isExpanded) {
+    return (
+      <Portal>
+        <Box position="fixed" inset={0} zIndex={1700} bg="black">
+          {renderCarousel(true)}
+        </Box>
+      </Portal>
+    )
+  }
+
+  return renderCarousel(false)
 }

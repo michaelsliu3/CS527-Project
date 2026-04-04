@@ -657,6 +657,9 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Add a gas V8 audio profile for Mazzanti with layered harmonics/noise plus optional engine sample playback (`public/audio/v8-engine-loop-cc0.wav`) to improve engine tone realism.
 - Wire `AuctionDetailPage` 3D slide detection to support both SU7 and Praga listings, selecting the proper hero model key from auction title/description/model field text and preserving lazy-loaded 3D rendering.
 - Keep existing carousel and interactive viewer behavior intact while broadening coverage to additional 3D vehicle assets without changing non-3D listings.
+- Improve 3D discoverability and reuse by centralizing listing-to-model detection in `src/utils/auction3dModel.ts`, reusing it in both `AuctionDetailPage` and `AuctionCard`, and surfacing a `3D` badge on cards for recognized model listings.
+- Add a fullscreen-style 3D carousel expansion mode (expand/minimize control, body scroll lock, Escape-to-collapse) and ensure modal-level Escape close handling defers while the 3D view is expanded.
+- Remove idle/drive bobbing offsets from `Su7ThreeHero` car group positioning to reduce camera jitter and keep 3D model presentation steadier during menu interaction.
 
 ---
 

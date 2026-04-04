@@ -1059,7 +1059,7 @@ export function Su7ThreeHero({
         }
         controls?.update()
         carGroup.position.x = 0
-        carGroup.position.y = carVerticalOffset + Math.sin(t * 1.2) * 0.02
+        carGroup.position.y = carVerticalOffset
 
         if (isDriving) {
           const accel = 1.2 + driveSpeed * 0.6
@@ -1088,7 +1088,7 @@ export function Su7ThreeHero({
         carGroup.rotation.y += 0.0028
         carGroup.rotation.x = THREE.MathUtils.lerp(carGroup.rotation.x, -pointer.y * 0.08, 0.06)
         carGroup.position.x = driveOffset
-        carGroup.position.y = carVerticalOffset + 0.04 + Math.sin(t * 1.45) * 0.035
+        carGroup.position.y = carVerticalOffset + 0.04
         carGroup.rotation.z = THREE.MathUtils.lerp(carGroup.rotation.z, -driveSpeed * 0.004, 0.12)
 
         const idleSpin = 0.012

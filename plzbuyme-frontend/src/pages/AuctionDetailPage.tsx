@@ -25,6 +25,7 @@ import { APP_PAGE_PX } from '../theme/layout'
 import { resolveMediaUrl } from '../utils/mediaUrl'
 import { notifyAuctionListRefresh } from '../utils/auctionListRefresh'
 import { useScrollLock } from '../hooks/useScrollLock'
+import { resolveAuction3dModelKey } from '../utils/auction3dModel'
 
 const Su7ThreeHero = lazy(async () => {
   const module = await import('../components/Su7ThreeHero')
@@ -53,13 +54,6 @@ function getImageFrameTag(sourceUrl: string): '00' | '01' | '02' | null {
 function toUtcEpochMs(value: string): number {
   const normalized = value.endsWith('Z') || /[-+]\d{2}:?\d{2}$/.test(value) ? value : `${value}Z`
   return new Date(normalized).getTime()
-}
-
-function resolveHeroModelKey(searchableText: string): 'su7' | 'praga' | 'mazzanti' | null {
-  if (/(mazzanti|evantra)/i.test(searchableText)) return 'mazzanti'
-  if (/praga/i.test(searchableText)) return 'praga'
-  if (/su7/i.test(searchableText)) return 'su7'
-  return null
 }
 
 function formatCountdown(closeDateTime: string): string {
@@ -165,6 +159,7 @@ export function AuctionDetailPage() {
   useEffect(() => {
     if (!isModal) return
     const onKeyDown = (e: KeyboardEvent) => {
+      if (document.body.dataset.threeCarouselFullscreen === 'true') return
       if (e.key !== 'Escape' || adminEditOpenRef.current) return
       handleCloseRef.current()
     }
@@ -263,7 +258,7 @@ export function AuctionDetailPage() {
     const altImgSrc = resolveMediaUrl(auction.imageUrl)
     const model = auction.fieldValues.find((fv) => fv.fieldName.toLowerCase() === 'model')?.value ?? ''
     const searchableText = `${auction.title} ${auction.description ?? ''} ${model}`
-    const heroModelKey = resolveHeroModelKey(searchableText)
+    const heroModelKey = resolveAuction3dModelKey(searchableText)
     const isSu7 = heroModelKey === 'su7'
 
     if (heroModelKey) {
