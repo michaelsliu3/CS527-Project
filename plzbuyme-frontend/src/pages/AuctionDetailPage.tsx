@@ -255,14 +255,24 @@ export function AuctionDetailPage() {
     const imgSrc = resolveMediaUrl(auction.detailImageUrl ?? auction.imageUrl)
     const altImgSrc = resolveMediaUrl(auction.imageUrl)
     const model = auction.fieldValues.find((fv) => fv.fieldName.toLowerCase() === 'model')?.value ?? ''
-    const isSu7 = `${auction.title} ${auction.description ?? ''} ${model}`.toLowerCase().includes('su7')
+    const searchableText = `${auction.title} ${auction.description ?? ''} ${model}`.toLowerCase()
+    const isPraga = searchableText.includes('praga')
+    const isSu7 = searchableText.includes('su7')
+    const heroModelKey: 'su7' | 'praga' | null = isPraga ? 'praga' : isSu7 ? 'su7' : null
 
-    if (isSu7) {
+    if (heroModelKey) {
       slides.push({
         type: '3d',
         render: ({ activationCount }) => (
           <Suspense fallback={<Box w="100%" h="100%" bg="#05070d" />}>
-            <Su7ThreeHero key={`su7-3d-${activationCount}`} title={auction.title} interactive onDrivingChange={setIsDriving3D} onIntroComplete={() => setIntroComplete3D(true)} />
+            <Su7ThreeHero
+              key={`${heroModelKey}-3d-${activationCount}`}
+              title={auction.title}
+              modelKey={heroModelKey}
+              interactive
+              onDrivingChange={setIsDriving3D}
+              onIntroComplete={() => setIntroComplete3D(true)}
+            />
           </Suspense>
         ),
       })

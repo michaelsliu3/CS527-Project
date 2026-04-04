@@ -9,6 +9,7 @@ import { Reflector } from 'three/examples/jsm/objects/Reflector.js'
 
 interface Su7ThreeHeroProps {
   title: string
+  modelKey?: 'su7' | 'praga'
   /** When true, the viewer fills its parent and enables orbit interaction */
   interactive?: boolean
   onDrivingChange?: (driving: boolean) => void
@@ -26,8 +27,39 @@ const COLOR_SWATCHES = [
 
 const DEFAULT_SWATCH_ID = 'yellow'
 const EXTERIOR_PAINT_MATERIAL_NAMES = new Set(['Car_body'])
+const MODEL_CONFIGS: Record<
+  'su7' | 'praga',
+  {
+    candidatePaths: string[]
+    rootYaw: number
+    rootLift: number
+    wheelSpinDirection: 1 | -1
+    wheelSpinAxis: 'x' | 'y' | 'z'
+  }
+> = {
+  su7: {
+    candidatePaths: ['/models/su7.glb'],
+    rootYaw: 0,
+    rootLift: 0,
+    wheelSpinDirection: 1,
+    wheelSpinAxis: 'z',
+  },
+  praga: {
+    candidatePaths: ['/models/ac_-_praga_r1_free.glb'],
+    rootYaw: Math.PI / 2,
+    rootLift: 0.28,
+    wheelSpinDirection: -1,
+    wheelSpinAxis: 'x',
+  },
+}
 
-export function Su7ThreeHero({ title, interactive = false, onDrivingChange, onIntroComplete }: Su7ThreeHeroProps) {
+export function Su7ThreeHero({
+  title,
+  modelKey = 'su7',
+  interactive = false,
+  onDrivingChange,
+  onIntroComplete,
+}: Su7ThreeHeroProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [selectedSwatchId, setSelectedSwatchId] = useState<string>(DEFAULT_SWATCH_ID)
@@ -371,9 +403,19 @@ export function Su7ThreeHero({ title, interactive = false, onDrivingChange, onIn
 
     const loader = new GLTFLoader()
     loader.setMeshoptDecoder(MeshoptDecoder)
-    loader.load(
-      '/models/su7.glb',
-      (gltf) => {
+    const rotateWheelBy = (wheel: THREE.Object3D, amount: number) => {
+      const signedAmount = amount * MODEL_CONFIGS[modelKey].wheelSpinDirection
+      const axis = MODEL_CONFIGS[modelKey].wheelSpinAxis
+      if (axis === 'x') {
+        wheel.rotateX(signedAmount)
+      } else if (axis === 'y') {
+        wheel.rotateY(signedAmount)
+      } else {
+        wheel.rotateZ(signedAmount)
+      }
+    }
+
+    const handleModelLoaded = (gltf: { scene: THREE.Group }) => {
         if (!mount.isConnected) return
 
         const modelRoot = gltf.scene
@@ -392,6 +434,8 @@ export function Su7ThreeHero({ title, interactive = false, onDrivingChange, onIn
         modelRoot.position.x -= scaledCenter.x
         modelRoot.position.z -= scaledCenter.z
         modelRoot.position.y -= scaledBox.min.y
+        modelRoot.position.y += MODEL_CONFIGS[modelKey].rootLift
+        modelRoot.rotation.y = MODEL_CONFIGS[modelKey].rootYaw
 
         const wheelNameRegex = /(wheel|tyre|tire|rim)/i
         const allWheelCandidates: THREE.Object3D[] = []
@@ -500,12 +544,24 @@ export function Su7ThreeHero({ title, interactive = false, onDrivingChange, onIn
 
         fitCameraToObject(activeRoot)
         setLoaded(true)
-      },
-      undefined,
-      () => {
+    }
+
+    const loadModelCandidate = (index: number) => {
+      const modelPath = MODEL_CONFIGS[modelKey].candidatePaths[index]
+      if (!modelPath) {
         setLoaded(true)
-      },
-    )
+        return
+      }
+
+      loader.load(
+        modelPath,
+        handleModelLoaded,
+        undefined,
+        () => loadModelCandidate(index + 1),
+      )
+    }
+
+    loadModelCandidate(0)
 
     if (!interactive) {
       carGroup.rotation.y = -Math.PI * 0.2
@@ -679,7 +735,7 @@ export function Su7ThreeHero({ title, interactive = false, onDrivingChange, onIn
           wheel.rotation.z -= interactiveSpin
         })
         modelWheels.forEach((wheel) => {
-          wheel.rotateZ(-interactiveSpin)
+          rotateWheelBy(wheel, -interactiveSpin)
         })
       } else {
         if (isDriving) {
@@ -704,7 +760,7 @@ export function Su7ThreeHero({ title, interactive = false, onDrivingChange, onIn
           wheel.rotation.z += idleSpin + driveSpin
         })
         modelWheels.forEach((wheel) => {
-          wheel.rotateZ(idleSpin + driveSpin)
+          rotateWheelBy(wheel, idleSpin + driveSpin)
         })
 
         camera.position.x = THREE.MathUtils.lerp(camera.position.x, baseCameraPosition.x + pointer.x * 0.3, 0.05)
@@ -838,7 +894,7 @@ export function Su7ThreeHero({ title, interactive = false, onDrivingChange, onIn
       })
       renderer.dispose()
     }
-  }, [interactive, title])
+  }, [interactive, modelKey, title])
 
   return (
     <Box position="absolute" inset={0}>

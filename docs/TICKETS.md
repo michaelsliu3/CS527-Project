@@ -642,13 +642,17 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-36 — 3D model menu improvements
+## PBM-36 — 3D model menu improvements ✅
 
 **Layer:** Frontend  
 **Branch:** `PBM-36/3d-model-menu-improvements`  
 **PR Title:** `[PBM-36] improve 3d model menu interactions and usability`
 
-- Placeholder description: improve the 3D model menu UX (layout, controls, discoverability, and responsiveness), including a magnifying-glass button that zooms up the view and reflective line effects on the car; detailed scope to be defined.
+- Extend `Su7ThreeHero` to support multiple model configurations via a typed `modelKey` prop, with per-model loader paths and rendering controls (`rootYaw`, `rootLift`, wheel spin axis, and wheel spin direction).
+- Add support for the Praga 3D model (`public/models/ac_-_praga_r1_free.glb`) with fallback candidate loading behavior so the viewer remains resilient to missing assets.
+- Update wheel animation logic to use model-aware rotation axes/direction so driving and idle spin behavior remains visually correct across different vehicle rigs.
+- Wire `AuctionDetailPage` 3D slide detection to support both SU7 and Praga listings, selecting the proper hero model key from auction title/description/model field text and preserving lazy-loaded 3D rendering.
+- Keep existing carousel and interactive viewer behavior intact while broadening coverage to additional 3D vehicle assets without changing non-3D listings.
 
 ---
 
