@@ -664,6 +664,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Ensure fullscreen enter/exit intro transitions gate all overlay UI consistently by coupling carousel overlay visibility to intro lifecycle callbacks and a local fullscreen-transition guard to prevent one-frame UI flashes.
 - Extend `gt7-car-thumbnails.manifest.json` with metadata-only entries for Praga R1 and Mazzanti Evantra so quick-create/search metadata can recognize the newly supported 3D model listings.
 - Upgrade `AuctionCard` media behavior for recognized 3D listings: cards now render a live, non-interactive 3D preview (pointer events disabled), freeze wheel animation in card context (`animateWheels={false}`), and navigate to detail with `openMedia: "3d"` so the carousel opens on the 3D slide first.
+- Align detail-page 3D lazy-load UX with card previews by replacing the blank auction-detail 3D fallback with the same explicit "Loading 3D model..." icon/text treatment for consistent perceived loading behavior.
 
 ---
 

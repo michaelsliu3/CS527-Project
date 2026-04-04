@@ -3,6 +3,7 @@ import { Box, Badge, Button, Container, Flex, Heading, IconButton, Input, Spinne
 import { keyframes } from '@emotion/react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
+import { LuBox } from 'react-icons/lu'
 import { useAuth } from '../context/AuthContext'
 import {
   getAuction,
@@ -266,7 +267,18 @@ export function AuctionDetailPage() {
       slides.push({
         type: '3d',
         render: ({ activationCount, isFullscreen }) => (
-          <Suspense fallback={<Box w="100%" h="100%" bg="#05070d" />}>
+          <Suspense
+            fallback={
+              <Flex h="100%" w="100%" bg="#05070d" align="center" justify="center" direction="column" gap={1}>
+                <Box color="blue.200" mb={1} aria-hidden="true">
+                  <LuBox size={24} />
+                </Box>
+                <Text fontSize="sm" color="whiteAlpha.900" fontWeight="bold">
+                  Loading 3D model...
+                </Text>
+              </Flex>
+            }
+          >
             <Su7ThreeHero
               key={`${heroModelKey}-3d-${activationCount}`}
               title={auction.title}
