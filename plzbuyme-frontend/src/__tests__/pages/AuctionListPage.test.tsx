@@ -268,8 +268,9 @@ describe('AuctionListPage', () => {
     await waitFor(() => {
       const calls = vi.mocked(api.browseAuctions).mock.calls
       expect(calls.length).toBeGreaterThan(0)
-      const lastParams = calls[calls.length - 1][0]
-      expect(lastParams.status).toBeUndefined()
+      const lastCall = calls[calls.length - 1]
+      expect(lastCall).toBeDefined()
+      expect(lastCall?.[0]?.status).toBeUndefined()
     })
   })
 
