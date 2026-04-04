@@ -162,7 +162,7 @@ public class GmToolsService : IGmToolsService
         if (manifestPath == null || !File.Exists(manifestPath))
         {
             return (
-                "GT7 manifest file not found. Add plzbuyme-cdn beside the repo or set Gt7CarManifest:Path to gt7-car-thumbnails.manifest.json.",
+                "GT7 manifest file not found. Add plzbuyme-cdn beside the repo or set Gt7CarManifest:Path to gt7-car-thumbnails.manifest.json." + (manifestPath == null ? "manifest null" : $" (found: {manifestPath})"),
                 null);
         }
 

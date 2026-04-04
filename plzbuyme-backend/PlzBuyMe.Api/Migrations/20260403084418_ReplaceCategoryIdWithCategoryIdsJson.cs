@@ -20,16 +20,7 @@ namespace PlzBuyMe.Api.Migrations
 
             migrationBuilder.Sql(@"
                 UPDATE Items i
-                SET i.CategoryIds = (
-                    SELECT JSON_ARRAYAGG(cid)
-                    FROM (
-                        SELECT i.CategoryId AS cid
-                        UNION
-                        SELECT t.CategoryId AS cid
-                        FROM ItemSubcategoryTags t
-                        WHERE t.ItemId = i.Id
-                    ) AS all_cats
-                )
+                SET i.CategoryIds = JSON_ARRAY(i.CategoryId)
                 WHERE i.CategoryId IS NOT NULL;
             ");
 
@@ -37,8 +28,9 @@ namespace PlzBuyMe.Api.Migrations
                 name: "FK_Items_Categories_CategoryId",
                 table: "Items");
 
-            migrationBuilder.DropTable(
-                name: "ItemSubcategoryTags");
+            migrationBuilder.Sql(@"
+                DROP TABLE IF EXISTS `ItemSubcategoryTags`;
+            ");
 
             migrationBuilder.DropIndex(
                 name: "idx_items_category",

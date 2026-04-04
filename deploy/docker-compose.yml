@@ -12,6 +12,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5081:8080"
+    volumes:
+      - ../plzbuyme-cdn/tools/car-assets/manifests:/app/manifests:ro
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ReverseProxy__Enabled: "true"
@@ -21,6 +23,7 @@ services:
       Jwt__Issuer: ${JWT_ISSUER:-PlzBuyMe}
       Jwt__Audience: ${JWT_AUDIENCE:-PlzBuyMeUsers}
       Jwt__ExpiresInMinutes: ${JWT_EXPIRES_MINUTES:-60}
+      Gt7CarManifest__Path: /app/manifests/gt7-car-thumbnails.manifest.json
       # Docker network (not CDN_PUBLIC_URL): API must reach CDN for GT7 resolve; avoids hairpin/localhost issues.
       MediaStorage__ServiceBaseUrl: http://cdn:8080
 
