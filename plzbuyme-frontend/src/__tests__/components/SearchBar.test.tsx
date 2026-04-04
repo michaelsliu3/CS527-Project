@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ChakraProvider } from '@chakra-ui/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { SearchBar } from '../../components/SearchBar'
 import { system } from '../../theme'
 import * as auctions from '../../api/auctions'
@@ -17,11 +17,24 @@ vi.mock('../../api/categories', () => ({
 }))
 
 function renderSearchBar(initialEntry = '/auctions') {
+  function LocationProbe() {
+    const location = useLocation()
+    return <div data-testid="location-search">{location.search}</div>
+  }
+
   return render(
     <ChakraProvider value={system}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
-          <Route path="/auctions" element={<SearchBar />} />
+          <Route
+            path="/auctions"
+            element={
+              <>
+                <SearchBar />
+                <LocationProbe />
+              </>
+            }
+          />
         </Routes>
       </MemoryRouter>
     </ChakraProvider>
@@ -93,12 +106,34 @@ describe('SearchBar', () => {
     })
   })
 
-  it('uses only default sort options when hub has no extraSortOptions', async () => {
+  it('shows car-specific sort options when cars context is active', async () => {
     renderSearchBar('/auctions?categoryId=2')
     await waitFor(() => {
       expect(screen.getAllByRole('option', { name: /Newest/i }).length).toBeGreaterThan(0)
     })
-    expect(screen.queryAllByRole('option', { name: /Year: newest/i })).toHaveLength(0)
+    expect(screen.getAllByRole('option', { name: /Year: newest/i }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('option', { name: /Mileage: low to high/i }).length).toBeGreaterThan(0)
+  })
+
+  it('updates query params with selected sort on submit', async () => {
+    const user = userEvent.setup()
+    renderSearchBar('/auctions')
+
+    await waitFor(() => {
+      expect(screen.getByText('Sort')).toBeInTheDocument()
+    })
+
+    const sortSelect = screen.getAllByRole('combobox').find((el) =>
+      (el as HTMLSelectElement).name === 'sort'
+    ) as HTMLSelectElement | undefined
+
+    expect(sortSelect).toBeDefined()
+    await user.selectOptions(sortSelect!, 'price_desc')
+    await user.click(screen.getByRole('button', { name: /Search/i }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location-search').textContent).toContain('sort=price_desc')
+    })
   })
 
   it('shows top category bar and applies selection', async () => {

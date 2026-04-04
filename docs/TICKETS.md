@@ -402,7 +402,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-22 — Advanced top filter bar with category preview dropdown
+## PBM-22 — Advanced top filter bar with category preview dropdown (DONE IN https://github.com/michaelsliu3/CS527-Project/pull/31) ✅
 
 **Layer:** Frontend
 **Branch:** `PBM-22/advanced-top-filter-bar`
@@ -516,7 +516,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-29 — Multi-tag car subtypes (Electric + Sports Car, etc.)
+## PBM-29 — Multi-tag car subtypes (Electric + Sports Car, etc.) ✅
 
 **Layer:** Backend + Frontend  
 **Branch:** `PBM-29/multi-tag-car-subtypes`  
@@ -587,7 +587,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-33 — 3D car viewer + image carousel on auction detail page
+## PBM-33 — 3D car viewer + image carousel on auction detail page ✅
 
 **Layer:** Frontend  
 **Branch:** `PBM-33/3d-car-viewer-image-carousel`  
@@ -605,6 +605,38 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Tests:** add frontend tests for carousel navigation (prev/next/dot/keyboard), slide type rendering (image vs 3D), swipe gesture thresholds, and lazy-loading behavior for the 3D component.
 - **Spoiler (tail wing) animation:** The model's "WeiYi" node (尾翼) is detected at load time. During the cinematic intro it tilts up gently; while driving, the tilt scales quadratically with speed (up to ~14°) and the spoiler lifts 0.1 units. On mouse release everything smoothly retracts with exponential-decay lerping. Transition rates are asymmetric — faster when opening, slower when closing — for a natural feel.
 - **Carousel overlay hiding:** `ImageCarousel` accepts a `hideOverlays` prop that fades out arrows, dot indicators, 3D badge, and zoom hint during driving and before the intro completes. Hide is fast (0.15 s) to stay out of the way; reveal is slow (0.8 s) for a cinematic fade-in. `Su7ThreeHero` exposes `onDrivingChange` and `onIntroComplete` callbacks so `AuctionDetailPage` can coordinate overlay visibility.
+
+---
+
+## PBM-34 — Auction browse sorting on auction page ✅
+
+**Layer:** Frontend + Backend  
+**Branch:** `PBM-34/auction-page-sorting`  
+**PR Title:** `[PBM-34] implement and verify auction browse sorting controls on auction page`
+
+- Ensure the auction browse page exposes a clear sort control and reliably applies sort changes to the displayed auction list.
+- Frontend: wire sort UI state to query params and data fetch (`sort` param), preserve selection across pagination/navigation, and show deterministic default sort behavior on initial load.
+- Frontend: support expected sort options for general browse and Cars contexts (including car-specific year/mileage sorts where applicable) with accessible labels.
+- Backend/API: confirm browse endpoint accepts and enforces all advertised sort modes consistently (including tie-break behavior) and returns stable ordering for repeated requests.
+- UX: provide visible feedback when sort changes are applied and ensure no stale/unsorted results remain after rapid filter + sort changes.
+- **Tests:** add/extend frontend tests for sort control rendering, query param updates, API request params, and result order updates; add/extend backend tests for each supported sort mode and deterministic tie-break ordering.
+
+---
+
+## PBM-35 — Admin quick-create auction from car manifest
+
+**Layer:** Frontend + Backend  
+**Branch:** `PBM-35/admin-quick-create-from-manifest`  
+**PR Title:** `[PBM-35] add admin quick-create auction autofill from car manifest`
+
+- Add an **admin-only** action in the **Create Auction** popup: place a `Quick create` button at the top-right of the modal/popup shell, visually secondary to the final submit action.
+- Clicking `Quick create` opens or focuses a manifest-driven car selector with **autocomplete search** (make/model/year/variant keywords) sourced from the GT7 car manifest.
+- After selecting a manifest car, auto-populate create-auction form fields (at minimum: title, description template, brand/model/year, image(s), category/tags, and any car metadata already represented in the form).
+- Keep admin control: populated values remain editable before submit; do not auto-submit.
+- Define missing/partial-manifest behavior: if a field cannot be populated, leave it blank and show a non-blocking hint so admins know what still needs manual input.
+- Data source approach: either expose a slim backend endpoint returning searchable manifest rows or preload a compact client dataset with indexing; prefer the approach that keeps modal open latency low and payload size controlled.
+- Access control: feature should only render for admin role(s); non-admin users should see no UI or API path changes.
+- **Tests:** add frontend tests for admin-only visibility, autocomplete interactions, and autofill behavior; add backend tests (if endpoint added) for auth and response shaping; include manual QA checklist for end-to-end create flow with autofill and edits.
 
 ---
 

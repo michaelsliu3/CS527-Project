@@ -657,4 +657,204 @@ public class AuctionServiceTests
         detail.Should().NotBeNull();
         detail!.CategoryIds.Should().Contain(additionalCategoryId);
     }
+
+    [Fact]
+    public async Task SearchAsync_GenericSortModes_AreAppliedDeterministically()
+    {
+        var (db, categoryId, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var seller = new User
+        {
+            Username = "sortseller-generic",
+            Email = "sortseller-generic@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            WalletBalance = 100000m
+        };
+        db.Users.Add(seller);
+        await db.SaveChangesAsync();
+
+        var now = DateTime.UtcNow;
+        var itemA = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Sort Generic A",
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 120m,
+            CurrentPrice = 100m,
+            CloseDateTime = now.AddDays(3),
+            CreatedAt = now.AddDays(-1),
+            Status = ItemStatus.Active
+        };
+        var itemB = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Sort Generic B",
+            InitialPrice = 200m,
+            BidIncrement = 10m,
+            ReservePrice = 220m,
+            CurrentPrice = 200m,
+            CloseDateTime = now.AddDays(1),
+            CreatedAt = now.AddDays(-2),
+            Status = ItemStatus.Active
+        };
+        var itemC = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Sort Generic C",
+            InitialPrice = 200m,
+            BidIncrement = 10m,
+            ReservePrice = 220m,
+            CurrentPrice = 200m,
+            CloseDateTime = now.AddDays(2),
+            CreatedAt = now.AddDays(-3),
+            Status = ItemStatus.Active
+        };
+
+        db.Items.AddRange(itemA, itemB, itemC);
+        await db.SaveChangesAsync();
+
+        db.Bids.AddRange(
+            new Bid { ItemId = itemA.Id, BidderId = seller.Id, Amount = 105m, IsAuto = false, CreatedAt = now.AddMinutes(-30) },
+            new Bid { ItemId = itemA.Id, BidderId = seller.Id, Amount = 110m, IsAuto = false, CreatedAt = now.AddMinutes(-20) },
+            new Bid { ItemId = itemB.Id, BidderId = seller.Id, Amount = 205m, IsAuto = false, CreatedAt = now.AddMinutes(-10) },
+            new Bid { ItemId = itemC.Id, BidderId = seller.Id, Amount = 205m, IsAuto = false, CreatedAt = now.AddMinutes(-5) }
+        );
+        await db.SaveChangesAsync();
+
+        var priceDesc = await service.SearchAsync(new SearchQueryDto { Seller = seller.Username, Sort = "price_desc", Page = 1, PageSize = 10 });
+        priceDesc.Items.Select(i => i.Title).Should().ContainInOrder("Sort Generic B", "Sort Generic C", "Sort Generic A");
+
+        var priceAsc = await service.SearchAsync(new SearchQueryDto { Seller = seller.Username, Sort = "price_asc", Page = 1, PageSize = 10 });
+        priceAsc.Items.Select(i => i.Title).Should().ContainInOrder("Sort Generic A", "Sort Generic B", "Sort Generic C");
+
+        var closingSoon = await service.SearchAsync(new SearchQueryDto { Seller = seller.Username, Sort = "closing_soon", Page = 1, PageSize = 10 });
+        closingSoon.Items.Select(i => i.Title).Should().ContainInOrder("Sort Generic B", "Sort Generic C", "Sort Generic A");
+
+        var newest = await service.SearchAsync(new SearchQueryDto { Seller = seller.Username, Sort = "newest", Page = 1, PageSize = 10 });
+        newest.Items.Select(i => i.Title).Should().ContainInOrder("Sort Generic A", "Sort Generic B", "Sort Generic C");
+
+        var mostBids = await service.SearchAsync(new SearchQueryDto { Seller = seller.Username, Sort = "most_bids", Page = 1, PageSize = 10 });
+        mostBids.Items.Select(i => i.Title).Should().ContainInOrder("Sort Generic A", "Sort Generic B", "Sort Generic C");
+
+        var defaultSort = await service.SearchAsync(new SearchQueryDto { Seller = seller.Username, Page = 1, PageSize = 10 });
+        defaultSort.Items.Select(i => i.Title).Should().ContainInOrder("Sort Generic B", "Sort Generic C", "Sort Generic A");
+    }
+
+    [Fact]
+    public async Task SearchAsync_CarFieldSortModes_OrderByNumericValue_WithDeterministicTieBreak()
+    {
+        var (db, categoryId, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var yearFieldId = db.CategoryFields.Single(f => f.CategoryId == categoryId && f.FieldName == "Year").Id;
+        var mileageFieldId = db.CategoryFields.Single(f => f.CategoryId == categoryId && f.FieldName == "Mileage").Id;
+
+        var seller = new User
+        {
+            Username = "sortseller-car",
+            Email = "sortseller-car@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            WalletBalance = 100000m
+        };
+        db.Users.Add(seller);
+        await db.SaveChangesAsync();
+
+        var now = DateTime.UtcNow;
+        var itemD = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Sort Car D",
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 150m,
+            CurrentPrice = 100m,
+            CloseDateTime = now.AddDays(2),
+            CreatedAt = now.AddDays(-1),
+            Status = ItemStatus.Active
+        };
+        var itemE = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Sort Car E",
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 150m,
+            CurrentPrice = 100m,
+            CloseDateTime = now.AddDays(3),
+            CreatedAt = now.AddDays(-2),
+            Status = ItemStatus.Active
+        };
+        var itemF = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Sort Car F",
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 150m,
+            CurrentPrice = 100m,
+            CloseDateTime = now.AddDays(1),
+            CreatedAt = now.AddDays(-3),
+            Status = ItemStatus.Active
+        };
+        db.Items.AddRange(itemD, itemE, itemF);
+        await db.SaveChangesAsync();
+
+        db.ItemFieldValues.AddRange(
+            new ItemFieldValue { ItemId = itemD.Id, FieldId = yearFieldId, Value = "2020" },
+            new ItemFieldValue { ItemId = itemE.Id, FieldId = yearFieldId, Value = "2022" },
+            new ItemFieldValue { ItemId = itemF.Id, FieldId = yearFieldId, Value = "2022" },
+            new ItemFieldValue { ItemId = itemD.Id, FieldId = mileageFieldId, Value = "50000" },
+            new ItemFieldValue { ItemId = itemE.Id, FieldId = mileageFieldId, Value = "70000" },
+            new ItemFieldValue { ItemId = itemF.Id, FieldId = mileageFieldId, Value = "20000" }
+        );
+        await db.SaveChangesAsync();
+
+        var yearNewest = await service.SearchAsync(new SearchQueryDto
+        {
+            CategoryId = categoryId,
+            Seller = seller.Username,
+            Sort = "year_newest",
+            Page = 1,
+            PageSize = 10
+        });
+        yearNewest.Items.Select(i => i.Title).Should().ContainInOrder("Sort Car F", "Sort Car E", "Sort Car D");
+
+        var yearOldest = await service.SearchAsync(new SearchQueryDto
+        {
+            CategoryId = categoryId,
+            Seller = seller.Username,
+            Sort = "year_oldest",
+            Page = 1,
+            PageSize = 10
+        });
+        yearOldest.Items.Select(i => i.Title).Should().ContainInOrder("Sort Car D", "Sort Car F", "Sort Car E");
+
+        var mileageLow = await service.SearchAsync(new SearchQueryDto
+        {
+            CategoryId = categoryId,
+            Seller = seller.Username,
+            Sort = "mileage_low",
+            Page = 1,
+            PageSize = 10
+        });
+        mileageLow.Items.Select(i => i.Title).Should().ContainInOrder("Sort Car F", "Sort Car D", "Sort Car E");
+
+        var mileageHigh = await service.SearchAsync(new SearchQueryDto
+        {
+            CategoryId = categoryId,
+            Seller = seller.Username,
+            Sort = "mileage_high",
+            Page = 1,
+            PageSize = 10
+        });
+        mileageHigh.Items.Select(i => i.Title).Should().ContainInOrder("Sort Car E", "Sort Car D", "Sort Car F");
+    }
 }
