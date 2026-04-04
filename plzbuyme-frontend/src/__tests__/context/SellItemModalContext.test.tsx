@@ -249,7 +249,38 @@ describe('SellItemModalContext', () => {
     expect(within(dialog).getByPlaceholderText('Item title')).toHaveValue('Honda Civic Type R 2022')
     const descriptionInput = within(dialog).getByPlaceholderText('Description') as HTMLTextAreaElement
     expect(descriptionInput.value).toContain('Auto-filled from GT7 manifest:')
-    expect(within(dialog).getByText(/Manifest autofill applied/i)).toBeInTheDocument()
+    expect(within(dialog).queryByPlaceholderText('Search make, model, year, or variant')).not.toBeInTheDocument()
     expect(within(dialog).getByText('Sedans')).toBeInTheDocument()
+  })
+
+  it('keeps manifest selector closed after closing and reopening modal', async () => {
+    window.localStorage.clear()
+    setTestToken({
+      sub: '1',
+      unique_name: 'admin',
+      email: 'admin@example.com',
+      role: 'admin',
+      exp: 4102444800,
+    })
+
+    const user = userEvent.setup()
+    renderWithSellModal(<Opener />)
+
+    await user.click(screen.getByRole('button', { name: /Open sell modal/i }))
+    const dialog = await screen.findByRole('dialog')
+
+    await user.click(within(dialog).getByRole('button', { name: /^Quick create$/i }))
+    expect(within(dialog).getByPlaceholderText('Search make, model, year, or variant')).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: /^Cancel$/i }))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    await user.click(screen.getByRole('button', { name: /Open sell modal/i }))
+    const reopenedDialog = await screen.findByRole('dialog')
+    expect(
+      within(reopenedDialog).queryByPlaceholderText('Search make, model, year, or variant'),
+    ).not.toBeInTheDocument()
   })
 })

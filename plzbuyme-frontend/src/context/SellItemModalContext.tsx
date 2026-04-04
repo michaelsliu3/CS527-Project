@@ -105,6 +105,7 @@ export function SellItemModalProvider({ children }: { children: ReactNode }) {
       closeTimeoutRef.current = null
     }
     setIsClosing(false)
+    setQuickCreateTrigger(0)
     onAfterCreateRef.current = options?.onAfterCreate
     setFormMountKey((k) => k + 1)
     setOpen(true)

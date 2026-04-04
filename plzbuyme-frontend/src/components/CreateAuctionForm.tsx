@@ -1173,6 +1173,10 @@ export function CreateAuctionForm({ onCancel, onSuccess, quickCreateTrigger = 0 
     if (row.year) mergedDrafts['year'] = String(row.year)
     const color = normalizeManifestKeyword(row.color)
     if (color) mergedDrafts['exterior color'] = row.color!.trim()
+    // Quick-create baseline defaults for common vehicle fields.
+    mergedDrafts['condition'] = 'New'
+    mergedDrafts['fuel type'] = 'Gasoline'
+    mergedDrafts['transmission'] = 'Automatic'
     setDraftFieldValuesByName((prev) => ({ ...prev, ...mergedDrafts }))
 
     const { rootId, subcategoryIds } = findRootAndSubcategorySelection(row.categoryIds)
@@ -1202,6 +1206,7 @@ export function CreateAuctionForm({ onCancel, onSuccess, quickCreateTrigger = 0 
         : 'Manifest autofill applied. Review values before submitting.'
     )
     setSelectedManifestLabel(composeManifestSearchLabel(row))
+    setQuickCreateOpen(false)
   }
 
   useEffect(() => {
