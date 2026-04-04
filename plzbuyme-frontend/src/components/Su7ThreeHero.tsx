@@ -27,6 +27,7 @@ const COLOR_SWATCHES = [
 
 const DEFAULT_SWATCH_ID = 'yellow'
 const EXTERIOR_PAINT_MATERIAL_NAMES = new Set(['Car_body'])
+const NON_PAINT_NAME_REGEX = /(glass|window|light|lamp|emissive|wheel|tire|tyre|rim|brake|disc|interior|seat|cockpit|driver|helmet)/i
 const MODEL_CONFIGS: Record<
   'su7' | 'praga',
   {
@@ -35,6 +36,9 @@ const MODEL_CONFIGS: Record<
     rootLift: number
     wheelSpinDirection: 1 | -1
     wheelSpinAxis: 'x' | 'y' | 'z'
+    introScaleStart: number
+    introScaleEnd: number
+    audioProfile: 'ev' | 'race-4cyl'
   }
 > = {
   su7: {
@@ -43,6 +47,9 @@ const MODEL_CONFIGS: Record<
     rootLift: 0,
     wheelSpinDirection: 1,
     wheelSpinAxis: 'z',
+    introScaleStart: 0.5,
+    introScaleEnd: 0.7,
+    audioProfile: 'ev',
   },
   praga: {
     candidatePaths: ['/models/ac_-_praga_r1_free.glb'],
@@ -50,6 +57,9 @@ const MODEL_CONFIGS: Record<
     rootLift: 0.28,
     wheelSpinDirection: -1,
     wheelSpinAxis: 'x',
+    introScaleStart: 0.5,
+    introScaleEnd: 0.64,
+    audioProfile: 'race-4cyl',
   },
 }
 
@@ -441,6 +451,7 @@ export function Su7ThreeHero({
         const allWheelCandidates: THREE.Object3D[] = []
         const lightNodeRegex = /^(Light|LightGlass)\./
         const exteriorPaintMaterials = new Set<THREE.MeshStandardMaterial>()
+        const fallbackExteriorPaintMaterials = new Set<THREE.MeshStandardMaterial>()
 
         modelRoot.updateMatrixWorld(true)
         const _wPos = new THREE.Vector3()
@@ -483,6 +494,13 @@ export function Su7ThreeHero({
               if (EXTERIOR_PAINT_MATERIAL_NAMES.has(stdMat.name) || stdMat.name.toLowerCase() === 'car_body') {
                 exteriorPaintMaterials.add(stdMat)
               }
+              const meshName = object.name.toLowerCase()
+              const materialName = stdMat.name.toLowerCase()
+              const looksLikePaintableSurface = !NON_PAINT_NAME_REGEX.test(meshName) && !NON_PAINT_NAME_REGEX.test(materialName)
+              const isLikelyWindow = stdMat.transparent && (stdMat.opacity ?? 1) < 0.98
+              if (looksLikePaintableSurface && !isLikelyWindow) {
+                fallbackExteriorPaintMaterials.add(stdMat)
+              }
               if (stdMat.envMapIntensity !== undefined) {
                 stdMat.envMapIntensity = 1.8
               }
@@ -499,7 +517,11 @@ export function Su7ThreeHero({
           }
         })
 
-        paintMaterialsRef.current = Array.from(exteriorPaintMaterials)
+        if (exteriorPaintMaterials.size === 0 && modelKey === 'praga') {
+          paintMaterialsRef.current = Array.from(fallbackExteriorPaintMaterials)
+        } else {
+          paintMaterialsRef.current = Array.from(exteriorPaintMaterials)
+        }
 
         const candidateSet = new Set(allWheelCandidates)
         const detectedWheels = allWheelCandidates.filter((obj) => {
@@ -576,42 +598,84 @@ export function Su7ThreeHero({
     let audioCtx: AudioContext | null = null
     let masterGain: GainNode | null = null
     const oscBank: OscillatorNode[] = []
+    const oscGainBank: GainNode[] = []
+    const oscBaseFreqs: number[] = []
     let whineOsc: OscillatorNode | null = null
     let whineGain: GainNode | null = null
     let audioStarted = false
+    let previousDriveSpeed = 0
+    let accelTransient = 0
 
     const initAudio = () => {
       if (audioStarted) return
       audioStarted = true
       audioCtx = new AudioContext()
+      const audioProfile = MODEL_CONFIGS[modelKey].audioProfile
 
+      const hpf = audioCtx.createBiquadFilter()
+      hpf.type = 'highpass'
+      hpf.frequency.value = audioProfile === 'race-4cyl' ? 90 : 45
+      hpf.Q.value = 0.7
       const lpf = audioCtx.createBiquadFilter()
       lpf.type = 'lowpass'
-      lpf.frequency.value = 1600
-      lpf.Q.value = 0.7
+      lpf.frequency.value = audioProfile === 'race-4cyl' ? 3200 : 1600
+      lpf.Q.value = audioProfile === 'race-4cyl' ? 1.0 : 0.7
+      hpf.connect(lpf)
       lpf.connect(audioCtx.destination)
 
       masterGain = audioCtx.createGain()
       masterGain.gain.value = 0
-      masterGain.connect(lpf)
+      masterGain.connect(hpf)
 
-      const humFreqs = [100, 200, 300]
-      humFreqs.forEach((freq) => {
-        const osc = audioCtx!.createOscillator()
-        osc.type = 'sine'
-        osc.frequency.value = freq
-        osc.connect(masterGain!)
-        osc.start()
-        oscBank.push(osc)
-      })
+      if (audioProfile === 'race-4cyl') {
+        const raceHarmonics = [
+          { base: 85, type: 'sawtooth' as OscillatorType, gain: 0.55 },
+          { base: 170, type: 'square' as OscillatorType, gain: 0.2 },
+          { base: 255, type: 'triangle' as OscillatorType, gain: 0.16 },
+          { base: 340, type: 'sine' as OscillatorType, gain: 0.1 },
+        ]
+        raceHarmonics.forEach((harmonic) => {
+          const osc = audioCtx!.createOscillator()
+          osc.type = harmonic.type
+          osc.frequency.value = harmonic.base
+          const gainNode = audioCtx!.createGain()
+          gainNode.gain.value = 0
+          osc.connect(gainNode)
+          gainNode.connect(masterGain!)
+          osc.start()
+          oscBank.push(osc)
+          oscGainBank.push(gainNode)
+          oscBaseFreqs.push(harmonic.base)
+        })
+      } else {
+        const humFreqs = [100, 200, 300]
+        humFreqs.forEach((freq) => {
+          const osc = audioCtx!.createOscillator()
+          osc.type = 'sine'
+          osc.frequency.value = freq
+          const gainNode = audioCtx!.createGain()
+          gainNode.gain.value = 0
+          osc.connect(gainNode)
+          gainNode.connect(masterGain!)
+          osc.start()
+          oscBank.push(osc)
+          oscGainBank.push(gainNode)
+          oscBaseFreqs.push(freq)
+        })
+      }
 
       whineGain = audioCtx.createGain()
       whineGain.gain.value = 0
       whineOsc = audioCtx.createOscillator()
-      whineOsc.type = 'triangle'
-      whineOsc.frequency.value = 800
+      if (audioProfile === 'race-4cyl') {
+        whineOsc.type = 'sawtooth'
+        whineOsc.frequency.value = 1200
+      } else {
+        whineOsc.type = 'triangle'
+        whineOsc.frequency.value = 800
+      }
       whineOsc.connect(whineGain)
-      whineGain.connect(lpf)
+      whineGain.connect(hpf)
       whineOsc.start()
     }
 
@@ -693,7 +757,8 @@ export function Su7ThreeHero({
       // Cinematic entry: slow -> fast -> slow zoom with smooth easing.
       entryBlend = Math.min(entryBlend + dt / 2.8, 1)
       const zoomEase = THREE.MathUtils.smootherstep(entryBlend, 0, 1)
-      const targetScale = THREE.MathUtils.lerp(0.5, 0.7, zoomEase)
+      const introConfig = MODEL_CONFIGS[modelKey]
+      const targetScale = THREE.MathUtils.lerp(introConfig.introScaleStart, introConfig.introScaleEnd, zoomEase)
       const smoothing = 1 - Math.exp(-dt * 5.6)
       entryScaleCurrent = THREE.MathUtils.lerp(entryScaleCurrent, targetScale, smoothing)
       carGroup.scale.setScalar(entryScaleCurrent)
@@ -837,15 +902,38 @@ export function Su7ThreeHero({
       if (audioCtx && masterGain && oscBank.length) {
         const speedNorm = driveSpeed / 8.0
         const now = audioCtx.currentTime
-        const rev = 1 + speedNorm * 1.5
-        const humBase = [100, 200, 300]
-        oscBank.forEach((osc, i) => {
-          osc.frequency.setTargetAtTime(humBase[i] * rev, now, 0.1)
-        })
-        masterGain.gain.setTargetAtTime(speedNorm * 0.035, now, 0.15)
+        const audioProfile = MODEL_CONFIGS[modelKey].audioProfile
+        const accelDelta = Math.max(driveSpeed - previousDriveSpeed, 0)
+        previousDriveSpeed = driveSpeed
+        accelTransient = Math.max(accelTransient * Math.exp(-dt * 8), Math.min(accelDelta * 3.2, 1))
+
+        if (audioProfile === 'race-4cyl') {
+          const rpmNorm = THREE.MathUtils.clamp(0.2 + speedNorm * 0.8 + accelTransient * 0.16, 0, 1)
+          const firingFreq = THREE.MathUtils.lerp(90, 250, rpmNorm)
+          const multipliers = [1, 2, 3, 4]
+          const gains = [0.9, 0.45, 0.3, 0.2]
+          oscBank.forEach((osc, i) => {
+            osc.frequency.setTargetAtTime(firingFreq * multipliers[i], now, 0.05)
+            oscGainBank[i]?.gain.setTargetAtTime(gains[i] * (0.25 + speedNorm * 0.75), now, 0.08)
+          })
+          masterGain.gain.setTargetAtTime(0.02 + speedNorm * 0.05 + accelTransient * 0.02, now, 0.08)
+        } else {
+          const rev = 1 + speedNorm * 1.5
+          oscBank.forEach((osc, i) => {
+            osc.frequency.setTargetAtTime(oscBaseFreqs[i] * rev, now, 0.1)
+            oscGainBank[i]?.gain.setTargetAtTime(0.5, now, 0.15)
+          })
+          masterGain.gain.setTargetAtTime(speedNorm * 0.035, now, 0.15)
+        }
+
         if (whineOsc && whineGain) {
-          whineOsc.frequency.setTargetAtTime(800 + speedNorm * 800, now, 0.08)
-          whineGain.gain.setTargetAtTime(Math.pow(speedNorm, 1.5) * 0.05, now, 0.12)
+          if (audioProfile === 'race-4cyl') {
+            whineOsc.frequency.setTargetAtTime(1100 + speedNorm * 2200 + accelTransient * 350, now, 0.05)
+            whineGain.gain.setTargetAtTime(0.003 + Math.pow(speedNorm, 1.2) * 0.025, now, 0.08)
+          } else {
+            whineOsc.frequency.setTargetAtTime(800 + speedNorm * 800, now, 0.08)
+            whineGain.gain.setTargetAtTime(Math.pow(speedNorm, 1.5) * 0.05, now, 0.12)
+          }
         }
       }
 
