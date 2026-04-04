@@ -725,8 +725,15 @@ public class AuctionService : IAuctionService
         int? yearFieldId,
         int? mileageFieldId)
     {
-        var itemIds = await baseQuery.Select(i => i.Id).ToListAsync();
-        if (itemIds.Count == 0) return new List<int>();
+        var itemRows = await baseQuery
+            .Select(i => new { i.Id, i.CreatedAt, i.CloseDateTime })
+            .ToListAsync();
+        if (itemRows.Count == 0) return new List<int>();
+
+        var itemIds = itemRows.Select(r => r.Id).ToList();
+        var createdAtById = itemRows.ToDictionary(r => r.Id, r => r.CreatedAt);
+        var closeAtById = itemRows.ToDictionary(r => r.Id, r => r.CloseDateTime);
+
         int? fieldId = sortKind switch
         {
             "year_newest" or "year_oldest" => yearFieldId,
@@ -745,8 +752,18 @@ public class AuctionService : IAuctionService
             .ToDictionary(g => g.Key, g => g.First().Val);
         var desc = sortKind is "year_newest" or "mileage_high";
         return desc
-            ? itemIds.OrderByDescending(id => parsed.GetValueOrDefault(id, 0)).ToList()
-            : itemIds.OrderBy(id => parsed.GetValueOrDefault(id, int.MaxValue)).ToList();
+            ? itemIds
+                .OrderByDescending(id => parsed.GetValueOrDefault(id, 0))
+                .ThenBy(id => closeAtById[id])
+                .ThenByDescending(id => createdAtById[id])
+                .ThenByDescending(id => id)
+                .ToList()
+            : itemIds
+                .OrderBy(id => parsed.GetValueOrDefault(id, int.MaxValue))
+                .ThenBy(id => closeAtById[id])
+                .ThenByDescending(id => createdAtById[id])
+                .ThenByDescending(id => id)
+                .ToList();
     }
 
     private async Task<List<(int FieldId, FieldFilterValue Filter)>> BuildFieldFiltersAsync(SearchQueryDto query)
@@ -841,12 +858,12 @@ public class AuctionService : IAuctionService
     private static IQueryable<Item> ApplySort(IQueryable<Item> q, string? sort, int? yearFieldId, int? mileageFieldId)
     {
         var s = sort?.ToLowerInvariant();
-        if (s == "price_asc") return q.OrderBy(i => i.CurrentPrice);
-        if (s == "price_desc") return q.OrderByDescending(i => i.CurrentPrice);
-        if (s == "closing_soon") return q.OrderBy(i => i.CloseDateTime);
-        if (s == "newest") return q.OrderByDescending(i => i.CreatedAt);
-        if (s == "most_bids") return q.OrderByDescending(i => i.Bids.Count);
-        return q.OrderBy(i => i.CreatedAt);
+        if (s == "price_asc") return q.OrderBy(i => i.CurrentPrice).ThenBy(i => i.CloseDateTime).ThenByDescending(i => i.CreatedAt).ThenByDescending(i => i.Id);
+        if (s == "price_desc") return q.OrderByDescending(i => i.CurrentPrice).ThenBy(i => i.CloseDateTime).ThenByDescending(i => i.CreatedAt).ThenByDescending(i => i.Id);
+        if (s == "closing_soon") return q.OrderBy(i => i.CloseDateTime).ThenByDescending(i => i.CreatedAt).ThenByDescending(i => i.Id);
+        if (s == "newest") return q.OrderByDescending(i => i.CreatedAt).ThenByDescending(i => i.Id);
+        if (s == "most_bids") return q.OrderByDescending(i => i.Bids.Count).ThenBy(i => i.CloseDateTime).ThenByDescending(i => i.CreatedAt).ThenByDescending(i => i.Id);
+        return q.OrderBy(i => i.CloseDateTime).ThenByDescending(i => i.CreatedAt).ThenByDescending(i => i.Id);
     }
 
     private class FieldFilterValue

@@ -35,9 +35,15 @@ const SORT_OPTIONS = [
   { value: 'price_desc', label: 'Price: high to low' },
   { value: 'most_bids', label: 'Most bids' },
 ]
+const CAR_SORT_OPTIONS = [
+  { value: 'year_newest', label: 'Year: newest' },
+  { value: 'year_oldest', label: 'Year: oldest' },
+  { value: 'mileage_low', label: 'Mileage: low to high' },
+  { value: 'mileage_high', label: 'Mileage: high to low' },
+]
 
 const STATUS_OPTIONS = [
-  { value: '', label: 'Any' },
+  { value: '', label: 'All' },
   { value: 'active', label: 'Active' },
   { value: 'closed', label: 'Closed' },
   { value: 'sold', label: 'Sold' },
@@ -323,7 +329,7 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
   useEffect(() => {
     if (hasInitializedDefaultStatus.current) return
     hasInitializedDefaultStatus.current = true
-    if (searchParams.get('status')) return
+    if (searchParams.has('status')) return
     const next = new URLSearchParams(searchParams)
     next.set('status', DEFAULT_STATUS)
     setSearchParams(next, { replace: true })
@@ -686,7 +692,30 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
     setClosingBefore('')
   }
 
-  const allSortOptions = SORT_OPTIONS
+  const handleFiltersStatusChange = (nextStatus: string) => {
+    if (variant !== 'filters') return
+    const next = new URLSearchParams(searchParams)
+    if (nextStatus) {
+      next.set('status', nextStatus)
+    } else {
+      // Keep explicit empty status to represent "All".
+      next.set('status', '')
+    }
+    next.set('page', '1')
+    setSearchParams(next)
+  }
+
+  const isCarsContext = Boolean(
+    searchHubRoot &&
+      (selectedRootId === searchHubRoot.id ||
+        (typeof selectedCategoryId === 'number' &&
+          (selectedCategoryId === searchHubRoot.id ||
+            searchHubRoot.children?.some((child) => child.id === selectedCategoryId))))
+  )
+
+  const allSortOptions = isCarsContext
+    ? [...SORT_OPTIONS, ...CAR_SORT_OPTIONS]
+    : SORT_OPTIONS
   const showTopBar = variant !== 'filters'
   const showFilters = variant !== 'top'
   const formColumns = variant === 'filters' ? 1 : { base: 1, md: 2, lg: 4 }
@@ -1125,7 +1154,8 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
                     <Text fontSize="xs" color={dark.muted} mb={1}>Status</Text>
                     <select
                       name="status"
-                      defaultValue={searchParams.get('status') ?? DEFAULT_STATUS}
+                      value={searchParams.get('status') ?? DEFAULT_STATUS}
+                      onChange={(e) => handleFiltersStatusChange(e.target.value)}
                       style={{
                         width: '100%',
                         padding: '8px 12px',
@@ -1136,26 +1166,7 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
                       }}
                     >
                       {STATUS_OPTIONS.map((o) => (
-                        <option key={o.value || 'any'} value={o.value}>{o.label}</option>
-                      ))}
-                    </select>
-                  </Box>
-                  <Box>
-                    <Text fontSize="xs" color={dark.muted} mb={1}>Sort</Text>
-                    <select
-                      name="sort"
-                      defaultValue={searchParams.get('sort') ?? ''}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        background: dark.inputBg,
-                        border: `1px solid ${dark.borderSubtle}`,
-                        borderRadius: '6px',
-                        color: 'white',
-                      }}
-                    >
-                      {allSortOptions.map((o) => (
-                        <option key={o.value || 'default'} value={o.value}>{o.label}</option>
+                        <option key={o.value || 'all'} value={o.value}>{o.label}</option>
                       ))}
                     </select>
                   </Box>

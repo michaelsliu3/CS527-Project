@@ -71,4 +71,54 @@ describe('MyAuctionsPage', () => {
     await user.click(screen.getByRole('button', { name: /Create Auction/i }))
     expect(await screen.findByRole('dialog')).toHaveTextContent('Create Auction')
   })
+
+  it('renders top-right sort dropdown and reorders cards client-side', async () => {
+    const user = userEvent.setup()
+    vi.mocked(api.getMyAuctions).mockResolvedValueOnce({
+      data: [
+        {
+          id: 1,
+          title: 'Budget Ride',
+          currentPrice: 5000,
+          closeDateTime: new Date(Date.now() + 3 * 86400000).toISOString(),
+          status: 'active',
+          categoryName: 'Sedans',
+          sellerUsername: 'alice',
+          bidCount: 1,
+        },
+        {
+          id: 2,
+          title: 'Premium Ride',
+          currentPrice: 25000,
+          closeDateTime: new Date(Date.now() + 86400000).toISOString(),
+          status: 'active',
+          categoryName: 'SUVs',
+          sellerUsername: 'alice',
+          bidCount: 2,
+        },
+      ],
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as never)
+
+    renderMyAuctionsPage()
+
+    expect(await screen.findByText('Budget Ride')).toBeInTheDocument()
+    expect(await screen.findByText('Premium Ride')).toBeInTheDocument()
+
+    const topRightSort = screen.getByLabelText('My auctions sort options')
+    await user.selectOptions(topRightSort, 'price_desc')
+
+    const orderedTitles = screen.getAllByRole('heading').map((el) => el.textContent)
+    const premiumIndex = orderedTitles.indexOf('Premium Ride')
+    const budgetIndex = orderedTitles.indexOf('Budget Ride')
+
+    expect(premiumIndex).toBeGreaterThanOrEqual(0)
+    expect(budgetIndex).toBeGreaterThanOrEqual(0)
+    expect(premiumIndex).toBeLessThan(budgetIndex)
+
+    expect(api.getMyAuctions).toHaveBeenCalledTimes(1)
+  })
 })

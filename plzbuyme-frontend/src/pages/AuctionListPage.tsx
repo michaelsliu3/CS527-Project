@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Box, Container, Flex, SimpleGrid, Spinner, Text, Button } from '@chakra-ui/react'
+import { useEffect, useRef, useState } from 'react'
+import { Box, Container, Flex, SimpleGrid, Spinner, Text, Button, Icon } from '@chakra-ui/react'
 import { useSearchParams } from 'react-router-dom'
+import { LuChevronDown, LuRefreshCw } from 'react-icons/lu'
 import { browseAuctions, type AuctionListItem, type BrowseParams } from '../api/auctions'
 import { AuctionCard } from '../components/AuctionCard'
 import { SearchBar } from '../components/SearchBar'
@@ -17,6 +18,24 @@ function canCreateAuctions(role: string | undefined): boolean {
 }
 
 const DEFAULT_AUCTION_PAGE_SIZE = 21
+const TOP_RIGHT_SORT_OPTIONS = [
+  { value: '', label: 'Default' },
+  { value: 'newest', label: 'Newest' },
+  { value: 'closing_soon', label: 'Closing soon' },
+  { value: 'price_asc', label: 'Price: low to high' },
+  { value: 'price_desc', label: 'Price: high to low' },
+  { value: 'most_bids', label: 'Most bids' },
+  { value: 'year_newest', label: 'Year: newest' },
+  { value: 'year_oldest', label: 'Year: oldest' },
+  { value: 'mileage_low', label: 'Mileage: low to high' },
+  { value: 'mileage_high', label: 'Mileage: high to low' },
+]
+const STATUS_TABS = [
+  { value: '', label: 'All' },
+  { value: 'active', label: 'Active' },
+  { value: 'closed', label: 'Closed' },
+  { value: 'sold', label: 'Sold' },
+]
 
 function normalizeGridPageSize(rawPageSize: string | null): number {
   if (!rawPageSize) return DEFAULT_AUCTION_PAGE_SIZE
@@ -81,13 +100,17 @@ export function AuctionListPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [listRefreshToken, setListRefreshToken] = useState(0)
+  const activeRequestId = useRef(0)
 
   useEffect(() => {
+    activeRequestId.current += 1
+    const requestId = activeRequestId.current
     setLoading(true)
     setError(null)
     const params = buildBrowseParams(searchParams)
     browseAuctions(params)
       .then((res) => {
+        if (requestId !== activeRequestId.current) return
         setItems(res.data.items)
         setTotalCount(res.data.totalCount)
         setPage(res.data.page)
@@ -95,10 +118,15 @@ export function AuctionListPage() {
         setError(null)
       })
       .catch(() => {
+        if (requestId !== activeRequestId.current) return
         setError('Failed to load auctions.')
         showErrorToast('Failed to load auctions', 'Please try again later.')
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (requestId === activeRequestId.current) {
+          setLoading(false)
+        }
+      })
   }, [searchParams, listRefreshToken])
 
   useEffect(() => {
@@ -108,6 +136,18 @@ export function AuctionListPage() {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
   const hasNext = page < totalPages
   const hasPrev = page > 1
+  const sortKey = searchParams.get('sort') ?? ''
+  const statusKey = searchParams.get('status') ?? 'active'
+  const handleTopRightSortChange = (nextSort: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (nextSort) {
+      next.set('sort', nextSort)
+    } else {
+      next.delete('sort')
+    }
+    next.set('page', '1')
+    setSearchParams(next)
+  }
 
   const nextPage = () => {
     const next = new URLSearchParams(searchParams)
@@ -121,23 +161,41 @@ export function AuctionListPage() {
     setSearchParams(next)
   }
 
+  const refreshAuctions = () => {
+    setListRefreshToken((t) => t + 1)
+  }
+
+  const handleStatusTabChange = (nextStatus: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (nextStatus) {
+      next.set('status', nextStatus)
+    } else {
+      // Keep an explicit empty status so defaulting logic doesn't force "active" back.
+      next.set('status', '')
+    }
+    next.set('page', '1')
+    setSearchParams(next)
+  }
+
   return (
     <Container maxW="container.xl" px={APP_PAGE_PX} position="relative">
       {canCreateAuctions(user?.role) && (
         <Box position="absolute" top={2} right={4} zIndex={2}>
-          <Button
-            size="sm"
-            bg="brand.500"
-            color="white"
-            _hover={{ bg: 'brand.400' }}
-            onClick={() =>
-              openSellModal({
-                onAfterCreate: () => setListRefreshToken((t) => t + 1),
-              })
-            }
-          >
-            Create Auction
-          </Button>
+          <Flex direction="column" align="flex-end" gap={2}>
+            <Button
+              size="sm"
+              bg="brand.500"
+              color="white"
+              _hover={{ bg: 'brand.400' }}
+              onClick={() =>
+                openSellModal({
+                  onAfterCreate: () => setListRefreshToken((t) => t + 1),
+                })
+              }
+            >
+              Create Auction
+            </Button>
+          </Flex>
         </Box>
       )}
       <SearchBar variant="top" topMarginBottom={0} />
@@ -148,6 +206,80 @@ export function AuctionListPage() {
         </Box>
 
         <Box flex="1" w="100%">
+          <Flex mb={4} justify="space-between" align="center" gap={3} wrap="wrap">
+            <Flex gap={2} wrap="wrap">
+              {STATUS_TABS.map((tab) => {
+                const isActive = statusKey === tab.value
+                return (
+                  <Button
+                    key={tab.value || 'all'}
+                    size="sm"
+                    variant="outline"
+                    borderColor={dark.borderSubtle}
+                    bg={isActive ? 'whiteAlpha.100' : 'transparent'}
+                    color="white"
+                    _hover={{
+                      bg: 'whiteAlpha.100',
+                      borderColor: dark.borderSubtle,
+                    }}
+                    onClick={() => handleStatusTabChange(tab.value)}
+                  >
+                    {tab.label}
+                  </Button>
+                )
+              })}
+            </Flex>
+            <Flex align="center" gap={2}>
+            <Button
+              aria-label="Refresh auctions"
+              onClick={refreshAuctions}
+              disabled={loading}
+              variant="outline"
+              borderColor={dark.borderSubtle}
+              color="white"
+              _hover={{ bg: 'whiteAlpha.100' }}
+              minW="40px"
+              w="40px"
+              h="40px"
+              p={0}
+            >
+              <Icon as={LuRefreshCw} boxSize={4.5} />
+            </Button>
+            <Box position="relative" w="100%" maxW="230px">
+              <select
+                aria-label="Auction sort options"
+                value={sortKey}
+                onChange={(e) => handleTopRightSortChange(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 34px 8px 12px',
+                  background: dark.inputBg,
+                  border: `1px solid ${dark.borderSubtle}`,
+                  borderRadius: '6px',
+                  color: 'white',
+                  appearance: 'none',
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none',
+                }}
+              >
+                {TOP_RIGHT_SORT_OPTIONS.map((o) => (
+                  <option key={o.value || 'default'} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+              <Icon
+                as={LuChevronDown}
+                position="absolute"
+                right={3}
+                top="50%"
+                transform="translateY(-50%)"
+                color={dark.muted}
+                pointerEvents="none"
+              />
+            </Box>
+            </Flex>
+          </Flex>
           {error && (
             <Text color="red.400" mb={4}>
               {error}
