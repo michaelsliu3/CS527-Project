@@ -55,6 +55,13 @@ function toUtcEpochMs(value: string): number {
   return new Date(normalized).getTime()
 }
 
+function resolveHeroModelKey(searchableText: string): 'su7' | 'praga' | 'mazzanti' | null {
+  if (/(mazzanti|evantra)/i.test(searchableText)) return 'mazzanti'
+  if (/praga/i.test(searchableText)) return 'praga'
+  if (/su7/i.test(searchableText)) return 'su7'
+  return null
+}
+
 function formatCountdown(closeDateTime: string): string {
   const end = toUtcEpochMs(closeDateTime)
   const now = Date.now()
@@ -255,10 +262,9 @@ export function AuctionDetailPage() {
     const imgSrc = resolveMediaUrl(auction.detailImageUrl ?? auction.imageUrl)
     const altImgSrc = resolveMediaUrl(auction.imageUrl)
     const model = auction.fieldValues.find((fv) => fv.fieldName.toLowerCase() === 'model')?.value ?? ''
-    const searchableText = `${auction.title} ${auction.description ?? ''} ${model}`.toLowerCase()
-    const isPraga = searchableText.includes('praga')
-    const isSu7 = searchableText.includes('su7')
-    const heroModelKey: 'su7' | 'praga' | null = isPraga ? 'praga' : isSu7 ? 'su7' : null
+    const searchableText = `${auction.title} ${auction.description ?? ''} ${model}`
+    const heroModelKey = resolveHeroModelKey(searchableText)
+    const isSu7 = heroModelKey === 'su7'
 
     if (heroModelKey) {
       slides.push({

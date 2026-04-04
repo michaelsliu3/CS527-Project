@@ -9,7 +9,7 @@ import { Reflector } from 'three/examples/jsm/objects/Reflector.js'
 
 interface Su7ThreeHeroProps {
   title: string
-  modelKey?: 'su7' | 'praga'
+  modelKey?: 'su7' | 'praga' | 'mazzanti'
   /** When true, the viewer fills its parent and enables orbit interaction */
   interactive?: boolean
   onDrivingChange?: (driving: boolean) => void
@@ -17,6 +17,7 @@ interface Su7ThreeHeroProps {
 }
 
 const COLOR_SWATCHES = [
+  { id: 'default', hex: null },
   { id: 'yellow', hex: '#f5c542' },
   { id: 'silver', hex: '#c9ccd3' },
   { id: 'white', hex: '#f1f1f1' },
@@ -25,11 +26,11 @@ const COLOR_SWATCHES = [
   { id: 'black', hex: '#151515' },
 ] as const
 
-const DEFAULT_SWATCH_ID = 'yellow'
+const DEFAULT_SWATCH_ID = 'default'
 const EXTERIOR_PAINT_MATERIAL_NAMES = new Set(['Car_body'])
 const NON_PAINT_NAME_REGEX = /(glass|window|light|lamp|emissive|wheel|tire|tyre|rim|brake|disc|interior|seat|cockpit|driver|helmet)/i
 const MODEL_CONFIGS: Record<
-  'su7' | 'praga',
+  'su7' | 'praga' | 'mazzanti',
   {
     candidatePaths: string[]
     rootYaw: number
@@ -38,7 +39,8 @@ const MODEL_CONFIGS: Record<
     wheelSpinAxis: 'x' | 'y' | 'z'
     introScaleStart: number
     introScaleEnd: number
-    audioProfile: 'ev' | 'race-4cyl'
+    audioProfile: 'ev' | 'race-4cyl' | 'gas-v8'
+    engineSamplePath?: string
   }
 > = {
   su7: {
@@ -60,6 +62,17 @@ const MODEL_CONFIGS: Record<
     introScaleStart: 0.5,
     introScaleEnd: 0.64,
     audioProfile: 'race-4cyl',
+  },
+  mazzanti: {
+    candidatePaths: ['/models/mazzanti-evantra-wwwvecarzcom/source/mazzanti_evantra.glb'],
+    rootYaw: Math.PI / 2,
+    rootLift: 0,
+    wheelSpinDirection: 1,
+    wheelSpinAxis: 'x',
+    introScaleStart: 0.5,
+    introScaleEnd: 0.64,
+    audioProfile: 'gas-v8',
+    engineSamplePath: '/audio/v8-engine-loop-cc0.wav',
   },
 }
 
@@ -83,17 +96,24 @@ export function Su7ThreeHero({
   const shouldHideUI = isDrivingUI || !introCompleted
   const paintMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([])
   const fallbackBodyMaterialRef = useRef<THREE.MeshPhysicalMaterial | null>(null)
-  const selectedColorRef = useRef<string>(COLOR_SWATCHES[0].hex)
-  const currentPaintColorRef = useRef(new THREE.Color(COLOR_SWATCHES[0].hex))
-  const targetPaintColorRef = useRef(new THREE.Color(COLOR_SWATCHES[0].hex))
-  const transitionStartPaintColorRef = useRef(new THREE.Color(COLOR_SWATCHES[0].hex))
+  const selectedColorRef = useRef<string>('#f5c542')
+  const defaultPaintColorRef = useRef(new THREE.Color('#f5c542'))
+  const useDefaultPaintRef = useRef(true)
+  const currentPaintColorRef = useRef(new THREE.Color('#f5c542'))
+  const targetPaintColorRef = useRef(new THREE.Color('#f5c542'))
+  const transitionStartPaintColorRef = useRef(new THREE.Color('#f5c542'))
   const transitionProgressRef = useRef(1)
 
   useEffect(() => {
-    const selected = COLOR_SWATCHES.find((swatch) => swatch.id === selectedSwatchId) ?? COLOR_SWATCHES[0]
-    selectedColorRef.current = selected.hex
+    const selected = COLOR_SWATCHES.find((swatch) => swatch.id === selectedSwatchId) ?? COLOR_SWATCHES[1]
+    useDefaultPaintRef.current = selected.id === 'default'
+    selectedColorRef.current = selected.hex ?? `#${defaultPaintColorRef.current.getHexString()}`
     transitionStartPaintColorRef.current.copy(currentPaintColorRef.current)
-    targetPaintColorRef.current.set(selected.hex)
+    if (useDefaultPaintRef.current) {
+      targetPaintColorRef.current.copy(defaultPaintColorRef.current)
+    } else {
+      targetPaintColorRef.current.set(selectedColorRef.current)
+    }
     transitionProgressRef.current = 0
   }, [selectedSwatchId])
 
@@ -322,7 +342,7 @@ export function Su7ThreeHero({
 
     const carGroup = new THREE.Group()
     scene.add(carGroup)
-    const carVerticalOffset = -0.18
+    const carVerticalOffset = modelKey === 'mazzanti' ? 0.38 : -0.18
     let entryScaleCurrent = 0.6
     carGroup.scale.setScalar(entryScaleCurrent)
 
@@ -370,7 +390,12 @@ export function Su7ThreeHero({
     carGroup.add(fallback.root)
     let activeRoot: THREE.Object3D = fallback.root
     const fallbackWheels = fallback.wheels
-    let modelWheels: THREE.Object3D[] = []
+    type WheelSpinTarget = {
+      node: THREE.Object3D
+      localAxleAxis: THREE.Vector3
+      sideSpinDirection: 1 | -1
+    }
+    let modelWheels: WheelSpinTarget[] = []
     let spoilerNode: THREE.Object3D | null = null
     let spoilerBaseRotZ = 0
     let spoilerBaseY = 0
@@ -413,15 +438,19 @@ export function Su7ThreeHero({
 
     const loader = new GLTFLoader()
     loader.setMeshoptDecoder(MeshoptDecoder)
-    const rotateWheelBy = (wheel: THREE.Object3D, amount: number) => {
+    const rotateWheelBy = (wheel: WheelSpinTarget, amount: number) => {
       const signedAmount = amount * MODEL_CONFIGS[modelKey].wheelSpinDirection
+      if (modelKey === 'mazzanti') {
+        wheel.node.rotateOnAxis(wheel.localAxleAxis, signedAmount * wheel.sideSpinDirection)
+        return
+      }
       const axis = MODEL_CONFIGS[modelKey].wheelSpinAxis
       if (axis === 'x') {
-        wheel.rotateX(signedAmount)
+        wheel.node.rotateX(signedAmount)
       } else if (axis === 'y') {
-        wheel.rotateY(signedAmount)
+        wheel.node.rotateY(signedAmount)
       } else {
-        wheel.rotateZ(signedAmount)
+        wheel.node.rotateZ(signedAmount)
       }
     }
 
@@ -449,6 +478,8 @@ export function Su7ThreeHero({
 
         const wheelNameRegex = /(wheel|tyre|tire|rim)/i
         const allWheelCandidates: THREE.Object3D[] = []
+        const allWheelMeshCandidates: THREE.Mesh[] = []
+        const allMeshCandidates: THREE.Mesh[] = []
         const lightNodeRegex = /^(Light|LightGlass)\./
         const exteriorPaintMaterials = new Set<THREE.MeshStandardMaterial>()
         const fallbackExteriorPaintMaterials = new Set<THREE.MeshStandardMaterial>()
@@ -458,14 +489,19 @@ export function Su7ThreeHero({
 
         modelRoot.traverse((object: THREE.Object3D) => {
           const mesh = object as THREE.Mesh
-          if (wheelNameRegex.test(object.name)) {
-            allWheelCandidates.push(object)
-          }
           if (object.name === 'WeiYi') {
             spoilerNode = object
           }
 
+          if (wheelNameRegex.test(object.name)) {
+            allWheelCandidates.push(object)
+            if (mesh.isMesh) {
+              allWheelMeshCandidates.push(mesh)
+            }
+          }
+
           if (mesh.isMesh) {
+            allMeshCandidates.push(mesh)
             const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
 
             const onLightNode = lightNodeRegex.test(object.name)
@@ -517,20 +553,123 @@ export function Su7ThreeHero({
           }
         })
 
-        if (exteriorPaintMaterials.size === 0 && modelKey === 'praga') {
+        if (exteriorPaintMaterials.size === 0 && (modelKey === 'praga' || modelKey === 'mazzanti')) {
           paintMaterialsRef.current = Array.from(fallbackExteriorPaintMaterials)
         } else {
           paintMaterialsRef.current = Array.from(exteriorPaintMaterials)
         }
 
-        const candidateSet = new Set(allWheelCandidates)
-        const detectedWheels = allWheelCandidates.filter((obj) => {
-          let hasDescendantCandidate = false
-          obj.traverse((child) => {
-            if (child !== obj && candidateSet.has(child)) hasDescendantCandidate = true
-          })
-          return !hasDescendantCandidate
-        })
+        const detectedWheels: WheelSpinTarget[] = modelKey === 'mazzanti'
+          ? (() => {
+            const modelCenter = new THREE.Vector3()
+            new THREE.Box3().setFromObject(modelRoot).getCenter(modelCenter)
+            const toScoredCandidate = (mesh: THREE.Mesh) => {
+              const worldPos = new THREE.Vector3()
+              mesh.getWorldPosition(worldPos)
+              const cornerDistance = Math.abs(worldPos.x - modelCenter.x) + Math.abs(worldPos.z - modelCenter.z)
+              return { mesh, worldPos, cornerDistance }
+            }
+
+            const wheelPool = allWheelMeshCandidates.length >= 4 ? allWheelMeshCandidates : allMeshCandidates
+            const scoredCandidates = wheelPool
+              .map((mesh) => {
+                const base = toScoredCandidate(mesh)
+                const fullBox = new THREE.Box3().setFromObject(modelRoot)
+                const lowerThreshold = fullBox.min.y + (fullBox.max.y - fullBox.min.y) * 0.48
+                const lowerBonus = base.worldPos.y <= lowerThreshold ? 2.5 : -2.5
+                return { ...base, score: base.cornerDistance + lowerBonus }
+              })
+              .sort((a, b) => b.score - a.score)
+
+            const bestByQuadrant = new Map<string, (typeof scoredCandidates)[number]>()
+            scoredCandidates.forEach((candidate) => {
+              const frontBack = candidate.worldPos.x >= modelCenter.x ? 'front' : 'rear'
+              const leftRight = candidate.worldPos.z >= modelCenter.z ? 'right' : 'left'
+              const quadrantKey = `${frontBack}-${leftRight}`
+              if (!bestByQuadrant.has(quadrantKey)) {
+                bestByQuadrant.set(quadrantKey, candidate)
+              }
+            })
+
+            let detectedWheelMeshes = Array.from(bestByQuadrant.values()).map((c) => c.mesh)
+            if (detectedWheelMeshes.length < 4) {
+              for (const candidate of scoredCandidates) {
+                if (detectedWheelMeshes.includes(candidate.mesh)) continue
+                detectedWheelMeshes.push(candidate.mesh)
+                if (detectedWheelMeshes.length === 4) break
+              }
+            }
+            detectedWheelMeshes = detectedWheelMeshes.slice(0, 4)
+
+            return detectedWheelMeshes
+              .map((mesh) => {
+                // Use each wheel mesh's own local bounds to infer axle axis.
+                // The smallest local dimension is typically tire thickness (axle direction),
+                // which avoids wobble from position-based axis inference.
+                const localAxleAxis = new THREE.Vector3(1, 0, 0)
+                mesh.geometry.computeBoundingBox()
+                const localBox = mesh.geometry.boundingBox
+                if (localBox) {
+                  const size = new THREE.Vector3()
+                  localBox.getSize(size)
+                  if (size.y <= size.x && size.y <= size.z) {
+                    localAxleAxis.set(0, 1, 0)
+                  } else if (size.z <= size.x && size.z <= size.y) {
+                    localAxleAxis.set(0, 0, 1)
+                  } else {
+                    localAxleAxis.set(1, 0, 0)
+                  }
+                }
+                // Ensure axle sign points outward from vehicle center so mirrored wheels spin forward together.
+                const worldPos = new THREE.Vector3()
+                mesh.getWorldPosition(worldPos)
+                const sideDirWorld = worldPos.clone().sub(modelCenter).setY(0)
+                const axisWorld = localAxleAxis.clone().transformDirection(mesh.matrixWorld).setY(0)
+                if (sideDirWorld.lengthSq() > 1e-6 && axisWorld.lengthSq() > 1e-6) {
+                  sideDirWorld.normalize()
+                  axisWorld.normalize()
+                  if (axisWorld.dot(sideDirWorld) < 0) {
+                    localAxleAxis.multiplyScalar(-1)
+                  }
+                }
+                const correctedAxisWorld = localAxleAxis.clone().transformDirection(mesh.matrixWorld).setY(0)
+                const dominantLateral = Math.abs(correctedAxisWorld.z) >= Math.abs(correctedAxisWorld.x)
+                  ? correctedAxisWorld.z
+                  : correctedAxisWorld.x
+                const sideSpinDirection: 1 | -1 = dominantLateral >= 0 ? 1 : -1
+                return {
+                  node: mesh,
+                  localAxleAxis,
+                  sideSpinDirection,
+                }
+              })
+          })()
+          : (() => {
+            const candidateSet = new Set(allWheelCandidates)
+            const legacyWheels = allWheelCandidates.filter((obj) => {
+              let hasDescendantCandidate = false
+              obj.traverse((child) => {
+                if (child !== obj && candidateSet.has(child)) hasDescendantCandidate = true
+              })
+              return !hasDescendantCandidate
+            })
+            return legacyWheels.map((node) => ({
+              node,
+              localAxleAxis: new THREE.Vector3(1, 0, 0),
+              sideSpinDirection: 1,
+            }))
+          })()
+
+        const materialDefault = paintMaterialsRef.current[0]?.color
+        if (materialDefault) {
+          defaultPaintColorRef.current.copy(materialDefault)
+          if (useDefaultPaintRef.current) {
+            currentPaintColorRef.current.copy(defaultPaintColorRef.current)
+            transitionStartPaintColorRef.current.copy(defaultPaintColorRef.current)
+            targetPaintColorRef.current.copy(defaultPaintColorRef.current)
+            transitionProgressRef.current = 1
+          }
+        }
 
         const selectedColor = currentPaintColorRef.current
         paintMaterialsRef.current.forEach((material) => {
@@ -602,9 +741,58 @@ export function Su7ThreeHero({
     const oscBaseFreqs: number[] = []
     let whineOsc: OscillatorNode | null = null
     let whineGain: GainNode | null = null
+    let rumbleOsc: OscillatorNode | null = null
+    let rumbleGain: GainNode | null = null
+    let pulseOsc: OscillatorNode | null = null
+    let pulseGain: GainNode | null = null
+    let engineNoiseSource: AudioBufferSourceNode | null = null
+    let engineNoiseFilter: BiquadFilterNode | null = null
+    let engineNoiseGain: GainNode | null = null
+    let engineSampleSource: AudioBufferSourceNode | null = null
+    let engineSampleFilter: BiquadFilterNode | null = null
+    let engineSampleGain: GainNode | null = null
+    let sampleLoadCancelled = false
     let audioStarted = false
     let previousDriveSpeed = 0
     let accelTransient = 0
+
+    const loadEngineSampleLoop = async (samplePath: string) => {
+      const context = audioCtx
+      const rootGain = masterGain
+      if (!context || !rootGain) return
+
+      try {
+        const response = await fetch(samplePath)
+        if (!response.ok) return
+        const rawData = await response.arrayBuffer()
+        const decoded = await context.decodeAudioData(rawData.slice(0))
+        if (sampleLoadCancelled || audioCtx !== context || !masterGain) return
+
+        const source = context.createBufferSource()
+        source.buffer = decoded
+        source.loop = true
+        source.playbackRate.value = 0.82
+
+        const filter = context.createBiquadFilter()
+        filter.type = 'lowpass'
+        filter.frequency.value = 680
+        filter.Q.value = 0.8
+
+        const gainNode = context.createGain()
+        gainNode.gain.value = 0
+
+        source.connect(filter)
+        filter.connect(gainNode)
+        gainNode.connect(masterGain)
+
+        source.start()
+        engineSampleSource = source
+        engineSampleFilter = filter
+        engineSampleGain = gainNode
+      } catch {
+        // Keep synthesized engine as a fallback when sample loading fails.
+      }
+    }
 
     const initAudio = () => {
       if (audioStarted) return
@@ -614,12 +802,12 @@ export function Su7ThreeHero({
 
       const hpf = audioCtx.createBiquadFilter()
       hpf.type = 'highpass'
-      hpf.frequency.value = audioProfile === 'race-4cyl' ? 90 : 45
+      hpf.frequency.value = audioProfile === 'race-4cyl' ? 90 : audioProfile === 'gas-v8' ? 18 : 45
       hpf.Q.value = 0.7
       const lpf = audioCtx.createBiquadFilter()
       lpf.type = 'lowpass'
-      lpf.frequency.value = audioProfile === 'race-4cyl' ? 3200 : 1600
-      lpf.Q.value = audioProfile === 'race-4cyl' ? 1.0 : 0.7
+      lpf.frequency.value = audioProfile === 'race-4cyl' ? 3200 : audioProfile === 'gas-v8' ? 1800 : 1600
+      lpf.Q.value = audioProfile === 'race-4cyl' ? 1.0 : audioProfile === 'gas-v8' ? 0.9 : 0.7
       hpf.connect(lpf)
       lpf.connect(audioCtx.destination)
 
@@ -629,10 +817,10 @@ export function Su7ThreeHero({
 
       if (audioProfile === 'race-4cyl') {
         const raceHarmonics = [
-          { base: 85, type: 'sawtooth' as OscillatorType, gain: 0.55 },
-          { base: 170, type: 'square' as OscillatorType, gain: 0.2 },
-          { base: 255, type: 'triangle' as OscillatorType, gain: 0.16 },
-          { base: 340, type: 'sine' as OscillatorType, gain: 0.1 },
+          { base: 60, type: 'sawtooth' as OscillatorType, gain: 0.62 },
+          { base: 120, type: 'sawtooth' as OscillatorType, gain: 0.33 },
+          { base: 180, type: 'triangle' as OscillatorType, gain: 0.18 },
+          { base: 240, type: 'square' as OscillatorType, gain: 0.12 },
         ]
         raceHarmonics.forEach((harmonic) => {
           const osc = audioCtx!.createOscillator()
@@ -647,6 +835,87 @@ export function Su7ThreeHero({
           oscGainBank.push(gainNode)
           oscBaseFreqs.push(harmonic.base)
         })
+
+        const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate)
+        const noiseData = noiseBuffer.getChannelData(0)
+        for (let i = 0; i < noiseData.length; i += 1) {
+          noiseData[i] = Math.random() * 2 - 1
+        }
+        engineNoiseSource = audioCtx.createBufferSource()
+        engineNoiseSource.buffer = noiseBuffer
+        engineNoiseSource.loop = true
+        engineNoiseFilter = audioCtx.createBiquadFilter()
+        engineNoiseFilter.type = 'bandpass'
+        engineNoiseFilter.frequency.value = 1250
+        engineNoiseFilter.Q.value = 0.75
+        engineNoiseGain = audioCtx.createGain()
+        engineNoiseGain.gain.value = 0
+        engineNoiseSource.connect(engineNoiseFilter)
+        engineNoiseFilter.connect(engineNoiseGain)
+        engineNoiseGain.connect(masterGain!)
+        engineNoiseSource.start()
+      } else if (audioProfile === 'gas-v8') {
+        const v8Harmonics = [
+          { base: 36, type: 'sawtooth' as OscillatorType, gain: 0.82 },
+          { base: 72, type: 'triangle' as OscillatorType, gain: 0.48 },
+          { base: 108, type: 'triangle' as OscillatorType, gain: 0.28 },
+          { base: 144, type: 'square' as OscillatorType, gain: 0.16 },
+        ]
+        v8Harmonics.forEach((harmonic) => {
+          const osc = audioCtx!.createOscillator()
+          osc.type = harmonic.type
+          osc.frequency.value = harmonic.base
+          const gainNode = audioCtx!.createGain()
+          gainNode.gain.value = 0
+          osc.connect(gainNode)
+          gainNode.connect(masterGain!)
+          osc.start()
+          oscBank.push(osc)
+          oscGainBank.push(gainNode)
+          oscBaseFreqs.push(harmonic.base)
+        })
+
+        rumbleOsc = audioCtx.createOscillator()
+        rumbleOsc.type = 'sine'
+        rumbleOsc.frequency.value = 28
+        rumbleGain = audioCtx.createGain()
+        rumbleGain.gain.value = 0
+        rumbleOsc.connect(rumbleGain)
+        rumbleGain.connect(masterGain!)
+        rumbleOsc.start()
+
+        pulseOsc = audioCtx.createOscillator()
+        pulseOsc.type = 'square'
+        pulseOsc.frequency.value = 6
+        pulseGain = audioCtx.createGain()
+        pulseGain.gain.value = 0.1
+        pulseOsc.connect(pulseGain)
+        pulseGain.connect(masterGain!.gain)
+        pulseOsc.start()
+
+        const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate)
+        const noiseData = noiseBuffer.getChannelData(0)
+        for (let i = 0; i < noiseData.length; i += 1) {
+          noiseData[i] = Math.random() * 2 - 1
+        }
+        engineNoiseSource = audioCtx.createBufferSource()
+        engineNoiseSource.buffer = noiseBuffer
+        engineNoiseSource.loop = true
+        engineNoiseFilter = audioCtx.createBiquadFilter()
+        engineNoiseFilter.type = 'bandpass'
+        engineNoiseFilter.frequency.value = 430
+        engineNoiseFilter.Q.value = 0.62
+        engineNoiseGain = audioCtx.createGain()
+        engineNoiseGain.gain.value = 0
+        engineNoiseSource.connect(engineNoiseFilter)
+        engineNoiseFilter.connect(engineNoiseGain)
+        engineNoiseGain.connect(masterGain!)
+        engineNoiseSource.start()
+
+        const samplePath = MODEL_CONFIGS[modelKey].engineSamplePath
+        if (samplePath) {
+          void loadEngineSampleLoop(samplePath)
+        }
       } else {
         const humFreqs = [100, 200, 300]
         humFreqs.forEach((freq) => {
@@ -670,6 +939,9 @@ export function Su7ThreeHero({
       if (audioProfile === 'race-4cyl') {
         whineOsc.type = 'sawtooth'
         whineOsc.frequency.value = 1200
+      } else if (audioProfile === 'gas-v8') {
+        whineOsc.type = 'triangle'
+        whineOsc.frequency.value = 240
       } else {
         whineOsc.type = 'triangle'
         whineOsc.frequency.value = 800
@@ -817,7 +1089,7 @@ export function Su7ThreeHero({
         carGroup.rotation.x = THREE.MathUtils.lerp(carGroup.rotation.x, -pointer.y * 0.08, 0.06)
         carGroup.position.x = driveOffset
         carGroup.position.y = carVerticalOffset + 0.04 + Math.sin(t * 1.45) * 0.035
-        carGroup.rotation.z = THREE.MathUtils.lerp(carGroup.rotation.z, -driveSpeed * 0.015, 0.12)
+        carGroup.rotation.z = THREE.MathUtils.lerp(carGroup.rotation.z, -driveSpeed * 0.004, 0.12)
 
         const idleSpin = 0.012
         const driveSpin = driveSpeed * 0.09
@@ -908,15 +1180,36 @@ export function Su7ThreeHero({
         accelTransient = Math.max(accelTransient * Math.exp(-dt * 8), Math.min(accelDelta * 3.2, 1))
 
         if (audioProfile === 'race-4cyl') {
-          const rpmNorm = THREE.MathUtils.clamp(0.2 + speedNorm * 0.8 + accelTransient * 0.16, 0, 1)
-          const firingFreq = THREE.MathUtils.lerp(90, 250, rpmNorm)
+          const rpmNorm = THREE.MathUtils.clamp(0.16 + speedNorm * 0.84 + accelTransient * 0.2, 0, 1)
+          const firingFreq = THREE.MathUtils.lerp(55, 220, rpmNorm)
           const multipliers = [1, 2, 3, 4]
-          const gains = [0.9, 0.45, 0.3, 0.2]
+          const gains = [1.0, 0.55, 0.34, 0.2]
           oscBank.forEach((osc, i) => {
             osc.frequency.setTargetAtTime(firingFreq * multipliers[i], now, 0.05)
-            oscGainBank[i]?.gain.setTargetAtTime(gains[i] * (0.25 + speedNorm * 0.75), now, 0.08)
+            oscGainBank[i]?.gain.setTargetAtTime(gains[i] * (0.22 + speedNorm * 0.9), now, 0.08)
           })
-          masterGain.gain.setTargetAtTime(0.02 + speedNorm * 0.05 + accelTransient * 0.02, now, 0.08)
+          masterGain.gain.setTargetAtTime(0.02 + speedNorm * 0.06 + accelTransient * 0.03, now, 0.08)
+          engineNoiseFilter?.frequency.setTargetAtTime(1100 + speedNorm * 2400, now, 0.1)
+          engineNoiseGain?.gain.setTargetAtTime(0.016 + speedNorm * 0.04 + accelTransient * 0.025, now, 0.08)
+        } else if (audioProfile === 'gas-v8') {
+          const rpmNorm = THREE.MathUtils.clamp(0.2 + speedNorm * 0.8 + accelTransient * 0.18, 0, 1)
+          const baseFreq = THREE.MathUtils.lerp(30, 96, rpmNorm)
+          const multipliers = [1, 2, 3, 4]
+          const gains = [1.0, 0.58, 0.34, 0.17]
+          oscBank.forEach((osc, i) => {
+            osc.frequency.setTargetAtTime(baseFreq * multipliers[i], now, 0.06)
+            oscGainBank[i]?.gain.setTargetAtTime(gains[i] * (0.22 + speedNorm * 0.95), now, 0.08)
+          })
+          rumbleOsc?.frequency.setTargetAtTime(22 + speedNorm * 22, now, 0.1)
+          rumbleGain?.gain.setTargetAtTime(0.1 + speedNorm * 0.16, now, 0.1)
+          pulseOsc?.frequency.setTargetAtTime(5 + speedNorm * 12, now, 0.12)
+          pulseGain?.gain.setTargetAtTime(0.065 + speedNorm * 0.11 + accelTransient * 0.05, now, 0.12)
+          masterGain.gain.setTargetAtTime(0.04 + speedNorm * 0.1 + accelTransient * 0.04, now, 0.08)
+          engineNoiseFilter?.frequency.setTargetAtTime(360 + speedNorm * 760, now, 0.1)
+          engineNoiseGain?.gain.setTargetAtTime(0.04 + speedNorm * 0.11 + accelTransient * 0.05, now, 0.08)
+          engineSampleSource?.playbackRate.setTargetAtTime(0.82 + speedNorm * 0.4 + accelTransient * 0.05, now, 0.12)
+          engineSampleFilter?.frequency.setTargetAtTime(620 + speedNorm * 980, now, 0.12)
+          engineSampleGain?.gain.setTargetAtTime(0.07 + speedNorm * 0.13 + accelTransient * 0.05, now, 0.1)
         } else {
           const rev = 1 + speedNorm * 1.5
           oscBank.forEach((osc, i) => {
@@ -930,6 +1223,9 @@ export function Su7ThreeHero({
           if (audioProfile === 'race-4cyl') {
             whineOsc.frequency.setTargetAtTime(1100 + speedNorm * 2200 + accelTransient * 350, now, 0.05)
             whineGain.gain.setTargetAtTime(0.003 + Math.pow(speedNorm, 1.2) * 0.025, now, 0.08)
+          } else if (audioProfile === 'gas-v8') {
+            whineOsc.frequency.setTargetAtTime(140 + speedNorm * 320 + accelTransient * 50, now, 0.1)
+            whineGain.gain.setTargetAtTime(0.001 + Math.pow(speedNorm, 1.05) * 0.006, now, 0.1)
           } else {
             whineOsc.frequency.setTargetAtTime(800 + speedNorm * 800, now, 0.08)
             whineGain.gain.setTargetAtTime(Math.pow(speedNorm, 1.5) * 0.05, now, 0.12)
@@ -954,10 +1250,15 @@ export function Su7ThreeHero({
     document.addEventListener('visibilitychange', onVisibilityChange)
 
     return () => {
+      sampleLoadCancelled = true
       window.cancelAnimationFrame(raf)
       document.removeEventListener('visibilitychange', onVisibilityChange)
       oscBank.forEach((o) => o.stop())
       if (whineOsc) whineOsc.stop()
+      if (rumbleOsc) rumbleOsc.stop()
+      if (pulseOsc) pulseOsc.stop()
+      if (engineNoiseSource) engineNoiseSource.stop()
+      if (engineSampleSource) engineSampleSource.stop()
       if (audioCtx) audioCtx.close()
       resizeObserver.disconnect()
       controls?.dispose()
@@ -1021,19 +1322,25 @@ export function Su7ThreeHero({
             <Box
               as="button"
               key={swatch.id}
-              aria-label={`Set car color ${swatch.id}`}
+              aria-label={swatch.id === 'default' ? 'Set car color default' : `Set car color ${swatch.id}`}
               onClick={() => setSelectedSwatchId(swatch.id)}
               w={{ base: '18px', md: '20px' }}
               h={{ base: '18px', md: '20px' }}
               borderRadius="full"
-              bg={swatch.hex}
+              bg={swatch.hex ?? 'linear-gradient(135deg, #f5c542 0%, #c9ccd3 50%, #151515 100%)'}
               border={isSelected ? '2px solid rgba(255,255,255,0.95)' : '1px solid rgba(255,255,255,0.45)'}
               boxShadow={isSelected ? '0 0 0 2px rgba(255, 199, 71, 0.26), 0 2px 10px rgba(0,0,0,0.35)' : '0 1px 4px rgba(0,0,0,0.28)'}
               transform={isSelected ? 'scale(1.06)' : 'scale(1)'}
               transition="all 0.24s cubic-bezier(0.22, 1, 0.36, 1)"
               _hover={{ transform: isSelected ? 'scale(1.09)' : 'scale(1.04)' }}
               _active={{ transform: isSelected ? 'scale(1.03)' : 'scale(0.98)' }}
-            />
+            >
+              {swatch.id === 'default' ? (
+                <Box as="span" fontSize="8px" fontWeight="700" color="blackAlpha.800">
+                  D
+                </Box>
+              ) : null}
+            </Box>
           )
         })}
       </Box>
