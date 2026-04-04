@@ -264,14 +264,16 @@ export function AuctionDetailPage() {
     if (heroModelKey) {
       slides.push({
         type: '3d',
-        render: ({ activationCount }) => (
+        render: ({ activationCount, isFullscreen }) => (
           <Suspense fallback={<Box w="100%" h="100%" bg="#05070d" />}>
             <Su7ThreeHero
               key={`${heroModelKey}-3d-${activationCount}`}
               title={auction.title}
               modelKey={heroModelKey}
               interactive
+              fullscreenUI={isFullscreen}
               onDrivingChange={setIsDriving3D}
+              onIntroStart={() => setIntroComplete3D(false)}
               onIntroComplete={() => setIntroComplete3D(true)}
             />
           </Suspense>

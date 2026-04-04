@@ -660,6 +660,9 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Improve 3D discoverability and reuse by centralizing listing-to-model detection in `src/utils/auction3dModel.ts`, reusing it in both `AuctionDetailPage` and `AuctionCard`, and surfacing a `3D` badge on cards for recognized model listings.
 - Add a fullscreen-style 3D carousel expansion mode (expand/minimize control, body scroll lock, Escape-to-collapse) and ensure modal-level Escape close handling defers while the 3D view is expanded.
 - Remove idle/drive bobbing offsets from `Su7ThreeHero` car group positioning to reduce camera jitter and keep 3D model presentation steadier during menu interaction.
+- Scale fullscreen 3D overlay controls for better visibility (navigation arrows, pagination dots, 3D badge, drag hint, expand/minimize control, and in-scene color swatches) while preserving default non-fullscreen sizing.
+- Ensure fullscreen enter/exit intro transitions gate all overlay UI consistently by coupling carousel overlay visibility to intro lifecycle callbacks and a local fullscreen-transition guard to prevent one-frame UI flashes.
+- Extend `gt7-car-thumbnails.manifest.json` with metadata-only entries for Praga R1 and Mazzanti Evantra so quick-create/search metadata can recognize the newly supported 3D model listings.
 
 ---
 

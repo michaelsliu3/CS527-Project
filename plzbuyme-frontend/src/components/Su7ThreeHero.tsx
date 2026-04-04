@@ -1,5 +1,5 @@
 import { Box } from '@chakra-ui/react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js'
@@ -12,7 +12,10 @@ interface Su7ThreeHeroProps {
   modelKey?: 'su7' | 'praga' | 'mazzanti'
   /** When true, the viewer fills its parent and enables orbit interaction */
   interactive?: boolean
+  /** When true, overlay picker scales up for fullscreen carousel mode */
+  fullscreenUI?: boolean
   onDrivingChange?: (driving: boolean) => void
+  onIntroStart?: () => void
   onIntroComplete?: () => void
 }
 
@@ -80,7 +83,9 @@ export function Su7ThreeHero({
   title,
   modelKey = 'su7',
   interactive = false,
+  fullscreenUI = false,
   onDrivingChange,
+  onIntroStart,
   onIntroComplete,
 }: Su7ThreeHeroProps) {
   const mountRef = useRef<HTMLDivElement | null>(null)
@@ -90,10 +95,20 @@ export function Su7ThreeHero({
   const [introCompleted, setIntroCompleted] = useState(false)
   const onDrivingChangeRef = useRef(onDrivingChange)
   onDrivingChangeRef.current = onDrivingChange
+  const onIntroStartRef = useRef(onIntroStart)
+  onIntroStartRef.current = onIntroStart
   const onIntroCompleteRef = useRef(onIntroComplete)
   onIntroCompleteRef.current = onIntroComplete
 
   const shouldHideUI = isDrivingUI || !introCompleted
+  const pickerRight = fullscreenUI ? '28px' : { base: '12px', md: '20px' }
+  const pickerTop = fullscreenUI ? '64px' : { base: '40px', md: '52px' }
+  const pickerGap = fullscreenUI ? '11px' : { base: '6px', md: '7px' }
+  const pickerPx = fullscreenUI ? '11px' : { base: '6px', md: '7px' }
+  const pickerPy = fullscreenUI ? '12px' : { base: '7px', md: '9px' }
+  const pickerRadius = fullscreenUI ? '28px' : '22px'
+  const swatchSize = fullscreenUI ? '30px' : { base: '18px', md: '20px' }
+  const defaultSwatchFontSize = fullscreenUI ? '11px' : '8px'
   const paintMaterialsRef = useRef<THREE.MeshStandardMaterial[]>([])
   const fallbackBodyMaterialRef = useRef<THREE.MeshPhysicalMaterial | null>(null)
   const selectedColorRef = useRef<string>('#f5c542')
@@ -103,6 +118,11 @@ export function Su7ThreeHero({
   const targetPaintColorRef = useRef(new THREE.Color('#f5c542'))
   const transitionStartPaintColorRef = useRef(new THREE.Color('#f5c542'))
   const transitionProgressRef = useRef(1)
+
+  useLayoutEffect(() => {
+    setIntroCompleted(false)
+    onIntroStartRef.current?.()
+  }, [interactive, modelKey, title])
 
   useEffect(() => {
     const selected = COLOR_SWATCHES.find((swatch) => swatch.id === selectedSwatchId) ?? COLOR_SWATCHES[1]
@@ -953,27 +973,63 @@ export function Su7ThreeHero({
 
     const pointer = { x: 0, y: 0 }
     let isDriving = false
+    let isPointerDriving = false
+    let isKeyboardDriving = false
     let driveSpeed = 0
     let driveOffset = 0
     let onPointerMove: ((event: PointerEvent) => void) | null = null
     let onPointerLeave: (() => void) | null = null
     let onPointerDown: (() => void) | null = null
     let onPointerUp: (() => void) | null = null
+    let onKeyDown: ((event: KeyboardEvent) => void) | null = null
+    let onKeyUp: ((event: KeyboardEvent) => void) | null = null
+
+    const updateDrivingState = () => {
+      const nextDriving = isPointerDriving || isKeyboardDriving
+      if (nextDriving === isDriving) return
+      isDriving = nextDriving
+      setIsDrivingUI(nextDriving)
+      onDrivingChangeRef.current?.(nextDriving)
+    }
+
+    const canUseDrivingHotkey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (!target) return true
+      const tagName = target.tagName
+      if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return false
+      return !target.isContentEditable
+    }
 
     onPointerDown = () => {
       initAudio()
-      isDriving = true
+      isPointerDriving = true
       hasUserInteracted = true
-      setIsDrivingUI(true)
-      onDrivingChangeRef.current?.(true)
+      updateDrivingState()
     }
     onPointerUp = () => {
-      isDriving = false
-      setIsDrivingUI(false)
-      onDrivingChangeRef.current?.(false)
+      isPointerDriving = false
+      updateDrivingState()
     }
     mount.addEventListener('pointerdown', onPointerDown)
     window.addEventListener('pointerup', onPointerUp)
+    onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'w' || !canUseDrivingHotkey(event)) return
+      initAudio()
+      hasUserInteracted = true
+      if (!isKeyboardDriving) {
+        isKeyboardDriving = true
+        updateDrivingState()
+      }
+    }
+    onKeyUp = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'w') return
+      if (isKeyboardDriving) {
+        isKeyboardDriving = false
+        updateDrivingState()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
 
     if (!interactive) {
       onPointerMove = (event: PointerEvent) => {
@@ -985,7 +1041,8 @@ export function Su7ThreeHero({
       onPointerLeave = () => {
         pointer.x = 0
         pointer.y = 0
-        isDriving = false
+        isPointerDriving = false
+        updateDrivingState()
       }
       mount.addEventListener('pointermove', onPointerMove)
       mount.addEventListener('pointerleave', onPointerLeave)
@@ -1268,6 +1325,8 @@ export function Su7ThreeHero({
       if (onPointerLeave) mount.removeEventListener('pointerleave', onPointerLeave)
       if (onPointerDown) mount.removeEventListener('pointerdown', onPointerDown)
       if (onPointerUp) window.removeEventListener('pointerup', onPointerUp)
+      if (onKeyDown) window.removeEventListener('keydown', onKeyDown)
+      if (onKeyUp) window.removeEventListener('keyup', onKeyUp)
       if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement)
       envMap.dispose()
       fadeTex.dispose()
@@ -1298,15 +1357,15 @@ export function Su7ThreeHero({
 
       <Box
         position="absolute"
-        right={{ base: '12px', md: '20px' }}
-        top={{ base: '40px', md: '52px' }}
+        right={pickerRight}
+        top={pickerTop}
         display="flex"
         flexDirection="column"
         alignItems="center"
-        gap={{ base: '6px', md: '7px' }}
-        px={{ base: '6px', md: '7px' }}
-        py={{ base: '7px', md: '9px' }}
-        borderRadius="22px"
+        gap={pickerGap}
+        px={pickerPx}
+        py={pickerPy}
+        borderRadius={pickerRadius}
         bg="linear-gradient(180deg, rgba(25, 38, 48, 0.76) 0%, rgba(18, 28, 36, 0.72) 100%)"
         border="1px solid rgba(255,255,255,0.22)"
         boxShadow="0 10px 26px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.16)"
@@ -1324,8 +1383,8 @@ export function Su7ThreeHero({
               key={swatch.id}
               aria-label={swatch.id === 'default' ? 'Set car color default' : `Set car color ${swatch.id}`}
               onClick={() => setSelectedSwatchId(swatch.id)}
-              w={{ base: '18px', md: '20px' }}
-              h={{ base: '18px', md: '20px' }}
+              w={swatchSize}
+              h={swatchSize}
               borderRadius="full"
               bg={swatch.hex ?? 'linear-gradient(135deg, #f5c542 0%, #c9ccd3 50%, #151515 100%)'}
               border={isSelected ? '2px solid rgba(255,255,255,0.95)' : '1px solid rgba(255,255,255,0.45)'}
@@ -1336,7 +1395,7 @@ export function Su7ThreeHero({
               _active={{ transform: isSelected ? 'scale(1.03)' : 'scale(0.98)' }}
             >
               {swatch.id === 'default' ? (
-                <Box as="span" fontSize="8px" fontWeight="700" color="blackAlpha.800">
+                <Box as="span" fontSize={defaultSwatchFontSize} fontWeight="700" color="blackAlpha.800">
                   D
                 </Box>
               ) : null}

@@ -6,7 +6,7 @@ export interface CarouselSlide {
   type: 'image' | '3d'
   src?: string
   alt?: string
-  render?: (context: { isActive: boolean; activationCount: number }) => ReactNode
+  render?: (context: { isActive: boolean; activationCount: number; isFullscreen: boolean }) => ReactNode
 }
 
 interface ImageCarouselProps {
@@ -22,6 +22,7 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
   const [dragOffset, setDragOffset] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
+  const [isFullscreenTransitioning, setIsFullscreenTransitioning] = useState(false)
   const [activationCounts, setActivationCounts] = useState<number[]>(() =>
     slides.map((_, i) => (i === 0 ? 1 : 0)),
   )
@@ -34,7 +35,15 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
     setActivationCounts(slides.map((_, i) => (i === 0 ? 1 : 0)))
     setCurrent(0)
     setIsExpanded(false)
+    setIsFullscreenTransitioning(false)
   }, [slides])
+
+  useEffect(() => {
+    // Once upstream intro/drive state says overlays may show, release the hard transition guard.
+    if (!hideOverlays && isFullscreenTransitioning) {
+      setIsFullscreenTransitioning(false)
+    }
+  }, [hideOverlays, isFullscreenTransitioning])
 
   useEffect(() => {
     if (!isExpanded) return
@@ -138,14 +147,33 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
 
   const trackTranslate = -(current * 100) + (isDragging ? (dragOffset / (trackRef.current?.offsetWidth || 1)) * 100 : 0)
 
-  const renderCarousel = (expanded: boolean) => (
-    <Box
-      position="relative"
-      w="100%"
-      bg="black"
-      borderRadius={expanded ? 'none' : 'lg'}
-      overflow="hidden"
-    >
+  const renderCarousel = (expanded: boolean) => {
+    const isFullscreen = expanded
+    const overlaysHidden = hideOverlays || isFullscreenTransitioning
+    const navButtonSize = isFullscreen ? 14 : 9
+    const navIconSize = isFullscreen ? 30 : 20
+    const dotHeight = isFullscreen ? '12px' : '8px'
+    const activeDotWidth = isFullscreen ? '32px' : '22px'
+    const inactiveDotWidth = isFullscreen ? '12px' : '8px'
+    const badgeIconSize = isFullscreen ? 20 : 14
+    const badgeFontSize = isFullscreen ? 'md' : 'xs'
+    const badgePaddingX = isFullscreen ? 4 : 2.5
+    const hintFontSize = isFullscreen ? 'lg' : 'xs'
+    const expandButtonSize = isFullscreen ? 16 : 12
+    const expandIconSize = isFullscreen ? 26 : 18
+    const is3dSlide = slides[current]?.type === '3d'
+    const has3dSlide = slides.some((slide) => slide.type === '3d')
+    const canGoPrev = current > 0
+    const canGoNext = current < slideCount - 1
+
+    return (
+      <Box
+        position="relative"
+        w="100%"
+        bg="black"
+        borderRadius={expanded ? 'none' : 'lg'}
+        overflow="hidden"
+      >
       <Box
         ref={trackRef}
         position="relative"
@@ -184,7 +212,11 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
               )}
               {slide.type === '3d' && slide.render && (
                 <Box w="100%" h="100%" position="relative">
-                  {slide.render({ isActive: i === current, activationCount: activationCounts[i] ?? 0 })}
+                  {slide.render({
+                    isActive: i === current,
+                    activationCount: activationCounts[i] ?? 0,
+                    isFullscreen,
+                  })}
                 </Box>
               )}
             </Box>
@@ -193,56 +225,56 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
       </Box>
 
       {/* Prev / Next arrows */}
-      {slideCount > 1 && current > 0 && (
+      {slideCount > 1 && (
         <Box
           as="button"
           position="absolute"
-          left={2}
+          left={isFullscreen ? 3 : 2}
           top="50%"
           transform="translateY(-50%)"
           bg="blackAlpha.600"
           _hover={{ bg: 'blackAlpha.800' }}
           color="white"
           borderRadius="full"
-          w={9}
-          h={9}
+          w={navButtonSize}
+          h={navButtonSize}
           display="flex"
           alignItems="center"
           justifyContent="center"
           zIndex={5}
           cursor="pointer"
-          transition={hideOverlays ? 'background 0.15s, opacity 0.15s ease-out' : 'background 0.15s, opacity 0.8s ease-in-out'}
+          transition="background 0.15s, opacity 0.22s ease-out"
           onClick={goPrev}
-          opacity={hideOverlays ? 0 : 1}
-          pointerEvents={hideOverlays ? 'none' : 'auto'}
+          opacity={overlaysHidden || !canGoPrev ? 0 : 1}
+          pointerEvents={overlaysHidden || !canGoPrev ? 'none' : 'auto'}
         >
-          <LuChevronLeft size={20} />
+          <LuChevronLeft size={navIconSize} />
         </Box>
       )}
-      {slideCount > 1 && current < slideCount - 1 && (
+      {slideCount > 1 && (
         <Box
           as="button"
           position="absolute"
-          right={2}
+          right={isFullscreen ? 3 : 2}
           top="50%"
           transform="translateY(-50%)"
           bg="blackAlpha.600"
           _hover={{ bg: 'blackAlpha.800' }}
           color="white"
           borderRadius="full"
-          w={9}
-          h={9}
+          w={navButtonSize}
+          h={navButtonSize}
           display="flex"
           alignItems="center"
           justifyContent="center"
           zIndex={5}
           cursor="pointer"
-          transition={hideOverlays ? 'background 0.15s, opacity 0.15s ease-out' : 'background 0.15s, opacity 0.8s ease-in-out'}
+          transition="background 0.15s, opacity 0.22s ease-out"
           onClick={goNext}
-          opacity={hideOverlays ? 0 : 1}
-          pointerEvents={hideOverlays ? 'none' : 'auto'}
+          opacity={overlaysHidden || !canGoNext ? 0 : 1}
+          pointerEvents={overlaysHidden || !canGoNext ? 'none' : 'auto'}
         >
-          <LuChevronRight size={20} />
+          <LuChevronRight size={navIconSize} />
         </Box>
       )}
 
@@ -250,26 +282,26 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
       {slideCount > 1 && (
         <Flex
           position="absolute"
-          bottom={3}
+          bottom={isFullscreen ? 4 : 3}
           left="50%"
           transform="translateX(-50%)"
-          gap={2}
+          gap={isFullscreen ? 2.5 : 2}
           zIndex={5}
           bg="blackAlpha.500"
           borderRadius="full"
-          px={3}
-          py={1.5}
+          px={isFullscreen ? 3.5 : 3}
+          py={isFullscreen ? 2 : 1.5}
           backdropFilter="blur(8px)"
-          opacity={hideOverlays ? 0 : 1}
-          transition={hideOverlays ? 'opacity 0.15s ease-out' : 'opacity 0.8s ease-in-out'}
-          pointerEvents={hideOverlays ? 'none' : undefined}
+          opacity={overlaysHidden ? 0 : 1}
+          transition={overlaysHidden ? 'opacity 0.15s ease-out' : 'opacity 0.8s ease-in-out'}
+          pointerEvents={overlaysHidden ? 'none' : undefined}
         >
           {slides.map((slide, i) => (
             <Box
               key={i}
               as="button"
-              w={current === i ? '22px' : '8px'}
-              h="8px"
+              w={current === i ? activeDotWidth : inactiveDotWidth}
+              h={dotHeight}
               borderRadius="full"
               bg={current === i ? 'white' : 'whiteAlpha.500'}
               transition="all 0.25s ease"
@@ -288,22 +320,22 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
       {slides[current]?.type === '3d' && (
         <Flex
           position="absolute"
-          top={3}
-          right={3}
+          top={isFullscreen ? 4 : 3}
+          right={isFullscreen ? 4 : 3}
           zIndex={5}
           bg="blackAlpha.600"
           borderRadius="md"
-          px={2.5}
-          py={1}
-          gap={1.5}
+          px={badgePaddingX}
+          py={isFullscreen ? 1.5 : 1}
+          gap={isFullscreen ? 2 : 1.5}
           align="center"
           backdropFilter="blur(8px)"
-          opacity={hideOverlays ? 0 : 1}
-          transition={hideOverlays ? 'opacity 0.15s ease-out' : 'opacity 0.8s ease-in-out'}
-          pointerEvents={hideOverlays ? 'none' : undefined}
+          opacity={overlaysHidden ? 0 : 1}
+          transition={overlaysHidden ? 'opacity 0.15s ease-out' : 'opacity 0.8s ease-in-out'}
+          pointerEvents={overlaysHidden ? 'none' : undefined}
         >
-          <LuBox size={14} color="white" />
-          <Text fontSize="xs" color="white" fontWeight="semibold" letterSpacing="0.04em">
+          <LuBox size={badgeIconSize} color="white" />
+          <Text fontSize={badgeFontSize} color="white" fontWeight="semibold" letterSpacing="0.04em">
             3D
           </Text>
         </Flex>
@@ -313,35 +345,34 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
       {slides[current]?.type === '3d' && (
         <Text
           position="absolute"
-          bottom={10}
+          bottom={isFullscreen ? 12 : 10}
           left="50%"
           transform="translateX(-50%)"
-          fontSize="xs"
+          fontSize={hintFontSize}
           color="whiteAlpha.600"
           zIndex={5}
           pointerEvents="none"
           textAlign="center"
-          opacity={hideOverlays ? 0 : 1}
-          transition={hideOverlays ? 'opacity 0.15s ease-out' : 'opacity 0.8s ease-in-out'}
+          opacity={overlaysHidden ? 0 : 1}
+          transition={overlaysHidden ? 'opacity 0.15s ease-out' : 'opacity 0.8s ease-in-out'}
         >
           Drag to rotate · Scroll to zoom
         </Text>
       )}
 
       {/* Expand/Collapse 3D section control */}
-      {slides[current]?.type === '3d' && (
+      {has3dSlide && (
         <Box
           as="button"
-          type="button"
           position="absolute"
-          right={3}
-          bottom={3}
+          right={isFullscreen ? 4 : 3}
+          bottom={isFullscreen ? 4 : 3}
           zIndex={6}
           bg="blackAlpha.700"
           color="white"
           borderRadius="full"
-          w={12}
-          h={12}
+          w={expandButtonSize}
+          h={expandButtonSize}
           display="inline-flex"
           alignItems="center"
           justifyContent="center"
@@ -350,18 +381,22 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
           _active={{ transform: 'scale(0.98)' }}
           _focusVisible={{ boxShadow: 'none' }}
           outline="none"
-          opacity={hideOverlays ? 0 : 1}
-          transition={hideOverlays ? 'opacity 0.15s ease-out' : 'opacity 0.8s ease-in-out'}
-          pointerEvents={hideOverlays ? 'none' : 'auto'}
-          onClick={() => setIsExpanded((prev) => !prev)}
+          opacity={overlaysHidden || !is3dSlide ? 0 : 1}
+          transition="opacity 0.22s ease-out"
+          pointerEvents={overlaysHidden || !is3dSlide ? 'none' : 'auto'}
+          onClick={() => {
+            setIsFullscreenTransitioning(true)
+            setIsExpanded((prev) => !prev)
+          }}
           aria-label={isExpanded ? 'Minimize 3D section' : 'Expand 3D section to full tab'}
           title={isExpanded ? 'Minimize' : 'Expand to full tab'}
         >
-          {isExpanded ? <LuMinimize2 size={18} /> : <LuSearch size={18} />}
+          {isExpanded ? <LuMinimize2 size={expandIconSize} /> : <LuSearch size={expandIconSize} />}
         </Box>
       )}
     </Box>
-  )
+    )
+  }
 
   if (isExpanded) {
     return (
