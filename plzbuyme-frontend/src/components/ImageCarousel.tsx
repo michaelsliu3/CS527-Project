@@ -13,18 +13,26 @@ interface ImageCarouselProps {
   slides: CarouselSlide[]
   aspectRatio?: number
   hideOverlays?: boolean
+  initialSlideIndex?: number
 }
 
 const SWIPE_THRESHOLD = 40
 
-export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = false }: ImageCarouselProps) {
-  const [current, setCurrent] = useState(0)
+export function ImageCarousel({
+  slides,
+  aspectRatio = 16 / 9,
+  hideOverlays = false,
+  initialSlideIndex = 0,
+}: ImageCarouselProps) {
+  const normalizedInitialSlideIndex =
+    slides.length > 0 ? Math.max(0, Math.min(initialSlideIndex, slides.length - 1)) : 0
+  const [current, setCurrent] = useState(normalizedInitialSlideIndex)
   const [dragOffset, setDragOffset] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
   const [isFullscreenTransitioning, setIsFullscreenTransitioning] = useState(false)
   const [activationCounts, setActivationCounts] = useState<number[]>(() =>
-    slides.map((_, i) => (i === 0 ? 1 : 0)),
+    slides.map((_, i) => (i === normalizedInitialSlideIndex ? 1 : 0)),
   )
 
   const dragStart = useRef<{ x: number; y: number; time: number } | null>(null)
@@ -32,11 +40,11 @@ export function ImageCarousel({ slides, aspectRatio = 16 / 9, hideOverlays = fal
   const slideCount = slides.length
 
   useEffect(() => {
-    setActivationCounts(slides.map((_, i) => (i === 0 ? 1 : 0)))
-    setCurrent(0)
+    setActivationCounts(slides.map((_, i) => (i === normalizedInitialSlideIndex ? 1 : 0)))
+    setCurrent(normalizedInitialSlideIndex)
     setIsExpanded(false)
     setIsFullscreenTransitioning(false)
-  }, [slides])
+  }, [slides, normalizedInitialSlideIndex])
 
   useEffect(() => {
     // Once upstream intro/drive state says overlays may show, release the hard transition guard.

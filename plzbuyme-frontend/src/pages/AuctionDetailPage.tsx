@@ -98,8 +98,9 @@ export function AuctionDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
+  const locationState = (location.state as { backgroundLocation?: unknown; openMedia?: '3d' | 'image' } | null) ?? null
   const { user, refreshProfile } = useAuth()
-  const isModal = Boolean(location.state && (location.state as { backgroundLocation?: unknown }).backgroundLocation)
+  const isModal = Boolean(locationState?.backgroundLocation)
   const [isClosing, setIsClosing] = useState(false)
   const closeTimeoutRef = useRef<number | null>(null)
 
@@ -305,6 +306,12 @@ export function AuctionDetailPage() {
     return slides
   }, [auction])
 
+  const carouselInitialSlideIndex = useMemo(() => {
+    if (locationState?.openMedia !== '3d') return 0
+    const first3dIndex = carouselSlides.findIndex((slide) => slide.type === '3d')
+    return first3dIndex >= 0 ? first3dIndex : 0
+  }, [carouselSlides, locationState?.openMedia])
+
   if (loading || !id) {
     return (
       <Flex justify="center" py={12}>
@@ -423,7 +430,12 @@ export function AuctionDetailPage() {
               w={{ base: 'calc(100% + 2rem)', md: 'calc(100% + 3rem)' }}
               mx={{ base: '-1rem', md: '-1.5rem' }}
             >
-              <ImageCarousel slides={carouselSlides} aspectRatio={16 / 9} hideOverlays={isDriving3D || !introComplete3D} />
+              <ImageCarousel
+                slides={carouselSlides}
+                aspectRatio={16 / 9}
+                hideOverlays={isDriving3D || !introComplete3D}
+                initialSlideIndex={carouselInitialSlideIndex}
+              />
             </Box>
           )}
           <Box mt={4}>

@@ -1,13 +1,18 @@
 import { Badge, Box, Card, Flex, Heading, Image, Text } from '@chakra-ui/react'
 import { Link as RouterLink, useLocation, type Location } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { keyframes } from '@emotion/react'
 import { LuBox, LuImageOff } from 'react-icons/lu'
 import type { AuctionListItem } from '../api/auctions'
 import { dark } from '../theme/colors'
 import { DisplayNameText } from './DisplayNameText'
 import { resolveMediaUrl } from '../utils/mediaUrl'
-import { hasAuction3dModel } from '../utils/auction3dModel'
+import { resolveAuction3dModelKey } from '../utils/auction3dModel'
+
+const Su7ThreeHero = lazy(async () => {
+  const module = await import('./Su7ThreeHero')
+  return { default: module.Su7ThreeHero }
+})
 
 const timerGlowPulse = keyframes`
   0%, 100% {
@@ -199,10 +204,18 @@ export function AuctionCard({ auction }: AuctionCardProps) {
     auction.categoryNames && auction.categoryNames.length > 0
       ? auction.categoryNames
       : [auction.categoryName].filter((v): v is string => Boolean(v))
-  const has3dView = hasAuction3dModel(auction.title)
+  const heroModelKey = resolveAuction3dModelKey(auction.title)
+  const has3dView = heroModelKey !== null
+  const shouldPrefer3dMedia = has3dView
 
   return (
-    <RouterLink to={`/auctions/${auction.id}`} state={{ backgroundLocation }}>
+    <RouterLink
+      to={`/auctions/${auction.id}`}
+      state={{
+        backgroundLocation,
+        openMedia: shouldPrefer3dMedia ? '3d' : undefined,
+      }}
+    >
       <Card.Root
         role="group"
         bg={dark.cardBg}
@@ -254,7 +267,35 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                     'linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 24%, rgba(0, 0, 0, 1) 80%, rgba(0, 0, 0, 0) 100%)',
                 }}
               >
-                {cardImageSrc ? (
+                {has3dView ? (
+                  <Flex
+                    h="100%"
+                    w="100%"
+                    bgGradient="linear(to-br, rgba(32,63,110,0.62), rgba(6,10,24,0.92))"
+                    align="center"
+                    justify="center"
+                    direction="column"
+                    aria-label={`3D model available for ${auction.title}`}
+                    overflow="hidden"
+                  >
+                    <Box position="absolute" inset={0} pointerEvents="none">
+                      <Suspense
+                        fallback={
+                          <Flex h="100%" w="100%" align="center" justify="center" direction="column" gap={1}>
+                            <Box color="blue.200" mb={1} aria-hidden="true">
+                              <LuBox size={24} />
+                            </Box>
+                            <Text fontSize="sm" color="whiteAlpha.900" fontWeight="bold">
+                              Loading 3D model...
+                            </Text>
+                          </Flex>
+                        }
+                      >
+                        <Su7ThreeHero title={auction.title} modelKey={heroModelKey ?? 'su7'} animateWheels={false} />
+                      </Suspense>
+                    </Box>
+                  </Flex>
+                ) : cardImageSrc ? (
                   <Image
                     src={cardImageSrc}
                     alt={auction.title}

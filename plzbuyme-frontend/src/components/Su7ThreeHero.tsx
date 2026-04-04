@@ -12,6 +12,8 @@ interface Su7ThreeHeroProps {
   modelKey?: 'su7' | 'praga' | 'mazzanti'
   /** When true, the viewer fills its parent and enables orbit interaction */
   interactive?: boolean
+  /** When false, wheel meshes stay static (useful for non-interactive card previews). */
+  animateWheels?: boolean
   /** When true, overlay picker scales up for fullscreen carousel mode */
   fullscreenUI?: boolean
   onDrivingChange?: (driving: boolean) => void
@@ -83,6 +85,7 @@ export function Su7ThreeHero({
   title,
   modelKey = 'su7',
   interactive = false,
+  animateWheels = true,
   fullscreenUI = false,
   onDrivingChange,
   onIntroStart,
@@ -1124,13 +1127,15 @@ export function Su7ThreeHero({
         } else {
           driveSpeed = Math.max(driveSpeed - dt * 4.0, 0)
         }
-        const interactiveSpin = driveSpeed * 0.12
-        fallbackWheels.forEach((wheel) => {
-          wheel.rotation.z -= interactiveSpin
-        })
-        modelWheels.forEach((wheel) => {
-          rotateWheelBy(wheel, -interactiveSpin)
-        })
+        if (animateWheels) {
+          const interactiveSpin = driveSpeed * 0.12
+          fallbackWheels.forEach((wheel) => {
+            wheel.rotation.z -= interactiveSpin
+          })
+          modelWheels.forEach((wheel) => {
+            rotateWheelBy(wheel, -interactiveSpin)
+          })
+        }
       } else {
         if (isDriving) {
           driveSpeed = Math.min(driveSpeed + dt * 5.2, 3.2)
@@ -1148,14 +1153,16 @@ export function Su7ThreeHero({
         carGroup.position.y = carVerticalOffset + 0.04
         carGroup.rotation.z = THREE.MathUtils.lerp(carGroup.rotation.z, -driveSpeed * 0.004, 0.12)
 
-        const idleSpin = 0.012
-        const driveSpin = driveSpeed * 0.09
-        fallbackWheels.forEach((wheel) => {
-          wheel.rotation.z += idleSpin + driveSpin
-        })
-        modelWheels.forEach((wheel) => {
-          rotateWheelBy(wheel, idleSpin + driveSpin)
-        })
+        if (animateWheels) {
+          const idleSpin = 0.012
+          const driveSpin = driveSpeed * 0.09
+          fallbackWheels.forEach((wheel) => {
+            wheel.rotation.z += idleSpin + driveSpin
+          })
+          modelWheels.forEach((wheel) => {
+            rotateWheelBy(wheel, idleSpin + driveSpin)
+          })
+        }
 
         camera.position.x = THREE.MathUtils.lerp(camera.position.x, baseCameraPosition.x + pointer.x * 0.3, 0.05)
         camera.position.y = THREE.MathUtils.lerp(camera.position.y, baseCameraPosition.y - pointer.y * 0.16, 0.05)

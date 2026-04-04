@@ -663,6 +663,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - Scale fullscreen 3D overlay controls for better visibility (navigation arrows, pagination dots, 3D badge, drag hint, expand/minimize control, and in-scene color swatches) while preserving default non-fullscreen sizing.
 - Ensure fullscreen enter/exit intro transitions gate all overlay UI consistently by coupling carousel overlay visibility to intro lifecycle callbacks and a local fullscreen-transition guard to prevent one-frame UI flashes.
 - Extend `gt7-car-thumbnails.manifest.json` with metadata-only entries for Praga R1 and Mazzanti Evantra so quick-create/search metadata can recognize the newly supported 3D model listings.
+- Upgrade `AuctionCard` media behavior for recognized 3D listings: cards now render a live, non-interactive 3D preview (pointer events disabled), freeze wheel animation in card context (`animateWheels={false}`), and navigate to detail with `openMedia: "3d"` so the carousel opens on the 3D slide first.
 
 ---
 
