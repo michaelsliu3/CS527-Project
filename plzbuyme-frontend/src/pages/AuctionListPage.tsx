@@ -213,11 +213,13 @@ export function AuctionListPage() {
                 return (
                   <Button
                     key={tab.value || 'all'}
-                    size="sm"
+                    size="md"
                     variant="outline"
                     borderColor={dark.borderSubtle}
                     bg={isActive ? 'whiteAlpha.100' : 'transparent'}
                     color="white"
+                    h="40px"
+                    fontSize="md"
                     _hover={{
                       bg: 'whiteAlpha.100',
                       borderColor: dark.borderSubtle,
