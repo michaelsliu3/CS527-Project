@@ -3,6 +3,7 @@ import { Box, Badge, Button, Container, Flex, Heading, IconButton, Input, Spinne
 import { keyframes } from '@emotion/react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
+import { LuBox } from 'react-icons/lu'
 import { useAuth } from '../context/AuthContext'
 import {
   getAuction,
@@ -25,6 +26,7 @@ import { APP_PAGE_PX } from '../theme/layout'
 import { resolveMediaUrl } from '../utils/mediaUrl'
 import { notifyAuctionListRefresh } from '../utils/auctionListRefresh'
 import { useScrollLock } from '../hooks/useScrollLock'
+import { resolveAuction3dModelKey } from '../utils/auction3dModel'
 
 const Su7ThreeHero = lazy(async () => {
   const module = await import('../components/Su7ThreeHero')
@@ -97,8 +99,9 @@ export function AuctionDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const location = useLocation()
+  const locationState = (location.state as { backgroundLocation?: unknown; openMedia?: '3d' | 'image' } | null) ?? null
   const { user, refreshProfile } = useAuth()
-  const isModal = Boolean(location.state && (location.state as { backgroundLocation?: unknown }).backgroundLocation)
+  const isModal = Boolean(locationState?.backgroundLocation)
   const [isClosing, setIsClosing] = useState(false)
   const closeTimeoutRef = useRef<number | null>(null)
 
@@ -158,6 +161,7 @@ export function AuctionDetailPage() {
   useEffect(() => {
     if (!isModal) return
     const onKeyDown = (e: KeyboardEvent) => {
+      if (document.body.dataset.threeCarouselFullscreen === 'true') return
       if (e.key !== 'Escape' || adminEditOpenRef.current) return
       handleCloseRef.current()
     }
@@ -255,14 +259,36 @@ export function AuctionDetailPage() {
     const imgSrc = resolveMediaUrl(auction.detailImageUrl ?? auction.imageUrl)
     const altImgSrc = resolveMediaUrl(auction.imageUrl)
     const model = auction.fieldValues.find((fv) => fv.fieldName.toLowerCase() === 'model')?.value ?? ''
-    const isSu7 = `${auction.title} ${auction.description ?? ''} ${model}`.toLowerCase().includes('su7')
+    const searchableText = `${auction.title} ${auction.description ?? ''} ${model}`
+    const heroModelKey = resolveAuction3dModelKey(searchableText)
+    const isSu7 = heroModelKey === 'su7'
 
-    if (isSu7) {
+    if (heroModelKey) {
       slides.push({
         type: '3d',
-        render: ({ activationCount }) => (
-          <Suspense fallback={<Box w="100%" h="100%" bg="#05070d" />}>
-            <Su7ThreeHero key={`su7-3d-${activationCount}`} title={auction.title} interactive onDrivingChange={setIsDriving3D} onIntroComplete={() => setIntroComplete3D(true)} />
+        render: ({ activationCount, isFullscreen }) => (
+          <Suspense
+            fallback={
+              <Flex h="100%" w="100%" bg="#05070d" align="center" justify="center" direction="column" gap={1}>
+                <Box color="blue.200" mb={1} aria-hidden="true">
+                  <LuBox size={24} />
+                </Box>
+                <Text fontSize="sm" color="whiteAlpha.900" fontWeight="bold">
+                  Loading 3D model...
+                </Text>
+              </Flex>
+            }
+          >
+            <Su7ThreeHero
+              key={`${heroModelKey}-3d-${activationCount}`}
+              title={auction.title}
+              modelKey={heroModelKey}
+              interactive
+              fullscreenUI={isFullscreen}
+              onDrivingChange={setIsDriving3D}
+              onIntroStart={() => setIntroComplete3D(false)}
+              onIntroComplete={() => setIntroComplete3D(true)}
+            />
           </Suspense>
         ),
       })
@@ -291,6 +317,12 @@ export function AuctionDetailPage() {
 
     return slides
   }, [auction])
+
+  const carouselInitialSlideIndex = useMemo(() => {
+    if (locationState?.openMedia !== '3d') return 0
+    const first3dIndex = carouselSlides.findIndex((slide) => slide.type === '3d')
+    return first3dIndex >= 0 ? first3dIndex : 0
+  }, [carouselSlides, locationState?.openMedia])
 
   if (loading || !id) {
     return (
@@ -410,7 +442,12 @@ export function AuctionDetailPage() {
               w={{ base: 'calc(100% + 2rem)', md: 'calc(100% + 3rem)' }}
               mx={{ base: '-1rem', md: '-1.5rem' }}
             >
-              <ImageCarousel slides={carouselSlides} aspectRatio={16 / 9} hideOverlays={isDriving3D || !introComplete3D} />
+              <ImageCarousel
+                slides={carouselSlides}
+                aspectRatio={16 / 9}
+                hideOverlays={isDriving3D || !introComplete3D}
+                initialSlideIndex={carouselInitialSlideIndex}
+              />
             </Box>
           )}
           <Box mt={4}>

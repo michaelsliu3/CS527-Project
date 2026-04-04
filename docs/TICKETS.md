@@ -642,13 +642,29 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-36 — 3D model menu improvements
+## PBM-36 — 3D model menu improvements ✅
 
 **Layer:** Frontend  
 **Branch:** `PBM-36/3d-model-menu-improvements`  
 **PR Title:** `[PBM-36] improve 3d model menu interactions and usability`
 
-- Placeholder description: improve the 3D model menu UX (layout, controls, discoverability, and responsiveness), including a magnifying-glass button that zooms up the view and reflective line effects on the car; detailed scope to be defined.
+- Extend `Su7ThreeHero` to support multiple model configurations via a typed `modelKey` prop, with per-model loader paths and rendering controls (`rootYaw`, `rootLift`, wheel spin axis, and wheel spin direction).
+- Add support for the Praga 3D model (`public/models/ac_-_praga_r1_free.glb`) with fallback candidate loading behavior so the viewer remains resilient to missing assets.
+- Add support for the Mazzanti Evantra model (`public/models/mazzanti-evantra-wwwvecarzcom/source/mazzanti_evantra.glb`) and wire model detection in `AuctionDetailPage` so listings referencing Mazzanti/Evantra render the correct 3D hero.
+- Update wheel animation logic to use model-aware rotation axes/direction so driving and idle spin behavior remains visually correct across different vehicle rigs.
+- Improve per-model presentation fidelity by adding model-configurable intro zoom scale ranges, audio profiles (EV vs race-style engine tone), and Praga-safe fallback paint material detection when canonical paint material names are missing.
+- Refine Mazzanti wheel rig handling by inferring axle axes from wheel mesh geometry and side orientation so left/right wheel spin remains directionally consistent while accelerating.
+- Add a gas V8 audio profile for Mazzanti with layered harmonics/noise plus optional engine sample playback (`public/audio/v8-engine-loop-cc0.wav`) to improve engine tone realism.
+- Wire `AuctionDetailPage` 3D slide detection to support both SU7 and Praga listings, selecting the proper hero model key from auction title/description/model field text and preserving lazy-loaded 3D rendering.
+- Keep existing carousel and interactive viewer behavior intact while broadening coverage to additional 3D vehicle assets without changing non-3D listings.
+- Improve 3D discoverability and reuse by centralizing listing-to-model detection in `src/utils/auction3dModel.ts`, reusing it in both `AuctionDetailPage` and `AuctionCard`, and surfacing a `3D` badge on cards for recognized model listings.
+- Add a fullscreen-style 3D carousel expansion mode (expand/minimize control, body scroll lock, Escape-to-collapse) and ensure modal-level Escape close handling defers while the 3D view is expanded.
+- Remove idle/drive bobbing offsets from `Su7ThreeHero` car group positioning to reduce camera jitter and keep 3D model presentation steadier during menu interaction.
+- Scale fullscreen 3D overlay controls for better visibility (navigation arrows, pagination dots, 3D badge, drag hint, expand/minimize control, and in-scene color swatches) while preserving default non-fullscreen sizing.
+- Ensure fullscreen enter/exit intro transitions gate all overlay UI consistently by coupling carousel overlay visibility to intro lifecycle callbacks and a local fullscreen-transition guard to prevent one-frame UI flashes.
+- Extend `gt7-car-thumbnails.manifest.json` with metadata-only entries for Praga R1 and Mazzanti Evantra so quick-create/search metadata can recognize the newly supported 3D model listings.
+- Upgrade `AuctionCard` media behavior for recognized 3D listings: cards now render a live, non-interactive 3D preview (pointer events disabled), freeze wheel animation in card context (`animateWheels={false}`), and navigate to detail with `openMedia: "3d"` so the carousel opens on the 3D slide first.
+- Align detail-page 3D lazy-load UX with card previews by replacing the blank auction-detail 3D fallback with the same explicit "Loading 3D model..." icon/text treatment for consistent perceived loading behavior.
 
 ---
 

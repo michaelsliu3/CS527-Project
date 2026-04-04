@@ -24,11 +24,11 @@
     "This manifest is designed for direct remote GT CDN URL usage (no local asset download)."
   ],
   "stats": {
-    "totalAssets": 552,
+    "totalAssets": 554,
     "withGalleryCount": 552,
     "withDetailImageCount": 552,
     "missingMakeCount": 0,
-    "needsCurationCount": 151
+    "needsCurationCount": 153
   },
   "assets": [
     {
@@ -18545,6 +18545,54 @@
         "countryId": "carctry6",
         "driveTrain": "FF",
         "nameShort": "Captur S Edition '21"
+      },
+      "categories": [
+        "sports-cars"
+      ]
+    },
+    {
+      "externalId": "custom-mazzanti-evantra",
+      "sourceUrl": null,
+      "detailSourceUrl": null,
+      "title": "Mazzanti Evantra '13",
+      "make": "Mazzanti",
+      "model": "Evantra",
+      "year": 2013,
+      "color": "Unknown",
+      "delivery": "metadata-only",
+      "tags": [
+        "custom",
+        "thumbnail-missing",
+        "needs-curation",
+        "needs-color-curation"
+      ],
+      "metadata": {
+        "nameShort": "Evantra '13",
+        "notes": "Real car metadata added manually; image fields intentionally left null."
+      },
+      "categories": [
+        "sports-cars"
+      ]
+    },
+    {
+      "externalId": "custom-praga-r1",
+      "sourceUrl": null,
+      "detailSourceUrl": null,
+      "title": "Praga R1 '12",
+      "make": "Praga",
+      "model": "R1",
+      "year": 2012,
+      "color": "Unknown",
+      "delivery": "metadata-only",
+      "tags": [
+        "custom",
+        "thumbnail-missing",
+        "needs-curation",
+        "needs-color-curation"
+      ],
+      "metadata": {
+        "nameShort": "R1 '12",
+        "notes": "Real car metadata added manually; image fields intentionally left null."
       },
       "categories": [
         "sports-cars"
