@@ -143,6 +143,80 @@ describe('AuctionCard', () => {
     expect(screen.getByText('3D')).toBeInTheDocument()
   })
 
+  it('renders static 3D icon content when low-detail mode is forced', () => {
+    render(
+      <ChakraProvider value={system}>
+        <MemoryRouter>
+          <AuctionCard
+            auction={{
+              id: 60,
+              title: 'SU7 Performance Build',
+              currentPrice: 48000,
+              closeDateTime: new Date(Date.now() + 7200000).toISOString(),
+              status: 'active',
+              categoryName: 'Electric',
+              sellerUsername: 'seller7',
+              bidCount: 2,
+            }}
+            forceStatic3dIcon
+          />
+        </MemoryRouter>
+      </ChakraProvider>
+    )
+
+    expect(screen.getByText('3D preview available')).toBeInTheDocument()
+  })
+
+  it('marks timer fill as low-detail when timer glow is disabled', () => {
+    render(
+      <ChakraProvider value={system}>
+        <MemoryRouter>
+          <AuctionCard
+            auction={{
+              id: 61,
+              title: 'Low Detail Timer Car',
+              currentPrice: 36000,
+              closeDateTime: new Date(Date.now() + 7200000).toISOString(),
+              status: 'active',
+              categoryName: 'Sedans',
+              sellerUsername: 'seller8',
+              bidCount: 1,
+            }}
+            disableTimerGlow
+          />
+        </MemoryRouter>
+      </ChakraProvider>
+    )
+
+    expect(screen.getByTestId('auction-timer-fill-61')).toHaveAttribute('data-low-detail', 'true')
+  })
+
+  it('disables category tag glow in low-detail mode', () => {
+    render(
+      <ChakraProvider value={system}>
+        <MemoryRouter>
+          <AuctionCard
+            auction={{
+              id: 62,
+              title: 'Tag Glow Test Car',
+              currentPrice: 19000,
+              closeDateTime: new Date(Date.now() + 7200000).toISOString(),
+              status: 'active',
+              categoryName: 'Sedans',
+              categoryNames: ['Sedans', 'Electric'],
+              sellerUsername: 'seller9',
+              bidCount: 2,
+            }}
+            disableTimerGlow
+          />
+        </MemoryRouter>
+      </ChakraProvider>
+    )
+
+    expect(screen.getByTestId('auction-category-tag-62-0')).toHaveAttribute('data-glow', 'false')
+    expect(screen.getByTestId('auction-category-tag-62-1')).toHaveAttribute('data-glow', 'false')
+  })
+
   it('renders a placeholder when no image exists', () => {
     renderAuctionCard({
       id: 57,

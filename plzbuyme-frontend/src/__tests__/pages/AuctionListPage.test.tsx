@@ -274,6 +274,60 @@ describe('AuctionListPage', () => {
     })
   })
 
+  it('switches cards to static 3D icons when three model previews are present', async () => {
+    vi.mocked(api.browseAuctions).mockResolvedValue({
+      data: {
+        items: [
+          {
+            id: 201,
+            title: 'SU7 Custom Build',
+            currentPrice: 51000,
+            closeDateTime: new Date(Date.now() + 86400000).toISOString(),
+            status: 'active',
+            categoryName: 'Electric',
+            sellerUsername: 'seller1',
+            bidCount: 3,
+          },
+          {
+            id: 202,
+            title: 'Praga R1 Track Special',
+            currentPrice: 73000,
+            closeDateTime: new Date(Date.now() + 86400000).toISOString(),
+            status: 'active',
+            categoryName: 'Sports Cars',
+            sellerUsername: 'seller2',
+            bidCount: 4,
+          },
+          {
+            id: 203,
+            title: 'Mazzanti Evantra Rare Spec',
+            currentPrice: 89000,
+            closeDateTime: new Date(Date.now() + 86400000).toISOString(),
+            status: 'active',
+            categoryName: 'Sports Cars',
+            sellerUsername: 'seller3',
+            bidCount: 5,
+          },
+        ],
+        totalCount: 3,
+        page: 1,
+        pageSize: 21,
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as unknown as Awaited<ReturnType<typeof api.browseAuctions>>)
+
+    renderAuctionListPage('/auctions')
+
+    await waitFor(() => {
+      expect(api.browseAuctions).toHaveBeenCalled()
+    })
+
+    expect(await screen.findAllByText('3D preview available')).toHaveLength(3)
+  })
+
   it('ignores stale browse responses when a newer request completes first', async () => {
     vi.mocked(categoriesApi.fetchCategories).mockResolvedValue({
       data: [

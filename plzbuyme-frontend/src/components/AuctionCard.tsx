@@ -150,9 +150,15 @@ function getCategoryGradient(categoryName?: string): string {
 
 export interface AuctionCardProps {
   auction: AuctionListItem
+  forceStatic3dIcon?: boolean
+  disableTimerGlow?: boolean
 }
 
-export function AuctionCard({ auction }: AuctionCardProps) {
+export function AuctionCard({
+  auction,
+  forceStatic3dIcon = false,
+  disableTimerGlow = false,
+}: AuctionCardProps) {
   const location = useLocation()
   const state = location.state as { backgroundLocation?: Location } | null
   const backgroundLocation = state?.backgroundLocation ?? location
@@ -199,6 +205,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
       : formatStatusLabel(auction.status)
   const timerValue = auction.status === 'active' ? countdown : '00:00:00'
   const animateTimerBar = auction.status === 'active' && !isExpiredActiveAuction
+  const shouldAnimateTimerEffects = animateTimerBar && !disableTimerGlow
   const timerGlow = getTimerGlow(auction.closeDateTime, auction.status)
   const categoryNames =
     auction.categoryNames && auction.categoryNames.length > 0
@@ -207,6 +214,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
   const heroModelKey = resolveAuction3dModelKey(auction.title)
   const has3dView = heroModelKey !== null
   const shouldPrefer3dMedia = has3dView
+  const shouldRenderLive3dPreview = has3dView && !forceStatic3dIcon
 
   return (
     <RouterLink
@@ -278,22 +286,33 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                     aria-label={`3D model available for ${auction.title}`}
                     overflow="hidden"
                   >
-                    <Box position="absolute" inset={0} pointerEvents="none">
-                      <Suspense
-                        fallback={
-                          <Flex h="100%" w="100%" align="center" justify="center" direction="column" gap={1}>
-                            <Box color="blue.200" mb={1} aria-hidden="true">
-                              <LuBox size={24} />
-                            </Box>
-                            <Text fontSize="sm" color="whiteAlpha.900" fontWeight="bold">
-                              Loading 3D model...
-                            </Text>
-                          </Flex>
-                        }
-                      >
-                        <Su7ThreeHero title={auction.title} modelKey={heroModelKey ?? 'su7'} animateWheels={false} />
-                      </Suspense>
-                    </Box>
+                    {shouldRenderLive3dPreview ? (
+                      <Box position="absolute" inset={0} pointerEvents="none">
+                        <Suspense
+                          fallback={
+                            <Flex h="100%" w="100%" align="center" justify="center" direction="column" gap={1}>
+                              <Box color="blue.200" mb={1} aria-hidden="true">
+                                <LuBox size={24} />
+                              </Box>
+                              <Text fontSize="sm" color="whiteAlpha.900" fontWeight="bold">
+                                Loading 3D model...
+                              </Text>
+                            </Flex>
+                          }
+                        >
+                          <Su7ThreeHero title={auction.title} modelKey={heroModelKey ?? 'su7'} animateWheels={false} />
+                        </Suspense>
+                      </Box>
+                    ) : (
+                      <Flex h="100%" w="100%" align="center" justify="center" direction="column" gap={1}>
+                        <Box color="blue.200" mb={1} aria-hidden="true">
+                          <LuBox size={30} />
+                        </Box>
+                        <Text fontSize="sm" color="whiteAlpha.900" fontWeight="bold">
+                          3D preview available
+                        </Text>
+                      </Flex>
+                    )}
                   </Flex>
                 ) : cardImageSrc ? (
                   <Image
@@ -380,6 +399,8 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                 <Box
                   key={`${auction.id}-cat-${index}-${name}`}
                   as="span"
+                  data-testid={`auction-category-tag-${auction.id}-${index}`}
+                  data-glow={disableTimerGlow ? 'false' : 'true'}
                   flexShrink={0}
                   px={2}
                   py={0.5}
@@ -391,7 +412,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                   color="white"
                   bg={getCategoryGradient(name)}
                   textShadow="0 1px 1px rgba(0, 0, 0, 0.28)"
-                  boxShadow="0 6px 20px rgba(56, 189, 248, 0.22), 0 0 14px rgba(56, 189, 248, 0.2)"
+                  boxShadow={disableTimerGlow ? 'none' : '0 6px 20px rgba(56, 189, 248, 0.22), 0 0 14px rgba(56, 189, 248, 0.2)'}
                 >
                   {name}
                 </Box>
@@ -425,7 +446,7 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                 overflow="hidden"
                 position="relative"
               >
-                {animateTimerBar ? (
+                {shouldAnimateTimerEffects ? (
                   <Box
                     position="absolute"
                     left={0}
@@ -451,11 +472,13 @@ export function AuctionCard({ auction }: AuctionCardProps) {
                 borderRadius="0"
                 zIndex={1}
                 overflow="hidden"
+                data-testid={`auction-timer-fill-${auction.id}`}
+                data-low-detail={disableTimerGlow ? 'true' : 'false'}
                 transition="all 0.25s ease"
-                boxShadow={animateTimerBar ? `0 0 10px ${timerGlow}, 0 0 22px ${timerGlow}` : 'none'}
-                animation={animateTimerBar ? `${timerGlowPulse} 4.8s ease-in-out infinite` : undefined}
+                boxShadow={shouldAnimateTimerEffects ? `0 0 10px ${timerGlow}, 0 0 22px ${timerGlow}` : 'none'}
+                animation={shouldAnimateTimerEffects ? `${timerGlowPulse} 4.8s ease-in-out infinite` : undefined}
                 _before={
-                  animateTimerBar
+                  shouldAnimateTimerEffects
                     ? {
                         content: '""',
                         position: 'absolute',
