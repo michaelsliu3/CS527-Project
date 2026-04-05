@@ -1015,24 +1015,26 @@ export function Su7ThreeHero({
     }
     mount.addEventListener('pointerdown', onPointerDown)
     window.addEventListener('pointerup', onPointerUp)
-    onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== 'w' || !canUseDrivingHotkey(event)) return
-      initAudio()
-      hasUserInteracted = true
-      if (!isKeyboardDriving) {
-        isKeyboardDriving = true
-        updateDrivingState()
+    if (interactive) {
+      onKeyDown = (event: KeyboardEvent) => {
+        if (event.key.toLowerCase() !== 'w' || !canUseDrivingHotkey(event)) return
+        initAudio()
+        hasUserInteracted = true
+        if (!isKeyboardDriving) {
+          isKeyboardDriving = true
+          updateDrivingState()
+        }
       }
-    }
-    onKeyUp = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== 'w') return
-      if (isKeyboardDriving) {
-        isKeyboardDriving = false
-        updateDrivingState()
+      onKeyUp = (event: KeyboardEvent) => {
+        if (event.key.toLowerCase() !== 'w') return
+        if (isKeyboardDriving) {
+          isKeyboardDriving = false
+          updateDrivingState()
+        }
       }
+      window.addEventListener('keydown', onKeyDown)
+      window.addEventListener('keyup', onKeyUp)
     }
-    window.addEventListener('keydown', onKeyDown)
-    window.addEventListener('keyup', onKeyUp)
 
     if (!interactive) {
       onPointerMove = (event: PointerEvent) => {

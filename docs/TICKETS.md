@@ -741,3 +741,14 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Expected:** Users should be able to set any upper limit that is greater than or equal to the minimum allowed threshold; auto-bid execution should apply increment rules when placing bids, not when capturing the user’s max budget.
 - **Likely cause:** Frontend validation/UI controls are reusing manual-bid increment constraints for auto-bid upper-limit entry, or backend validation enforces increment-multiple checks on `upperLimit` rather than on generated bid amounts.
 - **Validation:** Add/extend tests to confirm non-multiple upper limits are accepted (e.g., `currentPrice + bidIncrement + 1`) while invalid low values are still rejected; verify auto-bid bidding steps continue to respect increment logic during actual bid placement.
+
+### PBM-BUG-4 — Filtering bugs stabilization pass
+
+**Layer:** Frontend + Backend  
+**Branch:** `PBM-BUG-4/fix-filtering-bugs`  
+**PR Title:** `[PBM-BUG-4] fix filtering bugs across browse/search flows`
+
+- **Bug:** There are multiple known issues with filtering behavior across browse/search flows.
+- **Scope:** Placeholder ticket to track triage and fixes for filtering regressions.
+- **Goals:** Identify and fix high-impact filtering bugs first, then add regression coverage.
+- **Validation:** Add/extend tests for affected filter combinations and run manual QA on browse/search scenarios.
