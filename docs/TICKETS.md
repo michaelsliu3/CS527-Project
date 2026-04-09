@@ -752,3 +752,13 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Scope:** Placeholder ticket to track triage and fixes for filtering regressions.
 - **Goals:** Identify and fix high-impact filtering bugs first, then add regression coverage.
 - **Validation:** Add/extend tests for affected filter combinations and run manual QA on browse/search scenarios.
+
+### PBM-PERF-1 — Low detail mode for graphics/memory-heavy views
+
+**Layer:** Frontend  
+**Branch:** `PBM-PERF-1/low-detail-mode`  
+**PR Title:** `[PBM-PERF-1] add low detail mode to reduce graphics and memory usage`
+- **Scope:** Add a low-detail mode for auction browse cards to reduce GPU load and animation overhead on graphics/memory-constrained devices.
+- **Implementation:** Persist a low-detail toggle (`localStorage`) exposed in GM Tools; wire auction-list pages to react to toggle changes without full reload.
+- **Rendering behavior:** When low-detail mode is enabled and a page contains several 3D-capable listings, render static 3D placeholders instead of live `Su7ThreeHero` previews; also disable timer/category glow effects.
+- **Validation:** Add frontend tests for low-detail toggle behavior, static 3D fallback rendering, and card-level low-detail visual flags.

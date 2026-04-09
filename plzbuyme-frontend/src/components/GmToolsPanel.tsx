@@ -26,7 +26,11 @@ import {
   normalizeLucideIconKeyForApi,
   resolveLucideIconForKey,
 } from '../constants/categoryLucideIcons'
-import { notifyAuctionListRefresh } from '../utils/auctionListRefresh'
+import {
+  isAuctionLowDetailModeEnabled,
+  notifyAuctionListRefresh,
+  setAuctionLowDetailModeEnabled,
+} from '../utils/auctionListRefresh'
 import { showErrorToast, showSuccessToast } from './ui/toaster'
 import { dark } from '../theme/colors'
 
@@ -253,6 +257,7 @@ function GmLucideIconPicker({
 
 export function GmToolsPanel() {
   const [busy, setBusy] = useState<string | null>(null)
+  const [lowDetailModeEnabled, setLowDetailModeEnabled] = useState(() => isAuctionLowDetailModeEnabled())
 
   const [seedCount, setSeedCount] = useState('5')
   const [manifestKeyword, setManifestKeyword] = useState('')
@@ -536,6 +541,17 @@ export function GmToolsPanel() {
     showSuccessToast(
       'Browse listings refresh',
       'Subscribers to the auction list will reload data (e.g. after a close sweep).',
+    )
+  }
+
+  const onToggleLowDetailMode = (enabled: boolean) => {
+    setLowDetailModeEnabled(enabled)
+    setAuctionLowDetailModeEnabled(enabled)
+    showSuccessToast(
+      'Low-detail mode updated',
+      enabled
+        ? 'Low-detail mode is now enabled.'
+        : 'Low-detail mode is now disabled.',
     )
   }
 
@@ -877,6 +893,18 @@ export function GmToolsPanel() {
               <Text fontSize="sm" color={dark.label} mb={2}>
                 Handy while demoing or testing without leaving this panel.
               </Text>
+              <Checkbox.Root
+                data-testid="gm-toggle-low-detail-mode"
+                checked={lowDetailModeEnabled}
+                onCheckedChange={(d) => onToggleLowDetailMode(!!d.checked)}
+                mb={2}
+              >
+                <Checkbox.HiddenInput />
+                <Checkbox.Control />
+                <Checkbox.Label color={dark.label}>
+                  Enable low-detail mode
+                </Checkbox.Label>
+              </Checkbox.Root>
               <Text fontSize="xs" color={dark.muted} mb={3} fontFamily="mono">
                 Vite mode: {import.meta.env.MODE}
               </Text>

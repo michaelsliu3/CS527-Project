@@ -10,7 +10,12 @@ import { useAuth } from '../context/AuthContext'
 import { useSellItemModal } from '../context/SellItemModalContext'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
-import { subscribeAuctionListRefresh } from '../utils/auctionListRefresh'
+import {
+  isAuctionLowDetailModeEnabled,
+  subscribeAuctionListRefresh,
+  subscribeAuctionLowDetailModeChange,
+} from '../utils/auctionListRefresh'
+import { resolveAuction3dModelKey } from '../utils/auction3dModel'
 
 function canCreateAuctions(role: string | undefined): boolean {
   if (!role) return false
@@ -18,6 +23,7 @@ function canCreateAuctions(role: string | undefined): boolean {
 }
 
 const DEFAULT_AUCTION_PAGE_SIZE = 21
+const LOW_DETAIL_3D_MODEL_THRESHOLD = 3
 const TOP_RIGHT_SORT_OPTIONS = [
   { value: '', label: 'Default' },
   { value: 'newest', label: 'Newest' },
@@ -100,6 +106,7 @@ export function AuctionListPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [listRefreshToken, setListRefreshToken] = useState(0)
+  const [lowDetailModeEnabled, setLowDetailModeEnabled] = useState(() => isAuctionLowDetailModeEnabled())
   const activeRequestId = useRef(0)
 
   useEffect(() => {
@@ -133,11 +140,21 @@ export function AuctionListPage() {
     return subscribeAuctionListRefresh(() => setListRefreshToken((t) => t + 1))
   }, [])
 
+  useEffect(() => {
+    return subscribeAuctionLowDetailModeChange(() => {
+      setLowDetailModeEnabled(isAuctionLowDetailModeEnabled())
+    })
+  }, [])
+
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
   const hasNext = page < totalPages
   const hasPrev = page > 1
   const sortKey = searchParams.get('sort') ?? ''
   const statusKey = searchParams.get('status') ?? 'active'
+  const threeModelCardCount = items.reduce((count, item) => {
+    return resolveAuction3dModelKey(item.title) ? count + 1 : count
+  }, 0)
+  const shouldForceStatic3dIcons = lowDetailModeEnabled && threeModelCardCount >= LOW_DETAIL_3D_MODEL_THRESHOLD
   const handleTopRightSortChange = (nextSort: string) => {
     const next = new URLSearchParams(searchParams)
     if (nextSort) {
@@ -299,7 +316,12 @@ export function AuctionListPage() {
             <>
               <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} gap={4}>
                 {items.map((auction) => (
-                  <AuctionCard key={auction.id} auction={auction} />
+                  <AuctionCard
+                    key={auction.id}
+                    auction={auction}
+                    forceStatic3dIcon={shouldForceStatic3dIcons}
+                    disableTimerGlow={lowDetailModeEnabled}
+                  />
                 ))}
               </SimpleGrid>
               <Flex mt={6} justify="space-between" align="center">

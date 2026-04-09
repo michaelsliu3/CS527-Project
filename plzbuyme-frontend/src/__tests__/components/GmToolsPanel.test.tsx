@@ -30,6 +30,8 @@ vi.mock('../../components/ui/toaster', () => ({
 
 vi.mock('../../utils/auctionListRefresh', () => ({
   notifyAuctionListRefresh: vi.fn(),
+  isAuctionLowDetailModeEnabled: vi.fn(() => true),
+  setAuctionLowDetailModeEnabled: vi.fn(),
 }))
 
 function renderPanel() {
@@ -84,6 +86,22 @@ describe('GmToolsPanel', () => {
     expect(showSuccessToast).toHaveBeenCalledWith(
       'Browse listings refresh',
       expect.stringContaining('Subscribers'),
+    )
+  })
+
+  it('toggles low-detail mode from General tab', async () => {
+    const user = userEvent.setup()
+    renderPanel()
+
+    const toggle = screen.getByTestId('gm-toggle-low-detail-mode')
+    expect(toggle).toHaveAttribute('data-state', 'checked')
+
+    await user.click(toggle)
+
+    expect(auctionListRefresh.setAuctionLowDetailModeEnabled).toHaveBeenCalledWith(false)
+    expect(showSuccessToast).toHaveBeenCalledWith(
+      'Low-detail mode updated',
+      'Low-detail mode is now disabled.',
     )
   })
 
