@@ -757,6 +757,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
   - Stabilized condition filter semantics by keeping a single selected condition in URL/UI while backend expands it to "selected or better" ordering (`New` -> `Like New` -> `Excellent` -> `Good` -> `Fair` -> `Poor`).
   - Removed category-scoped condition coupling in backend search so condition filtering works even when `categoryId` is not provided (common "all listings" browse state).
   - Preserved and hardened condition slider state hydration from URL values in `SearchBar` so refresh/back navigation keeps the selected threshold deterministic.
+  - Fixed car shortcut filter resolution (`make`, `model`, etc.) when `categoryId` is omitted (e.g., "All Cars" state) by resolving field IDs across matching categories and preserving loose partial text matching (`mer` -> Mercedes).
 
 ### PBM-PERF-1 — Low detail mode for graphics/memory-heavy views ✅
 
