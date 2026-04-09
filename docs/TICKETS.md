@@ -758,6 +758,9 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
   - Removed category-scoped condition coupling in backend search so condition filtering works even when `categoryId` is not provided (common "all listings" browse state).
   - Preserved and hardened condition slider state hydration from URL values in `SearchBar` so refresh/back navigation keeps the selected threshold deterministic.
   - Fixed car shortcut filter resolution (`make`, `model`, etc.) when `categoryId` is omitted (e.g., "All Cars" state) by resolving field IDs across matching categories and preserving loose partial text matching (`mer` -> Mercedes).
+  - Made backend select-value filtering tolerant to casing/whitespace differences for fields like transmission and fuel type (e.g., `Manual` still matches stored values like `  mAnUaL  `).
+  - Fixed `Reset All Filters` UI state hydration so transmission/fuel dropdowns visually reset with URL state instead of retaining stale selections.
+  - Corrected low-detail browse default behavior to `off` when the localStorage toggle has never been set, preventing unexpected static-mode rendering for first-time visitors.
 
 ### PBM-PERF-1 — Low detail mode for graphics/memory-heavy views ✅
 

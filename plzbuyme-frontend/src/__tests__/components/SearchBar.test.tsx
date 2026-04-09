@@ -16,7 +16,10 @@ vi.mock('../../api/categories', () => ({
   fetchCategories: vi.fn(),
 }))
 
-function renderSearchBar(initialEntry = '/auctions') {
+function renderSearchBar(
+  initialEntry = '/auctions',
+  variant: 'full' | 'top' | 'filters' = 'full'
+) {
   function LocationProbe() {
     const location = useLocation()
     return <div data-testid="location-search">{location.search}</div>
@@ -30,7 +33,7 @@ function renderSearchBar(initialEntry = '/auctions') {
             path="/auctions"
             element={
               <>
-                <SearchBar />
+                <SearchBar variant={variant} />
                 <LocationProbe />
               </>
             }
@@ -148,5 +151,31 @@ describe('SearchBar', () => {
     await user.click(screen.getByRole('tab', { name: /SUVs/i }))
 
     expect(screen.getByPlaceholderText(/e.g. Toyota/i)).toBeInTheDocument()
+  })
+
+  it('resets transmission and fuel type dropdowns when Reset All Filters is clicked', async () => {
+    const user = userEvent.setup()
+    renderSearchBar('/auctions?transmission=Manual&fuelType=Diesel', 'filters')
+
+    const fuelTypeSelect = screen.getAllByRole('combobox').find(
+      (el) => (el as HTMLSelectElement).name === 'fuelType'
+    ) as HTMLSelectElement | undefined
+    const transmissionByName = screen.getAllByRole('combobox').find(
+      (el) => (el as HTMLSelectElement).name === 'transmission'
+    ) as HTMLSelectElement | undefined
+
+    expect(transmissionByName).toBeDefined()
+    expect(fuelTypeSelect).toBeDefined()
+    expect(transmissionByName!.value).toBe('Manual')
+    expect(fuelTypeSelect!.value).toBe('Diesel')
+
+    await user.click(screen.getByRole('button', { name: /Reset All Filters/i }))
+
+    expect(transmissionByName!.value).toBe('')
+    expect(fuelTypeSelect!.value).toBe('')
+    await waitFor(() => {
+      expect(screen.getByTestId('location-search').textContent).toContain('page=1')
+      expect(screen.getByTestId('location-search').textContent).toContain('status=active')
+    })
   })
 })

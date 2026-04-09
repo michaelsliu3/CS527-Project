@@ -941,4 +941,30 @@ public class AuctionServiceTests
         ids.Should().Contain(suvMercedes.Id);
         ids.Should().NotContain(toyotaSedan.Id);
     }
+
+    [Fact]
+    public async Task SearchAsync_TransmissionAndFuelTypeFilters_AreCaseAndWhitespaceInsensitive()
+    {
+        var (db, sedanId, _, _) = CreateSeededContext();
+        var transmissionFieldId = db.CategoryFields.Single(f => f.CategoryId == sedanId && f.FieldName == "Transmission").Id;
+        var fuelTypeFieldId = db.CategoryFields.Single(f => f.CategoryId == sedanId && f.FieldName == "Fuel Type").Id;
+        var target = db.Items.First(i => i.Status == ItemStatus.Active && i.CategoryIds.Contains(sedanId));
+
+        var transmissionValue = db.ItemFieldValues.Single(iv => iv.ItemId == target.Id && iv.FieldId == transmissionFieldId);
+        transmissionValue.Value = "  mAnUaL  ";
+        var fuelTypeValue = db.ItemFieldValues.Single(iv => iv.ItemId == target.Id && iv.FieldId == fuelTypeFieldId);
+        fuelTypeValue.Value = "  dIeSeL  ";
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.SearchAsync(new SearchQueryDto
+        {
+            Transmission = new List<string> { "Manual" },
+            FuelType = new List<string> { "Diesel" },
+            Page = 1,
+            PageSize = 20
+        });
+
+        result.Items.Select(i => i.Id).Should().Contain(target.Id);
+    }
 }

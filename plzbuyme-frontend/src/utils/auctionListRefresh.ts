@@ -14,7 +14,7 @@ export function subscribeAuctionListRefresh(handler: () => void): () => void {
 
 export function isAuctionLowDetailModeEnabled(): boolean {
   const raw = window.localStorage.getItem(LOW_DETAIL_MODE_STORAGE_KEY)
-  if (raw == null) return true
+  if (raw == null) return false
   return raw !== '0' && raw.toLowerCase() !== 'false'
 }
 

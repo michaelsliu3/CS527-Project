@@ -630,11 +630,18 @@ public class AuctionService : IAuctionService
             }
             else if (filter.SelectValues != null && filter.SelectValues.Count > 0)
             {
-                var values = filter.SelectValues;
+                var normalizedValues = filter.SelectValues
+                    .Select(v => v?.Trim())
+                    .Where(v => !string.IsNullOrWhiteSpace(v))
+                    .Select(v => v!.ToLowerInvariant())
+                    .Distinct()
+                    .ToList();
+                if (normalizedValues.Count == 0) continue;
                 q = q.Where(i =>
                     i.ItemFieldValues.Any(iv =>
                         fieldIds.Contains(iv.FieldId) &&
-                        values.Contains(iv.Value)));
+                        iv.Value != null &&
+                        normalizedValues.Contains(iv.Value.Trim().ToLower())));
             }
         }
 
@@ -802,8 +809,17 @@ public class AuctionService : IAuctionService
             .Select(f => new { f.FieldName, f.Id })
             .ToListAsync();
         var fieldsByName = fieldRows
-            .GroupBy(f => f.FieldName)
-            .ToDictionary(g => g.Key, g => g.Select(x => x.Id).Distinct().ToList());
+            .Select(f => new
+            {
+                Name = (f.FieldName ?? string.Empty).Trim(),
+                f.Id
+            })
+            .Where(f => !string.IsNullOrWhiteSpace(f.Name))
+            .GroupBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(x => x.Id).Distinct().ToList(),
+                StringComparer.OrdinalIgnoreCase);
 
         if (!string.IsNullOrWhiteSpace(query.Make))
             AddTextFilter(fieldsByName, "Make", query.Make, result);
