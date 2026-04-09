@@ -18,6 +18,15 @@ public class AuctionService : IAuctionService
     private const string Gt7DefaultImageSource = "gt7-default";
     private const string PlaceholderImageSource = "placeholder";
     private const int GmBulkCloseActiveMax = 500;
+    private static readonly string[] ConditionQualityOrder =
+    {
+        "New",
+        "Like New",
+        "Excellent",
+        "Good",
+        "Fair",
+        "Poor"
+    };
 
     private static readonly Regex CatalogCarExternalIdRegex = new(
         @"car(\d{3,7})",
@@ -578,6 +587,17 @@ public class AuctionService : IAuctionService
             var sellerLower = query.Seller.Trim().ToLower();
             q = q.Where(i => i.Seller != null && i.Seller.Username.ToLower().Contains(sellerLower));
         }
+        if (query.Condition != null && query.Condition.Count > 0)
+        {
+            var conditionValues = ExpandConditionFilterValues(query.Condition);
+            var conditionFieldIds = await _db.CategoryFields
+                .Where(f => f.FieldName == "Condition")
+                .Select(f => f.Id)
+                .Distinct()
+                .ToListAsync();
+            if (conditionFieldIds.Count > 0)
+                q = q.Where(i => i.ItemFieldValues.Any(iv => conditionFieldIds.Contains(iv.FieldId) && conditionValues.Contains(iv.Value)));
+        }
 
         var fieldFilters = await BuildFieldFiltersAsync(query);
         foreach (var (fieldId, filter) in fieldFilters)
@@ -787,8 +807,6 @@ public class AuctionService : IAuctionService
                 AddNumberRangeFilter(fieldsByName, "Mileage", null, query.MileageMax, result);
             if (!string.IsNullOrWhiteSpace(query.ExteriorColor))
                 AddTextFilter(fieldsByName, "Exterior Color", query.ExteriorColor, result);
-            if (query.Condition != null && query.Condition.Count > 0)
-                AddSelectFilter(fieldsByName, "Condition", query.Condition, result);
             if (query.Transmission != null && query.Transmission.Count > 0)
                 AddSelectFilter(fieldsByName, "Transmission", query.Transmission, result);
             if (query.FuelType != null && query.FuelType.Count > 0)
@@ -853,6 +871,24 @@ public class AuctionService : IAuctionService
     {
         if (fieldsByName.TryGetValue(name, out var id))
             result.Add((id, new FieldFilterValue { SelectValues = values }));
+    }
+
+    private static List<string> ExpandConditionFilterValues(List<string> values)
+    {
+        var worstMatchedIndex = -1;
+        foreach (var value in values)
+        {
+            var index = Array.FindIndex(
+                ConditionQualityOrder,
+                ranked => ranked.Equals(value, StringComparison.OrdinalIgnoreCase));
+            if (index > worstMatchedIndex)
+                worstMatchedIndex = index;
+        }
+
+        if (worstMatchedIndex < 0)
+            return values;
+
+        return ConditionQualityOrder.Take(worstMatchedIndex + 1).ToList();
     }
 
     private static IQueryable<Item> ApplySort(IQueryable<Item> q, string? sort, int? yearFieldId, int? mileageFieldId)

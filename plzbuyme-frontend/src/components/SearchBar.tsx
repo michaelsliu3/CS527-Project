@@ -54,13 +54,13 @@ const CONDITION_OPTIONS = ['New', 'Like New', 'Excellent', 'Good', 'Fair', 'Poor
 const TRANSMISSION_OPTIONS = ['Automatic', 'Manual', 'CVT']
 const FUEL_OPTIONS = ['Gasoline', 'Diesel', 'Electric', 'Hybrid', 'Plug-in Hybrid']
 const PRICE_SLIDER_MIN = 0
-const PRICE_SLIDER_MAX = 100000
+const PRICE_SLIDER_MAX = 200000
 const PRICE_SLIDER_DEFAULT_MAX = 50000
 const QUICK_PRICE_PRESETS: Array<{ label: string; min: number; max: number }> = [
-  { label: '<$10', min: PRICE_SLIDER_MIN, max: 10 },
-  { label: '$10 - $50', min: 10, max: 50 },
-  { label: '$50 - $250', min: 50, max: 250 },
-  { label: '>$250', min: 250, max: PRICE_SLIDER_MAX },
+  { label: '0 - 10k', min: 0, max: 10000 },
+  { label: '10k - 50k', min: 10000, max: 50000 },
+  { label: '50k - 200k', min: 50000, max: 200000 },
+  { label: '200k+', min: 200000, max: PRICE_SLIDER_MAX },
 ]
 const sectionToggleButtonProps = {
   variant: 'ghost',
@@ -99,13 +99,13 @@ function getPriceRangeFromSearchParams(searchParams: URLSearchParams): [number, 
 }
 
 function getConditionIndexFromSearchParams(searchParams: URLSearchParams): number | null {
-  const firstMatchedCondition = searchParams
+  const matchedIndexes = searchParams
     .getAll('condition')
-    .find((value) => CONDITION_OPTIONS.includes(value))
+    .map((value) => CONDITION_OPTIONS.indexOf(value))
+    .filter((index) => index >= 0)
 
-  if (!firstMatchedCondition) return null
-  const index = CONDITION_OPTIONS.indexOf(firstMatchedCondition)
-  return index >= 0 ? index : null
+  if (!matchedIndexes.length) return null
+  return Math.max(...matchedIndexes)
 }
 
 type SearchBarVariant = 'full' | 'top' | 'filters'

@@ -5,6 +5,11 @@ const baseURL = import.meta.env.VITE_API_URL ?? 'http://localhost:5081/api'
 
 export const apiClient = axios.create({
   baseURL,
+  paramsSerializer: {
+    // ASP.NET Core binds List<string> from repeated query keys (e.g. ?condition=A&condition=B).
+    // Axios defaults to bracket syntax (?condition[]=A&condition[]=B), which this API does not bind.
+    indexes: null,
+  },
 })
 
 apiClient.interceptors.request.use((config) => {
