@@ -742,7 +742,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Likely cause:** Frontend validation/UI controls are reusing manual-bid increment constraints for auto-bid upper-limit entry, or backend validation enforces increment-multiple checks on `upperLimit` rather than on generated bid amounts.
 - **Validation:** Add/extend tests to confirm non-multiple upper limits are accepted (e.g., `currentPrice + bidIncrement + 1`) while invalid low values are still rejected; verify auto-bid bidding steps continue to respect increment logic during actual bid placement.
 
-### PBM-BUG-4 — Filtering bugs stabilization pass
+### PBM-BUG-4 — Filtering bugs stabilization pass ✅
 
 **Layer:** Frontend + Backend  
 **Branch:** `PBM-BUG-4/fix-filtering-bugs`  
@@ -752,8 +752,17 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Scope:** Placeholder ticket to track triage and fixes for filtering regressions.
 - **Goals:** Identify and fix high-impact filtering bugs first, then add regression coverage.
 - **Validation:** Add/extend tests for affected filter combinations and run manual QA on browse/search scenarios.
+- **Implemented in this pass:**
+  - Fixed frontend query-string array serialization for browse filters so ASP.NET Core receives repeated keys (`condition=A&condition=B`) instead of bracket syntax (`condition[]=...`), restoring list-filter binding.
+  - Stabilized condition filter semantics by keeping a single selected condition in URL/UI while backend expands it to "selected or better" ordering (`New` -> `Like New` -> `Excellent` -> `Good` -> `Fair` -> `Poor`).
+  - Removed category-scoped condition coupling in backend search so condition filtering works even when `categoryId` is not provided (common "all listings" browse state).
+  - Preserved and hardened condition slider state hydration from URL values in `SearchBar` so refresh/back navigation keeps the selected threshold deterministic.
+  - Fixed car shortcut filter resolution (`make`, `model`, etc.) when `categoryId` is omitted (e.g., "All Cars" state) by resolving field IDs across matching categories and preserving loose partial text matching (`mer` -> Mercedes).
+  - Made backend select-value filtering tolerant to casing/whitespace differences for fields like transmission and fuel type (e.g., `Manual` still matches stored values like `  mAnUaL  `).
+  - Fixed `Reset All Filters` UI state hydration so transmission/fuel dropdowns visually reset with URL state instead of retaining stale selections.
+  - Corrected low-detail browse default behavior to `off` when the localStorage toggle has never been set, preventing unexpected static-mode rendering for first-time visitors.
 
-### PBM-PERF-1 — Low detail mode for graphics/memory-heavy views
+### PBM-PERF-1 — Low detail mode for graphics/memory-heavy views ✅
 
 **Layer:** Frontend  
 **Branch:** `PBM-PERF-1/low-detail-mode`  

@@ -275,6 +275,7 @@ describe('AuctionListPage', () => {
   })
 
   it('switches cards to static 3D icons when three model previews are present', async () => {
+    window.localStorage.setItem('plzbuyme:auction-low-detail-mode-enabled', '1')
     vi.mocked(api.browseAuctions).mockResolvedValue({
       data: {
         items: [
@@ -326,6 +327,7 @@ describe('AuctionListPage', () => {
     })
 
     expect(await screen.findAllByText('3D preview available')).toHaveLength(3)
+    window.localStorage.removeItem('plzbuyme:auction-low-detail-mode-enabled')
   })
 
   it('ignores stale browse responses when a newer request completes first', async () => {

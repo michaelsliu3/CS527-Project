@@ -857,4 +857,114 @@ public class AuctionServiceTests
         });
         mileageHigh.Items.Select(i => i.Title).Should().ContainInOrder("Sort Car E", "Sort Car D", "Sort Car F");
     }
+
+    [Fact]
+    public async Task SearchAsync_MakeFilterWithoutCategoryId_MatchesAcrossCarSubcategories()
+    {
+        var (db, sedanId, _, _) = CreateSeededContext();
+        var suvId = db.Categories.Single(c => c.Name == "SUVs").Id;
+        var sedanMakeFieldId = db.CategoryFields.Single(f => f.CategoryId == sedanId && f.FieldName == "Make").Id;
+        var suvMakeFieldId = db.CategoryFields.Single(f => f.CategoryId == suvId && f.FieldName == "Make").Id;
+
+        var seller = new User
+        {
+            Username = "filter-seller",
+            Email = "filter-seller@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            WalletBalance = 100000m
+        };
+        db.Users.Add(seller);
+        await db.SaveChangesAsync();
+
+        var now = DateTime.UtcNow;
+        var sedanMercedes = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { sedanId },
+            Title = "Mercedes Sedan",
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 120m,
+            CurrentPrice = 100m,
+            CloseDateTime = now.AddDays(3),
+            CreatedAt = now.AddMinutes(-2),
+            Status = ItemStatus.Active
+        };
+        var suvMercedes = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { suvId },
+            Title = "Mercedes SUV",
+            InitialPrice = 200m,
+            BidIncrement = 10m,
+            ReservePrice = 220m,
+            CurrentPrice = 200m,
+            CloseDateTime = now.AddDays(2),
+            CreatedAt = now.AddMinutes(-1),
+            Status = ItemStatus.Active
+        };
+        var toyotaSedan = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { sedanId },
+            Title = "Toyota Sedan",
+            InitialPrice = 300m,
+            BidIncrement = 10m,
+            ReservePrice = 320m,
+            CurrentPrice = 300m,
+            CloseDateTime = now.AddDays(1),
+            CreatedAt = now,
+            Status = ItemStatus.Active
+        };
+        db.Items.AddRange(sedanMercedes, suvMercedes, toyotaSedan);
+        await db.SaveChangesAsync();
+
+        db.ItemFieldValues.AddRange(
+            new ItemFieldValue { ItemId = sedanMercedes.Id, FieldId = sedanMakeFieldId, Value = "Mercedes-Benz" },
+            new ItemFieldValue { ItemId = suvMercedes.Id, FieldId = suvMakeFieldId, Value = "Mercedes" },
+            new ItemFieldValue { ItemId = toyotaSedan.Id, FieldId = sedanMakeFieldId, Value = "Toyota" }
+        );
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.SearchAsync(new SearchQueryDto
+        {
+            Make = "mer",
+            Seller = seller.Username,
+            Page = 1,
+            PageSize = 20
+        });
+
+        var ids = result.Items.Select(i => i.Id).ToList();
+        ids.Should().Contain(sedanMercedes.Id);
+        ids.Should().Contain(suvMercedes.Id);
+        ids.Should().NotContain(toyotaSedan.Id);
+    }
+
+    [Fact]
+    public async Task SearchAsync_TransmissionAndFuelTypeFilters_AreCaseAndWhitespaceInsensitive()
+    {
+        var (db, sedanId, _, _) = CreateSeededContext();
+        var transmissionFieldId = db.CategoryFields.Single(f => f.CategoryId == sedanId && f.FieldName == "Transmission").Id;
+        var fuelTypeFieldId = db.CategoryFields.Single(f => f.CategoryId == sedanId && f.FieldName == "Fuel Type").Id;
+        var target = db.Items.First(i => i.Status == ItemStatus.Active && i.CategoryIds.Contains(sedanId));
+
+        var transmissionValue = db.ItemFieldValues.Single(iv => iv.ItemId == target.Id && iv.FieldId == transmissionFieldId);
+        transmissionValue.Value = "  mAnUaL  ";
+        var fuelTypeValue = db.ItemFieldValues.Single(iv => iv.ItemId == target.Id && iv.FieldId == fuelTypeFieldId);
+        fuelTypeValue.Value = "  dIeSeL  ";
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db);
+        var result = await service.SearchAsync(new SearchQueryDto
+        {
+            Transmission = new List<string> { "Manual" },
+            FuelType = new List<string> { "Diesel" },
+            Page = 1,
+            PageSize = 20
+        });
+
+        result.Items.Select(i => i.Id).Should().Contain(target.Id);
+    }
 }

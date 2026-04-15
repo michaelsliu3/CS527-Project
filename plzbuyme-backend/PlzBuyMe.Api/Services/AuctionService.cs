@@ -18,6 +18,15 @@ public class AuctionService : IAuctionService
     private const string Gt7DefaultImageSource = "gt7-default";
     private const string PlaceholderImageSource = "placeholder";
     private const int GmBulkCloseActiveMax = 500;
+    private static readonly string[] ConditionQualityOrder =
+    {
+        "New",
+        "Like New",
+        "Excellent",
+        "Good",
+        "Fair",
+        "Poor"
+    };
 
     private static readonly Regex CatalogCarExternalIdRegex = new(
         @"car(\d{3,7})",
@@ -578,22 +587,38 @@ public class AuctionService : IAuctionService
             var sellerLower = query.Seller.Trim().ToLower();
             q = q.Where(i => i.Seller != null && i.Seller.Username.ToLower().Contains(sellerLower));
         }
+        if (query.Condition != null && query.Condition.Count > 0)
+        {
+            var conditionValues = ExpandConditionFilterValues(query.Condition);
+            var conditionFieldIds = await _db.CategoryFields
+                .Where(f => f.FieldName == "Condition")
+                .Select(f => f.Id)
+                .Distinct()
+                .ToListAsync();
+            if (conditionFieldIds.Count > 0)
+                q = q.Where(i => i.ItemFieldValues.Any(iv => conditionFieldIds.Contains(iv.FieldId) && conditionValues.Contains(iv.Value)));
+        }
 
         var fieldFilters = await BuildFieldFiltersAsync(query);
-        foreach (var (fieldId, filter) in fieldFilters)
+        foreach (var filter in fieldFilters)
         {
-            var fid = fieldId;
+            var fieldIds = filter.FieldIds;
+            if (fieldIds.Count == 0) continue;
             if (filter.Text != null)
             {
                 var textLower = filter.Text.Trim().ToLower();
-                q = q.Where(i => i.ItemFieldValues.Any(iv => iv.FieldId == fid && iv.Value != null && iv.Value.ToLower().Contains(textLower)));
+                q = q.Where(i =>
+                    i.ItemFieldValues.Any(iv =>
+                        fieldIds.Contains(iv.FieldId) &&
+                        iv.Value != null &&
+                        iv.Value.ToLower().Contains(textLower)));
             }
             else if (filter.Min.HasValue || filter.Max.HasValue)
             {
                 var min = filter.Min ?? int.MinValue;
                 var max = filter.Max ?? int.MaxValue;
                 var validIds = await _db.ItemFieldValues
-                    .Where(iv => iv.FieldId == fid)
+                    .Where(iv => fieldIds.Contains(iv.FieldId))
                     .Select(iv => new { iv.ItemId, iv.Value })
                     .ToListAsync();
                 var idsInRange = validIds
@@ -605,8 +630,18 @@ public class AuctionService : IAuctionService
             }
             else if (filter.SelectValues != null && filter.SelectValues.Count > 0)
             {
-                var values = filter.SelectValues;
-                q = q.Where(i => i.ItemFieldValues.Any(iv => iv.FieldId == fid && values.Contains(iv.Value)));
+                var normalizedValues = filter.SelectValues
+                    .Select(v => v?.Trim())
+                    .Where(v => !string.IsNullOrWhiteSpace(v))
+                    .Select(v => v!.ToLowerInvariant())
+                    .Distinct()
+                    .ToList();
+                if (normalizedValues.Count == 0) continue;
+                q = q.Where(i =>
+                    i.ItemFieldValues.Any(iv =>
+                        fieldIds.Contains(iv.FieldId) &&
+                        iv.Value != null &&
+                        normalizedValues.Contains(iv.Value.Trim().ToLower())));
             }
         }
 
@@ -766,34 +801,40 @@ public class AuctionService : IAuctionService
                 .ToList();
     }
 
-    private async Task<List<(int FieldId, FieldFilterValue Filter)>> BuildFieldFiltersAsync(SearchQueryDto query)
+    private async Task<List<FieldFilterValue>> BuildFieldFiltersAsync(SearchQueryDto query)
     {
-        var result = new List<(int, FieldFilterValue)>();
-        var categoryId = query.CategoryId;
+        var result = new List<FieldFilterValue>();
+        var fieldRows = await _db.CategoryFields
+            .Where(f => !query.CategoryId.HasValue || f.CategoryId == query.CategoryId.Value)
+            .Select(f => new { f.FieldName, f.Id })
+            .ToListAsync();
+        var fieldsByName = fieldRows
+            .Select(f => new
+            {
+                Name = (f.FieldName ?? string.Empty).Trim(),
+                f.Id
+            })
+            .Where(f => !string.IsNullOrWhiteSpace(f.Name))
+            .GroupBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(x => x.Id).Distinct().ToList(),
+                StringComparer.OrdinalIgnoreCase);
 
-        if (categoryId.HasValue)
-        {
-            var fieldsByName = await _db.CategoryFields
-                .Where(f => f.CategoryId == categoryId.Value)
-                .ToDictionaryAsync(f => f.FieldName, f => f.Id);
-
-            if (!string.IsNullOrWhiteSpace(query.Make))
-                AddTextFilter(fieldsByName, "Make", query.Make, result);
-            if (!string.IsNullOrWhiteSpace(query.Model))
-                AddTextFilter(fieldsByName, "Model", query.Model, result);
-            if (query.YearMin.HasValue || query.YearMax.HasValue)
-                AddNumberRangeFilter(fieldsByName, "Year", query.YearMin, query.YearMax, result);
-            if (query.MileageMax.HasValue)
-                AddNumberRangeFilter(fieldsByName, "Mileage", null, query.MileageMax, result);
-            if (!string.IsNullOrWhiteSpace(query.ExteriorColor))
-                AddTextFilter(fieldsByName, "Exterior Color", query.ExteriorColor, result);
-            if (query.Condition != null && query.Condition.Count > 0)
-                AddSelectFilter(fieldsByName, "Condition", query.Condition, result);
-            if (query.Transmission != null && query.Transmission.Count > 0)
-                AddSelectFilter(fieldsByName, "Transmission", query.Transmission, result);
-            if (query.FuelType != null && query.FuelType.Count > 0)
-                AddSelectFilter(fieldsByName, "Fuel Type", query.FuelType, result);
-        }
+        if (!string.IsNullOrWhiteSpace(query.Make))
+            AddTextFilter(fieldsByName, "Make", query.Make, result);
+        if (!string.IsNullOrWhiteSpace(query.Model))
+            AddTextFilter(fieldsByName, "Model", query.Model, result);
+        if (query.YearMin.HasValue || query.YearMax.HasValue)
+            AddNumberRangeFilter(fieldsByName, "Year", query.YearMin, query.YearMax, result);
+        if (query.MileageMax.HasValue)
+            AddNumberRangeFilter(fieldsByName, "Mileage", null, query.MileageMax, result);
+        if (!string.IsNullOrWhiteSpace(query.ExteriorColor))
+            AddTextFilter(fieldsByName, "Exterior Color", query.ExteriorColor, result);
+        if (query.Transmission != null && query.Transmission.Count > 0)
+            AddSelectFilter(fieldsByName, "Transmission", query.Transmission, result);
+        if (query.FuelType != null && query.FuelType.Count > 0)
+            AddSelectFilter(fieldsByName, "Fuel Type", query.FuelType, result);
 
         if (!string.IsNullOrWhiteSpace(query.FieldFilters))
         {
@@ -806,7 +847,11 @@ public class AuctionService : IAuctionService
                         if (int.TryParse(kv.Key, out var fieldId))
                         {
                             if (kv.Value.ValueKind == JsonValueKind.String)
-                                result.Add((fieldId, new FieldFilterValue { Text = kv.Value.GetString() }));
+                                result.Add(new FieldFilterValue
+                                {
+                                    FieldIds = new List<int> { fieldId },
+                                    Text = kv.Value.GetString()
+                                });
                             else if (kv.Value.ValueKind == JsonValueKind.Object)
                             {
                                 int? min = null, max = null;
@@ -814,7 +859,12 @@ public class AuctionService : IAuctionService
                                     min = minProp.TryGetInt32(out var m) ? m : null;
                                 if (kv.Value.TryGetProperty("max", out var maxProp))
                                     max = maxProp.TryGetInt32(out var m) ? m : null;
-                                result.Add((fieldId, new FieldFilterValue { Min = min, Max = max }));
+                                result.Add(new FieldFilterValue
+                                {
+                                    FieldIds = new List<int> { fieldId },
+                                    Min = min,
+                                    Max = max
+                                });
                             }
                             else if (kv.Value.ValueKind == JsonValueKind.Array)
                             {
@@ -822,7 +872,11 @@ public class AuctionService : IAuctionService
                                 foreach (var e in kv.Value.EnumerateArray())
                                     if (e.ValueKind == JsonValueKind.String && e.GetString() is { } s)
                                         list.Add(s);
-                                result.Add((fieldId, new FieldFilterValue { SelectValues = list }));
+                                result.Add(new FieldFilterValue
+                                {
+                                    FieldIds = new List<int> { fieldId },
+                                    SelectValues = list
+                                });
                             }
                         }
                 }
@@ -836,23 +890,41 @@ public class AuctionService : IAuctionService
         return result;
     }
 
-    private static void AddTextFilter(Dictionary<string, int> fieldsByName, string name, string value, List<(int, FieldFilterValue)> result)
+    private static void AddTextFilter(Dictionary<string, List<int>> fieldsByName, string name, string value, List<FieldFilterValue> result)
     {
-        if (fieldsByName.TryGetValue(name, out var id))
-            result.Add((id, new FieldFilterValue { Text = value.Trim() }));
+        if (fieldsByName.TryGetValue(name, out var fieldIds) && fieldIds.Count > 0)
+            result.Add(new FieldFilterValue { FieldIds = fieldIds, Text = value.Trim() });
     }
 
-    private static void AddNumberRangeFilter(Dictionary<string, int> fieldsByName, string name, int? min, int? max, List<(int, FieldFilterValue)> result)
+    private static void AddNumberRangeFilter(Dictionary<string, List<int>> fieldsByName, string name, int? min, int? max, List<FieldFilterValue> result)
     {
         if (!min.HasValue && !max.HasValue) return;
-        if (fieldsByName.TryGetValue(name, out var id))
-            result.Add((id, new FieldFilterValue { Min = min, Max = max }));
+        if (fieldsByName.TryGetValue(name, out var fieldIds) && fieldIds.Count > 0)
+            result.Add(new FieldFilterValue { FieldIds = fieldIds, Min = min, Max = max });
     }
 
-    private static void AddSelectFilter(Dictionary<string, int> fieldsByName, string name, List<string> values, List<(int, FieldFilterValue)> result)
+    private static void AddSelectFilter(Dictionary<string, List<int>> fieldsByName, string name, List<string> values, List<FieldFilterValue> result)
     {
-        if (fieldsByName.TryGetValue(name, out var id))
-            result.Add((id, new FieldFilterValue { SelectValues = values }));
+        if (fieldsByName.TryGetValue(name, out var fieldIds) && fieldIds.Count > 0)
+            result.Add(new FieldFilterValue { FieldIds = fieldIds, SelectValues = values });
+    }
+
+    private static List<string> ExpandConditionFilterValues(List<string> values)
+    {
+        var worstMatchedIndex = -1;
+        foreach (var value in values)
+        {
+            var index = Array.FindIndex(
+                ConditionQualityOrder,
+                ranked => ranked.Equals(value, StringComparison.OrdinalIgnoreCase));
+            if (index > worstMatchedIndex)
+                worstMatchedIndex = index;
+        }
+
+        if (worstMatchedIndex < 0)
+            return values;
+
+        return ConditionQualityOrder.Take(worstMatchedIndex + 1).ToList();
     }
 
     private static IQueryable<Item> ApplySort(IQueryable<Item> q, string? sort, int? yearFieldId, int? mileageFieldId)
@@ -868,6 +940,7 @@ public class AuctionService : IAuctionService
 
     private class FieldFilterValue
     {
+        public List<int> FieldIds { get; set; } = new();
         public string? Text { get; set; }
         public int? Min { get; set; }
         public int? Max { get; set; }
