@@ -15,7 +15,6 @@ import {
   subscribeAuctionListRefresh,
   subscribeAuctionLowDetailModeChange,
 } from '../utils/auctionListRefresh'
-import { resolveAuction3dModelKey } from '../utils/auction3dModel'
 
 function canCreateAuctions(role: string | undefined): boolean {
   if (!role) return false
@@ -23,7 +22,6 @@ function canCreateAuctions(role: string | undefined): boolean {
 }
 
 const DEFAULT_AUCTION_PAGE_SIZE = 21
-const LOW_DETAIL_3D_MODEL_THRESHOLD = 3
 const TOP_RIGHT_SORT_OPTIONS = [
   { value: '', label: 'Default' },
   { value: 'newest', label: 'Newest' },
@@ -151,10 +149,7 @@ export function AuctionListPage() {
   const hasPrev = page > 1
   const sortKey = searchParams.get('sort') ?? ''
   const statusKey = searchParams.get('status') ?? 'active'
-  const threeModelCardCount = items.reduce((count, item) => {
-    return resolveAuction3dModelKey(item.title) ? count + 1 : count
-  }, 0)
-  const shouldForceStatic3dIcons = lowDetailModeEnabled && threeModelCardCount >= LOW_DETAIL_3D_MODEL_THRESHOLD
+  const shouldForceStatic3dIcons = lowDetailModeEnabled
   const handleTopRightSortChange = (nextSort: string) => {
     const next = new URLSearchParams(searchParams)
     if (nextSort) {
