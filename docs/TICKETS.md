@@ -668,7 +668,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-37 — User participation history for specific buyer/seller
+## PBM-37 — User participation history for specific buyer/seller ✅
 
 **Layer:** Backend + Frontend  
 **Branch:** `PBM-37/user-participation-history`  
