@@ -68,6 +68,7 @@ describe('AuctionDetailPage wallet', () => {
       user: {
         id: 1,
         username: 'bidder',
+        isAuctionIdentityAnonymous: false,
         avatarUrl: null,
         displayNameColor: null,
         email: 'b@b.com',
@@ -100,6 +101,7 @@ describe('AuctionDetailPage wallet', () => {
       user: {
         id: 1,
         username: 'bidder',
+        isAuctionIdentityAnonymous: false,
         avatarUrl: null,
         displayNameColor: null,
         email: 'b@b.com',
@@ -137,6 +139,7 @@ describe('AuctionDetailPage wallet', () => {
       user: {
         id: 1,
         username: 'bidder',
+        isAuctionIdentityAnonymous: false,
         avatarUrl: null,
         displayNameColor: null,
         email: 'b@b.com',
@@ -169,6 +172,7 @@ describe('AuctionDetailPage wallet', () => {
       user: {
         id: 1,
         username: 'bidder',
+        isAuctionIdentityAnonymous: false,
         avatarUrl: null,
         displayNameColor: null,
         email: 'b@b.com',
@@ -244,6 +248,7 @@ describe('AuctionDetailPage wallet', () => {
       user: {
         id: 1,
         username: 'bidder',
+        isAuctionIdentityAnonymous: false,
         avatarUrl: null,
         displayNameColor: null,
         email: 'b@b.com',

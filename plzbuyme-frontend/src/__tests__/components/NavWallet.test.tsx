@@ -22,6 +22,7 @@ describe('NavWallet', () => {
       user: {
         id: 1,
         username: 'alice',
+        isAuctionIdentityAnonymous: false,
         avatarUrl: null,
         displayNameColor: null,
         email: 'a@a.com',
