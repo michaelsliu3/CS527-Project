@@ -668,6 +668,81 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
+## PBM-37 — User participation history for specific buyer/seller
+
+**Layer:** Backend + Frontend  
+**Branch:** `PBM-37/user-participation-history`  
+**PR Title:** `[PBM-37] add queryable participation history for specific buyer/seller`
+
+- **Problem:** Current `GET /api/auctions/history/{userId}` only allows self-access (`currentUserId == userId`) and does not satisfy the requirement to view auctions a **specific buyer or seller** has participated in.
+- **Goal:** Support querying participation history for an explicitly selected user (buyer or seller) while preserving privacy/authorization boundaries.
+- **Backend:** Introduce a dedicated endpoint (e.g., `GET /api/auctions/history/users/{userId}` or query-based variant) that returns auctions where the target user either placed at least one bid or listed the auction as seller. Keep existing self-history endpoint semantics for backward compatibility.
+- **Authorization:** Decide and enforce policy clearly (recommended: Admin/Rep full access; EndUser limited to self unless product approves public history). Return `403` for disallowed cross-user lookups.
+- **Frontend:** Add a user-targeted history surface (admin/rep tools page or dedicated profile/history page) with clear target-user context, loading/empty/error states, and links to auction details.
+- **Tests:** Add controller/service tests for role-based access and correct inclusion rules (bidder-only, seller-only, both, neither). Add frontend tests for target selection, access restrictions, and rendered results.
+
+---
+
+## PBM-38 — Advanced multi-criteria search and filter composition
+
+**Layer:** Backend + Frontend  
+**Branch:** `PBM-38/advanced-search-filters`  
+**PR Title:** `[PBM-38] implement advanced auction search filters and ranking`
+
+- **Motivation:** The project gets more credit for supporting more complex searches. Current browse filters are solid but still mostly flat (single-dimension toggles with limited composition/scoring).
+- **Goal:** Add richer, composable filtering and ranking so users can run expressive queries across many auction dimensions in one request.
+- **Backend scope:** Extend browse API with advanced predicates, such as:
+  - multi-select include/exclude logic per field (e.g., include `BMW|Mercedes`, exclude `EV`);
+  - numeric range composition (`price`, `year`, `mileage`) with multiple disjoint ranges;
+  - recency windows (`listedWithinDays`, `closingWithinHours`);
+  - seller/auction quality signals (`minBidCount`, `sellerRatingMin` when available);
+  - optional weighted relevance scoring mode (text match + field overlap + recency + bid activity), with deterministic tie-breaks.
+- **Query contract:** Introduce a versioned, documented JSON filter schema (or strict query-params spec) and validate unknown/invalid operators with clear `400` messages.
+- **Frontend scope:** Build an advanced filter builder UI (chips/groups) with AND/OR grouping, include/exclude controls, saved presets, and URL/state persistence for shareable searches.
+- **Performance:** Add DB/index strategy and query-shape guards so complex filters remain performant under larger datasets (pagination + cap rules + safe defaults).
+- **Tests:** Add backend tests for operator semantics and ranking stability, plus frontend tests for composing/removing complex filters and preserving state through refresh/navigation.
+
+---
+
+## PBM-39 — Profile privacy toggle for auction identity anonymization
+
+**Layer:** Backend + Frontend  
+**Branch:** `PBM-39/profile-auction-anonymity-toggle`  
+**PR Title:** `[PBM-39] add profile toggle to anonymize end-user identity in auctions`
+
+- **Motivation:** Requirement allows optional anonymization so end-user login names and email addresses do not appear in auction contexts.
+- **Goal:** Add a user-controlled profile setting that, when enabled, anonymizes the user's public auction identity while keeping platform operations/auditing intact.
+- **Backend scope:** Add a persisted user preference (e.g., `IsAuctionIdentityAnonymous`) and apply it to auction/list/detail/bid-history DTO shaping so identity fields return anonymized display values (email must never be exposed in auction DTOs).
+- **Anonymization behavior:** Replace identifying values with stable aliases (e.g., `Bidder #A12F` / `Seller #A12F`) and continue showing non-sensitive metadata as appropriate (role badges/color can be policy-driven).
+- **Authorization/privacy:** Ensure reps/admins can still access true identity where operationally required via privileged endpoints/views, while general end-user surfaces remain anonymized when toggle is on.
+- **Frontend scope:** Add a clear profile toggle under privacy settings, explain what changes in auction pages, and update UI components (`AuctionCard`, detail seller label, bid history rows) to render anonymized names consistently.
+- **Data/backfill:** Add migration/default behavior (`false` by default) and verify existing users are unaffected until they opt in.
+- **Tests:** Add backend tests for DTO anonymization across browse/detail/history and role-based visibility exceptions; add frontend tests for toggle persistence and anonymized rendering.
+
+---
+
+## PBM-40 — Admin sales reports upgrade (summary + breakdowns + leaders)
+
+**Layer:** Backend + Frontend  
+**Branch:** `PBM-40/admin-sales-reports-upgrade`  
+**PR Title:** `[PBM-40] enhance admin reports with summary sales metrics and leaderboards`
+
+- **Context:** Baseline reporting endpoints/UI exist, but this ticket hardens and extends the admin reporting page to fully satisfy the sales reporting requirements and improve usability.
+- **Required reports (must support):**
+  - `[x]` total earnings
+  - `[x]` earnings per item
+  - `[x]` earnings per item type
+  - `[x]` earnings per end-user
+  - `[x]` best-selling items
+  - `[x]` best buyers (best-selling end-users on buyer side)
+- **Backend scope:** Ensure report endpoints consistently support filtering windows (date range), pagination/top-N controls, deterministic sorting, and export-ready response shapes for each report.
+- **Frontend scope:** Upgrade admin reports page UX with a unified filter bar (date range, top-N), sortable tables, summary cards, and clearer labeling for "best-selling items" vs "best buyers".
+- **Data correctness:** Define and document exact metric semantics (gross earnings basis, sold-only rules, handling of refunded/removed auctions, tie-break behavior for top lists).
+- **Performance:** Add indexes/query optimizations and guardrails so reports remain fast under larger sold-auction datasets.
+- **Validation:** Extend backend and frontend tests for each required report, filter combinations, ranking stability, and empty/error/loading states.
+
+---
+
 ## Bugs
 
 ### PBM-BUG-1 — Login state lost on page refresh ✅

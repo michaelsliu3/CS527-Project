@@ -31,6 +31,7 @@ export interface CategoryFieldValueDto {
 
 export interface BidHistoryItem {
   id?: number
+  bidderId: number
   bidderUsername: string
   bidderAvatarUrl?: string | null
   bidderDisplayNameColor?: string | null
@@ -133,4 +134,8 @@ export function setAutoBid(auctionId: number, upperLimit: number) {
 
 export function getMyAuctions(status?: string) {
   return apiClient.get<AuctionListItem[]>('/auctions/mine', { params: status ? { status } : {} })
+}
+
+export function getUserParticipationHistory(userId: number) {
+  return apiClient.get<AuctionListItem[]>(`/auctions/history/users/${userId}`)
 }

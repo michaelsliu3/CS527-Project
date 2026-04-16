@@ -17,8 +17,7 @@ import { AdminAuctionEditModal } from '../components/AdminAuctionEditModal'
 import { BidHistory } from '../components/BidHistory'
 import { AuctionCard } from '../components/AuctionCard'
 import { ImageCarousel, type CarouselSlide } from '../components/ImageCarousel'
-import { DisplayNameText } from '../components/DisplayNameText'
-import { UserAvatar } from '../components/UserAvatar'
+import { UserParticipationHoverCard } from '../components/UserParticipationHoverCard'
 import { showErrorToast } from '../components/ui/toaster'
 import { dark } from '../theme/colors'
 import { isAxiosError } from 'axios'
@@ -420,12 +419,13 @@ export function AuctionDetailPage() {
         </Flex>
         <Flex color={dark.muted} align="center" gap={2}>
           <Text>{(categoryNames.length ? categoryNames : [auction.categoryName]).join(' · ')} · by</Text>
-          <UserAvatar name={auction.sellerUsername} avatarUrl={auction.sellerAvatarUrl} size="22px" />
-          <DisplayNameText
-            name={auction.sellerUsername}
+          <UserParticipationHoverCard
+            userId={auction.sellerId}
+            username={auction.sellerUsername}
+            avatarUrl={auction.sellerAvatarUrl}
             displayNameColor={auction.sellerDisplayNameColor}
             fallbackColor={dark.muted}
-            fontWeight="bold"
+            avatarSize="22px"
           />
         </Flex>
         {auction.status === 'active' && (

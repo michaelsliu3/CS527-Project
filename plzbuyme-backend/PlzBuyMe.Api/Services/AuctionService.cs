@@ -964,6 +964,7 @@ public class AuctionService : IAuctionService
             .Select(b => new BidHistoryItemDto
             {
                 Id = b.Id,
+                BidderId = b.BidderId,
                 BidderUsername = b.Bidder.Username,
                 BidderAvatarUrl = b.Bidder.AvatarUrl,
                 BidderDisplayNameColor = b.Bidder.DisplayNameColor,

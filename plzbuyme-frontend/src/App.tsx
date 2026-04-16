@@ -18,6 +18,7 @@ import { QuestionsPage } from './pages/QuestionsPage'
 import { RepDashboard } from './pages/rep/RepDashboard'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { ReportsPage } from './pages/admin/ReportsPage'
+import { UserParticipationHistoryPage } from './pages/UserParticipationHistoryPage'
 
 function App() {
   const navigate = useNavigate()
@@ -89,6 +90,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/users/:userId/history"
+              element={
+                <ProtectedRoute>
+                  <UserParticipationHistoryPage />
                 </ProtectedRoute>
               }
             />

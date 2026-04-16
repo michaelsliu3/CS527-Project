@@ -2,8 +2,7 @@ import { Badge, Box, Text } from '@chakra-ui/react'
 import type { BidHistoryItem } from '../api/auctions'
 import { dark } from '../theme/colors'
 import { tableStyles, thBase, tdBase } from '../theme/tableStyles'
-import { DisplayNameText } from './DisplayNameText'
-import { UserAvatar } from './UserAvatar'
+import { UserParticipationHoverCard } from './UserParticipationHoverCard'
 
 export interface BidHistoryProps {
   bids: BidHistoryItem[]
@@ -37,16 +36,13 @@ export function BidHistory({ bids }: BidHistoryProps) {
               <tr key={rowKey}>
                 <td style={{ ...cellStyle, textAlign: 'left' }}>
                   <Box display="inline-flex" alignItems="center" gap={2}>
-                    <UserAvatar
-                      name={bid.bidderUsername}
+                    <UserParticipationHoverCard
+                      userId={bid.bidderId}
+                      username={bid.bidderUsername}
                       avatarUrl={bid.bidderAvatarUrl}
-                      size="20px"
-                    />
-                    <DisplayNameText
-                      name={bid.bidderUsername}
                       displayNameColor={bid.bidderDisplayNameColor}
                       fallbackColor="white"
-                      fontWeight="bold"
+                      avatarSize="20px"
                     />
                   </Box>
                   {bid.isAuto && (
