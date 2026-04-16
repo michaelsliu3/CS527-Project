@@ -104,6 +104,7 @@ public class AuthService : IAuthService
             {
                 Token = token,
                 Username = user.Username,
+                IsAuctionIdentityAnonymous = user.IsAuctionIdentityAnonymous,
                 AvatarUrl = ResolveAvatarReference(user),
                 DisplayNameColor = user.DisplayNameColor,
                 Email = user.Email,
@@ -134,6 +135,7 @@ public class AuthService : IAuthService
             {
                 Token = token,
                 Username = user.Username,
+                IsAuctionIdentityAnonymous = user.IsAuctionIdentityAnonymous,
                 AvatarUrl = ResolveAvatarReference(user),
                 DisplayNameColor = user.DisplayNameColor,
                 Email = user.Email,
@@ -156,6 +158,7 @@ public class AuthService : IAuthService
         {
             Id = user.Id,
             Username = user.Username,
+            IsAuctionIdentityAnonymous = user.IsAuctionIdentityAnonymous,
             AvatarUrl = ResolveAvatarReference(user),
             DisplayNameColor = user.DisplayNameColor,
             Email = user.Email,
@@ -163,6 +166,17 @@ public class AuthService : IAuthService
             WalletBalance = walletBalance,
             WalletAvailableBalance = walletAvailable
         };
+    }
+
+    public async Task<(bool NotFound, bool IsAuctionIdentityAnonymous)> UpdateAuctionIdentityAnonymityAsync(int userId, bool isAuctionIdentityAnonymous)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null)
+            return (true, false);
+
+        user.IsAuctionIdentityAnonymous = isAuctionIdentityAnonymous;
+        await _db.SaveChangesAsync();
+        return (false, user.IsAuctionIdentityAnonymous);
     }
 
     public async Task<(bool NotFound, bool Forbidden, string? ValidationError, string? DisplayNameColor)> UpdateDisplayNameColorAsync(int userId, string? displayNameColor)

@@ -14,6 +14,7 @@ const TOKEN_KEY = 'token'
 export interface AuthUser {
   id: number
   username: string
+  isAuctionIdentityAnonymous: boolean
   avatarUrl: string | null
   displayNameColor: string | null
   email: string
@@ -35,6 +36,7 @@ interface JwtPayload {
 interface AuthResponse {
   token: string
   username: string
+  isAuctionIdentityAnonymous?: boolean
   avatarUrl?: string | null
   displayNameColor?: string | null
   email: string
@@ -47,6 +49,7 @@ interface AuthResponse {
 export interface AuthProfilePayload {
   id: number
   username: string
+  isAuctionIdentityAnonymous?: boolean
   avatarUrl?: string | null
   displayNameColor?: string | null
   email: string
@@ -99,6 +102,7 @@ function decodeToken(token: string): AuthUser | null {
     return {
       id,
       username,
+      isAuctionIdentityAnonymous: false,
       avatarUrl,
       displayNameColor,
       email,
@@ -115,6 +119,7 @@ function mergeProfileIntoUser(prev: AuthUser, data: AuthProfilePayload): AuthUse
   return {
     ...prev,
     username: data.username,
+    isAuctionIdentityAnonymous: data.isAuctionIdentityAnonymous ?? false,
     avatarUrl: data.avatarUrl ?? null,
     displayNameColor: data.displayNameColor ?? null,
     email: data.email,
@@ -171,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser({
       id: data.userId,
       username: data.username,
+      isAuctionIdentityAnonymous: data.isAuctionIdentityAnonymous ?? false,
       avatarUrl: data.avatarUrl ?? null,
       displayNameColor: data.displayNameColor ?? null,
       email: data.email,
@@ -192,6 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({
         id: data.userId,
         username: data.username,
+        isAuctionIdentityAnonymous: data.isAuctionIdentityAnonymous ?? false,
         avatarUrl: data.avatarUrl ?? null,
         displayNameColor: data.displayNameColor ?? null,
         email: data.email,

@@ -462,6 +462,7 @@ export function AuctionCard({
                 <UserParticipationHoverCard
                   userId={resolvedSellerId}
                   username={auction.sellerUsername}
+                  revealUsername={auction.sellerRevealUsername}
                   avatarUrl={resolvedSellerAvatarUrl}
                   displayNameColor={auction.sellerDisplayNameColor}
                   fallbackColor={dark.muted}

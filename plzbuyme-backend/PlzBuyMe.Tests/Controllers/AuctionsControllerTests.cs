@@ -683,16 +683,24 @@ public class AuctionsControllerTests
     }
 
     [Fact]
-    public async Task GetHistory_WhenDifferentUser_ReturnsForbid()
+    public async Task GetHistory_WhenDifferentUser_ReturnsOk()
     {
+        var list = new List<AuctionListDto>
+        {
+            new() { Id = 31, Title = "Other User History", CurrentPrice = 450m, CloseDateTime = DateTime.UtcNow, Status = "active", CategoryName = "Cars", SellerUsername = "x", BidCount = 1 }
+        };
         var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.GetHistoryAsync(7)).ReturnsAsync(list);
         var controller = CreateController(mock);
         SetUser(controller, 5);
 
         var result = await controller.GetHistory(7);
 
-        result.Should().BeOfType<ForbidResult>();
-        mock.Verify(s => s.GetHistoryAsync(It.IsAny<int>()), Times.Never);
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeAssignableTo<IList<AuctionListDto>>().Subject;
+        body.Should().HaveCount(1);
+        body[0].Id.Should().Be(31);
+        mock.Verify(s => s.GetHistoryAsync(7), Times.Once);
     }
 
     [Fact]
@@ -749,16 +757,24 @@ public class AuctionsControllerTests
     }
 
     [Fact]
-    public async Task GetHistoryForUser_WhenEndUserRequestsOtherUser_ReturnsForbid()
+    public async Task GetHistoryForUser_WhenEndUserRequestsOtherUser_ReturnsOk()
     {
+        var list = new List<AuctionListDto>
+        {
+            new() { Id = 13, Title = "End User View", CurrentPrice = 550m, CloseDateTime = DateTime.UtcNow, Status = "sold", CategoryName = "Cars", SellerUsername = "x", BidCount = 3 }
+        };
         var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.GetHistoryAsync(7)).ReturnsAsync(list);
         var controller = CreateController(mock);
         SetUser(controller, 5, "end_user");
 
         var result = await controller.GetHistoryForUser(7);
 
-        result.Should().BeOfType<ForbidResult>();
-        mock.Verify(s => s.GetHistoryAsync(It.IsAny<int>()), Times.Never);
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeAssignableTo<IList<AuctionListDto>>().Subject;
+        body.Should().HaveCount(1);
+        body[0].Id.Should().Be(13);
+        mock.Verify(s => s.GetHistoryAsync(7), Times.Once);
     }
 
     [Fact]

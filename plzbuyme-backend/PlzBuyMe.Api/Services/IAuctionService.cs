@@ -2,6 +2,7 @@ using PlzBuyMe.Api.Dtos;
 using PlzBuyMe.Api.Dtos.Admin;
 using PlzBuyMe.Api.Dtos.Admin.Gm;
 using PlzBuyMe.Api.Dtos.Auctions;
+using PlzBuyMe.Api.Models;
 
 namespace PlzBuyMe.Api.Services;
 
@@ -12,10 +13,14 @@ public interface IAuctionService
     Task SetAutoBidAsync(int itemId, int bidderId, decimal upperLimit);
     Task CloseExpiredAsync();
     Task<PaginatedResultDto<AuctionListDto>> SearchAsync(SearchQueryDto query);
+    Task<PaginatedResultDto<AuctionListDto>> SearchAsync(SearchQueryDto query, int? requesterUserId, UserRole? requesterRole);
     Task<AuctionDetailDto?> GetByIdAsync(int id);
+    Task<AuctionDetailDto?> GetByIdAsync(int id, int? requesterUserId, UserRole? requesterRole);
     Task<List<AuctionListDto>> GetMineAsync(int userId, string? status = null);
     Task<List<AuctionListDto>> GetSimilarAsync(int itemId, int limit = 10);
+    Task<List<AuctionListDto>> GetSimilarAsync(int itemId, int limit, int? requesterUserId, UserRole? requesterRole);
     Task<List<AuctionListDto>> GetHistoryAsync(int userId);
+    Task<List<AuctionListDto>> GetHistoryAsync(int userId, int? requesterUserId, UserRole? requesterRole);
     Task<IReadOnlyList<string>> GetFieldValuesAsync(string fieldName, int? categoryId, string? prefix, int maxCount = 50);
 
     /// <summary>Admin GM / moderation: patch listing or end auction early.</summary>

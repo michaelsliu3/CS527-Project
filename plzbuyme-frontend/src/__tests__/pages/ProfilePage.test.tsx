@@ -31,6 +31,7 @@ const mockedUseAuth = vi.mocked(useAuth)
 const baseUser = {
   id: 1,
   username: 'alice',
+  isAuctionIdentityAnonymous: false,
   avatarUrl: null as string | null,
   displayNameColor: null as string | null,
   email: 'alice@example.com',
@@ -42,6 +43,7 @@ const baseUser = {
 const baseProfile = {
   id: 1,
   username: 'alice',
+  isAuctionIdentityAnonymous: false,
   avatarUrl: null,
   displayNameColor: null,
   email: 'alice@example.com',
@@ -97,6 +99,7 @@ describe('ProfilePage display name color', () => {
         user: {
           id: 2,
           username: 'bob',
+          isAuctionIdentityAnonymous: false,
           avatarUrl: null,
           displayNameColor: null,
           email: 'bob@example.com',
@@ -110,6 +113,7 @@ describe('ProfilePage display name color', () => {
       data: {
         id: 2,
         username: 'bob',
+        isAuctionIdentityAnonymous: false,
         avatarUrl: null,
         displayNameColor: null,
         email: 'bob@example.com',
@@ -209,6 +213,31 @@ describe('ProfilePage display name color', () => {
       })
     })
     expect(updateAvatarUrl).toHaveBeenCalledWith('avatars/user-1-new.png')
+  })
+
+  it('persists auction identity anonymity toggle', async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: { ...baseProfile, role: 'end_user', isAuctionIdentityAnonymous: false },
+    } as never)
+    vi.mocked(apiClient.patch).mockResolvedValueOnce({
+      data: { isAuctionIdentityAnonymous: true },
+    } as never)
+
+    const user = userEvent.setup()
+    renderProfile()
+
+    const checkboxLabelText = await screen.findByText(
+      'Show anonymous name'
+    )
+    const checkboxRoot = checkboxLabelText.closest('label')
+    expect(checkboxRoot).not.toBeNull()
+    await user.click(checkboxRoot!)
+
+    await waitFor(() => {
+      expect(apiClient.patch).toHaveBeenCalledWith('auth/profile/auction-identity-anonymity', {
+        isAuctionIdentityAnonymous: true,
+      })
+    })
   })
 
   it('removes profile picture and falls back to initials', async () => {

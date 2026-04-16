@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PlzBuyMe.Api.Dtos.Auctions;
+using PlzBuyMe.Api.Models;
 using PlzBuyMe.Api.Services;
 
 namespace PlzBuyMe.Api.Controllers;
@@ -20,14 +21,22 @@ public class AuctionsController : ControllerBase
     [HttpGet("browse")]
     public async Task<IActionResult> Search([FromQuery] SearchQueryDto query)
     {
-        var result = await _auctionService.SearchAsync(query);
+        var requesterId = GetCurrentUserId();
+        var requesterRole = GetCurrentUserRole();
+        var result = requesterId == null && requesterRole == null
+            ? await _auctionService.SearchAsync(query)
+            : await _auctionService.SearchAsync(query, requesterId, requesterRole);
         return Ok(result);
     }
 
     [HttpGet("view/{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var item = await _auctionService.GetByIdAsync(id);
+        var requesterId = GetCurrentUserId();
+        var requesterRole = GetCurrentUserRole();
+        var item = requesterId == null && requesterRole == null
+            ? await _auctionService.GetByIdAsync(id)
+            : await _auctionService.GetByIdAsync(id, requesterId, requesterRole);
         if (item == null)
             return NotFound();
         return Ok(item);
@@ -119,7 +128,12 @@ public class AuctionsController : ControllerBase
     [HttpGet("view/{id:int}/similar")]
     public async Task<IActionResult> GetSimilar(int id, [FromQuery] int limit = 10)
     {
-        var items = await _auctionService.GetSimilarAsync(id, Math.Clamp(limit, 1, 50));
+        var requesterId = GetCurrentUserId();
+        var requesterRole = GetCurrentUserRole();
+        var clampedLimit = Math.Clamp(limit, 1, 50);
+        var items = requesterId == null && requesterRole == null
+            ? await _auctionService.GetSimilarAsync(id, clampedLimit)
+            : await _auctionService.GetSimilarAsync(id, clampedLimit, requesterId, requesterRole);
         return Ok(items);
     }
 
@@ -130,6 +144,8 @@ public class AuctionsController : ControllerBase
         if (!CanViewUserHistory(userId))
             return Forbid();
 
+        var requesterId = GetCurrentUserId();
+        var requesterRole = GetCurrentUserRole();
         var items = await _auctionService.GetHistoryAsync(userId);
         return Ok(items);
     }
@@ -141,6 +157,8 @@ public class AuctionsController : ControllerBase
         if (!CanViewUserHistory(userId))
             return Forbid();
 
+        var requesterId = GetCurrentUserId();
+        var requesterRole = GetCurrentUserRole();
         var items = await _auctionService.GetHistoryAsync(userId);
         return Ok(items);
     }
@@ -164,8 +182,23 @@ public class AuctionsController : ControllerBase
 
     private int? GetCurrentUserId()
     {
-        var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var claim = User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(claim, out var id) ? id : null;
+    }
+
+    private UserRole? GetCurrentUserRole()
+    {
+        if (User == null)
+            return null;
+        if (User.IsInRole("admin"))
+            return UserRole.Admin;
+        if (User.IsInRole("customer_rep"))
+            return UserRole.CustomerRep;
+        if (User.IsInRole("vip"))
+            return UserRole.Vip;
+        if (User.IsInRole("end_user"))
+            return UserRole.EndUser;
+        return null;
     }
 
     private bool CanViewUserHistory(int targetUserId)
@@ -174,9 +207,6 @@ public class AuctionsController : ControllerBase
         if (currentUserId == null)
             return false;
 
-        if (currentUserId.Value == targetUserId)
-            return true;
-
-        return User.IsInRole("admin") || User.IsInRole("customer_rep");
+        return true;
     }
 }

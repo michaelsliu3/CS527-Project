@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Card,
+  Checkbox,
   Container,
   Dialog,
   Field,
@@ -27,6 +28,7 @@ import { UserAvatar } from '../components/UserAvatar'
 interface Profile {
   id: number
   username: string
+  isAuctionIdentityAnonymous: boolean
   avatarUrl: string | null
   displayNameColor: string | null
   email: string
@@ -80,6 +82,7 @@ export function ProfilePage() {
   const [savingColor, setSavingColor] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [removingAvatar, setRemovingAvatar] = useState(false)
+  const [updatingAuctionIdentity, setUpdatingAuctionIdentity] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const deleteDialog = useDisclosure()
   const avatarInputRef = useRef<HTMLInputElement | null>(null)
@@ -90,7 +93,10 @@ export function ProfilePage() {
       .get<Profile>('auth/profile')
       .then(({ data }) => {
         if (!cancelled) {
-          setProfile(data)
+          setProfile({
+            ...data,
+            isAuctionIdentityAnonymous: data.isAuctionIdentityAnonymous ?? false,
+          })
           setColorInput(data.displayNameColor ?? '')
         }
       })
@@ -148,6 +154,7 @@ export function ProfilePage() {
       ? {
           id: user.id,
           username: user.username,
+          isAuctionIdentityAnonymous: user.isAuctionIdentityAnonymous ?? false,
           avatarUrl: user.avatarUrl ?? null,
           displayNameColor: user.displayNameColor ?? null,
           email: user.email,
@@ -187,6 +194,29 @@ export function ProfilePage() {
 
   const handleResetColor = () => {
     setColorInput('')
+  }
+
+  const handleAuctionIdentityToggle = async (nextValue: boolean) => {
+    setUpdatingAuctionIdentity(true)
+    try {
+      const { data } = await apiClient.patch<{ isAuctionIdentityAnonymous: boolean }>(
+        'auth/profile/auction-identity-anonymity',
+        { isAuctionIdentityAnonymous: nextValue }
+      )
+      const persistedValue = data.isAuctionIdentityAnonymous
+      setProfile((prev) =>
+        prev ? { ...prev, isAuctionIdentityAnonymous: persistedValue } : prev
+      )
+      showSuccessToast(
+        persistedValue
+          ? 'Auction identity is now anonymized'
+          : 'Auction identity now shows your username'
+      )
+    } catch {
+      showErrorToast('Error', 'Failed to update auction identity privacy.')
+    } finally {
+      setUpdatingAuctionIdentity(false)
+    }
   }
 
   const handleAvatarSelected = async (file: File | null) => {
@@ -287,6 +317,24 @@ export function ProfilePage() {
             <Field.Root>
               <Field.Label color={dark.label}>Username</Field.Label>
               <Input value={displayProfile.username} readOnly disabled bg={dark.bg} borderColor={dark.borderSubtle} color="white" />
+            </Field.Root>
+            <Field.Root>
+              <Checkbox.Root
+                checked={Boolean(displayProfile.isAuctionIdentityAnonymous)}
+                onCheckedChange={(event) => {
+                  const nextChecked = event.checked === true
+                  if (nextChecked !== Boolean(displayProfile.isAuctionIdentityAnonymous)) {
+                    void handleAuctionIdentityToggle(nextChecked)
+                  }
+                }}
+                disabled={updatingAuctionIdentity}
+              >
+                <Checkbox.HiddenInput />
+                <Checkbox.Control />
+                <Checkbox.Label color="white">
+                  Show anonymous name
+                </Checkbox.Label>
+              </Checkbox.Root>
             </Field.Root>
             {canCustomizeColor && (
               <Field.Root>

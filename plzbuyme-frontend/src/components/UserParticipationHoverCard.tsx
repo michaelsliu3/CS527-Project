@@ -6,10 +6,12 @@ import { dark } from '../theme/colors'
 import { DisplayNameText } from './DisplayNameText'
 import { UserAvatar } from './UserAvatar'
 import { isDisplayNamePreset, normalizeDisplayNameColor } from '../utils/displayNameColor'
+import { useAuth } from '../context/AuthContext'
 
 interface UserParticipationHoverCardProps {
   userId: number
   username: string
+  revealUsername?: string | null
   avatarUrl?: string | null
   displayNameColor?: string | null
   fallbackColor?: string
@@ -46,6 +48,7 @@ function presetGradient(preset: string): string {
 export function UserParticipationHoverCard({
   userId,
   username,
+  revealUsername,
   avatarUrl,
   displayNameColor,
   fallbackColor = dark.muted,
@@ -53,9 +56,18 @@ export function UserParticipationHoverCard({
   showTriggerAvatar = true,
   openOnMountToken,
 }: UserParticipationHoverCardProps) {
+  let currentUserId: number | null = null
+  try {
+    currentUserId = useAuth().user?.id ?? null
+  } catch {
+    // Some isolated tests render this component without AuthProvider.
+    currentUserId = null
+  }
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [isNameRevealActive, setIsNameRevealActive] = useState(false)
   const closeTimerRef = useRef<number | null>(null)
+  const revealOffTimerRef = useRef<number | null>(null)
   const normalizedNameColor = normalizeDisplayNameColor(displayNameColor)
   const hasGradientPreset = normalizedNameColor != null && isDisplayNamePreset(normalizedNameColor)
   const accentColor = normalizedNameColor && !isDisplayNamePreset(normalizedNameColor)
@@ -65,17 +77,54 @@ export function UserParticipationHoverCard({
   const accentGlowSoft = `${accentColor}66`
   const accentGlowStrong = `${accentColor}B3`
   const accentGradient = hasGradientPreset ? presetGradient(normalizedNameColor) : null
+  const shouldDisableReveal = currentUserId === userId
+  const effectiveRevealUsername = shouldDisableReveal ? null : revealUsername
+  const displayedName =
+    isNameRevealActive && effectiveRevealUsername ? effectiveRevealUsername : username
+  const revealHoverMinWidthCh =
+    effectiveRevealUsername != null
+      ? Math.max(username.length, effectiveRevealUsername.length)
+      : undefined
 
   useEffect(() => {
     if (openOnMountToken == null) return
     setOpen(true)
   }, [openOnMountToken])
 
+  useEffect(() => {
+    return () => {
+      if (revealOffTimerRef.current != null) {
+        window.clearTimeout(revealOffTimerRef.current)
+      }
+    }
+  }, [])
+
   const clearCloseTimer = () => {
     if (closeTimerRef.current != null) {
       window.clearTimeout(closeTimerRef.current)
       closeTimerRef.current = null
     }
+  }
+
+  const clearRevealOffTimer = () => {
+    if (revealOffTimerRef.current != null) {
+      window.clearTimeout(revealOffTimerRef.current)
+      revealOffTimerRef.current = null
+    }
+  }
+
+  const activateReveal = () => {
+    clearRevealOffTimer()
+    setIsNameRevealActive(true)
+  }
+
+  const scheduleRevealOff = () => {
+    clearRevealOffTimer()
+    // Keep reveal stable while cursor crosses tiny trigger/content gaps.
+    revealOffTimerRef.current = window.setTimeout(() => {
+      setIsNameRevealActive(false)
+      revealOffTimerRef.current = null
+    }, 140)
   }
 
   const openPopover = () => {
@@ -124,12 +173,23 @@ export function UserParticipationHoverCard({
             {showTriggerAvatar ? (
               <UserAvatar name={username} avatarUrl={avatarUrl} size={avatarSize} />
             ) : null}
-            <DisplayNameText
-              name={username}
-              displayNameColor={displayNameColor}
-              fallbackColor={fallbackColor}
-              fontWeight="bold"
-            />
+            <Box
+              as="span"
+              display="inline-flex"
+              minW={revealHoverMinWidthCh ? `${revealHoverMinWidthCh}ch` : undefined}
+              whiteSpace="nowrap"
+              onMouseEnter={activateReveal}
+              onMouseLeave={scheduleRevealOff}
+              onFocus={activateReveal}
+              onBlur={scheduleRevealOff}
+            >
+              <DisplayNameText
+                name={displayedName}
+                displayNameColor={displayNameColor}
+                fallbackColor={fallbackColor}
+                fontWeight="bold"
+              />
+            </Box>
           </Flex>
         </Box>
       </Popover.Trigger>
@@ -198,16 +258,27 @@ export function UserParticipationHoverCard({
                 bg="rgba(0, 0, 0, 0.2)"
                 backdropFilter="blur(2px)"
                 style={{ WebkitBackdropFilter: 'blur(2px)' }}
+                onMouseEnter={activateReveal}
+                onMouseLeave={scheduleRevealOff}
+                onFocus={activateReveal}
+                onBlur={scheduleRevealOff}
               >
               <Flex align="center" gap={3} mb={3}>
                 <UserAvatar name={username} avatarUrl={avatarUrl} size="34px" />
                 <Box minW={0}>
-                  <DisplayNameText
-                    name={username}
-                    displayNameColor={displayNameColor}
-                    fallbackColor="white"
-                    fontWeight="bold"
-                  />
+                  <Box
+                    as="span"
+                    display="inline-flex"
+                    minW={revealHoverMinWidthCh ? `${revealHoverMinWidthCh}ch` : undefined}
+                    whiteSpace="nowrap"
+                  >
+                    <DisplayNameText
+                      name={displayedName}
+                      displayNameColor={displayNameColor}
+                      fallbackColor="white"
+                      fontWeight="bold"
+                    />
+                  </Box>
                   <Text color={dark.muted} fontSize="xs">
                     User participation overview
                   </Text>
@@ -242,6 +313,7 @@ export function UserParticipationHoverCard({
                       targetUser: {
                         id: userId,
                         username,
+                        revealUsername: effectiveRevealUsername ?? null,
                         avatarUrl: avatarUrl ?? null,
                         displayNameColor: displayNameColor ?? null,
                       },

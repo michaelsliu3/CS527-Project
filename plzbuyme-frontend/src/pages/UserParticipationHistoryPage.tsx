@@ -4,8 +4,7 @@ import { isAxiosError } from 'axios'
 import { useLocation, useParams } from 'react-router-dom'
 import { getUserParticipationHistory, type AuctionListItem } from '../api/auctions'
 import { AuctionCard } from '../components/AuctionCard'
-import { DisplayNameText } from '../components/DisplayNameText'
-import { UserAvatar } from '../components/UserAvatar'
+import { UserParticipationHoverCard } from '../components/UserParticipationHoverCard'
 import { dark } from '../theme/colors'
 import { APP_PAGE_PX } from '../theme/layout'
 
@@ -13,6 +12,7 @@ interface TargetUserRouteState {
   targetUser?: {
     id: number
     username: string
+    revealUsername?: string | null
     avatarUrl?: string | null
     displayNameColor?: string | null
   }
@@ -61,16 +61,14 @@ export function UserParticipationHistoryPage() {
           </Heading>
           <Flex align="center" gap={2} color={dark.muted}>
             <Text>Target:</Text>
-            <UserAvatar
-              name={routeState?.username ?? `User ${parsedUserId}`}
+            <UserParticipationHoverCard
+              userId={parsedUserId}
+              username={routeState?.username ?? `User ${parsedUserId}`}
+              revealUsername={routeState?.revealUsername ?? null}
               avatarUrl={routeState?.avatarUrl}
-              size="24px"
-            />
-            <DisplayNameText
-              name={routeState?.username ?? `User ${parsedUserId}`}
               displayNameColor={routeState?.displayNameColor}
               fallbackColor={dark.muted}
-              fontWeight="bold"
+              avatarSize="24px"
             />
           </Flex>
         </Box>

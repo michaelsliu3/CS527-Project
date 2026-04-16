@@ -54,6 +54,7 @@ public class AppDbContext : DbContext
             e.HasIndex(u => u.Username).IsUnique();
             e.HasIndex(u => u.Email).IsUnique();
             e.Property(u => u.Username).HasMaxLength(64);
+            e.Property(u => u.IsAuctionIdentityAnonymous).HasDefaultValue(false);
             e.Property(u => u.AvatarUrl).HasMaxLength(2048);
             e.Property(u => u.AvatarStorageKey).HasMaxLength(1024);
             e.Property(u => u.DisplayNameColor).HasMaxLength(7);

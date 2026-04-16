@@ -14,6 +14,7 @@ export interface AuctionListItem {
   categoryNames?: string[]
   sellerId?: number
   sellerUsername: string
+  sellerRevealUsername?: string | null
   sellerAvatarUrl?: string | null
   sellerDisplayNameColor?: string | null
   bidCount: number
@@ -35,6 +36,7 @@ export interface BidHistoryItem {
   id?: number
   bidderId: number
   bidderUsername: string
+  bidderRevealUsername?: string | null
   bidderAvatarUrl?: string | null
   bidderDisplayNameColor?: string | null
   amount: number
@@ -53,6 +55,7 @@ export interface AuctionDetail {
   categoryNames?: string[]
   sellerId: number
   sellerUsername: string
+  sellerRevealUsername?: string | null
   sellerAvatarUrl?: string | null
   sellerDisplayNameColor?: string | null
   initialPrice: number
