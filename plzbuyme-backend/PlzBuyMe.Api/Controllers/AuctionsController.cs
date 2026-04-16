@@ -127,11 +127,20 @@ public class AuctionsController : ControllerBase
     [HttpGet("history/{userId:int}")]
     public async Task<IActionResult> GetHistory(int userId)
     {
-        var currentUserId = GetCurrentUserId();
-        if (currentUserId == null)
+        if (!CanViewUserHistory(userId))
             return Forbid();
-        if (currentUserId.Value != userId)
+
+        var items = await _auctionService.GetHistoryAsync(userId);
+        return Ok(items);
+    }
+
+    [Authorize]
+    [HttpGet("history/users/{userId:int}")]
+    public async Task<IActionResult> GetHistoryForUser(int userId)
+    {
+        if (!CanViewUserHistory(userId))
             return Forbid();
+
         var items = await _auctionService.GetHistoryAsync(userId);
         return Ok(items);
     }
@@ -157,5 +166,17 @@ public class AuctionsController : ControllerBase
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(claim, out var id) ? id : null;
+    }
+
+    private bool CanViewUserHistory(int targetUserId)
+    {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == null)
+            return false;
+
+        if (currentUserId.Value == targetUserId)
+            return true;
+
+        return User.IsInRole("admin") || User.IsInRole("customer_rep");
     }
 }

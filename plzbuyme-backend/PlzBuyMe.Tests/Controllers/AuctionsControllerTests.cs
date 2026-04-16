@@ -18,7 +18,7 @@ public class AuctionsControllerTests
         return new AuctionsController(auctionServiceMock.Object);
     }
 
-    private static void SetUser(ControllerBase controller, int userId)
+    private static void SetUser(ControllerBase controller, int userId, string role = "end_user")
     {
         controller.ControllerContext = new ControllerContext
         {
@@ -26,7 +26,8 @@ public class AuctionsControllerTests
             {
                 User = new ClaimsPrincipal(new ClaimsIdentity(new[]
                 {
-                    new Claim(ClaimTypes.NameIdentifier, userId.ToString())
+                    new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
+                    new Claim(ClaimTypes.Role, role)
                 }, "Test"))
             },
             RouteData = new Microsoft.AspNetCore.Routing.RouteData(),
@@ -702,6 +703,59 @@ public class AuctionsControllerTests
         SetNoUser(controller);
 
         var result = await controller.GetHistory(5);
+
+        result.Should().BeOfType<ForbidResult>();
+        mock.Verify(s => s.GetHistoryAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetHistoryForUser_WhenRepRequestsOtherUser_ReturnsOk()
+    {
+        var list = new List<AuctionListDto>
+        {
+            new() { Id = 11, Title = "Rep View", CurrentPrice = 800m, CloseDateTime = DateTime.UtcNow, Status = "active", CategoryName = "Cars", SellerUsername = "x", BidCount = 1 }
+        };
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.GetHistoryAsync(7)).ReturnsAsync(list);
+        var controller = CreateController(mock);
+        SetUser(controller, 5, "customer_rep");
+
+        var result = await controller.GetHistoryForUser(7);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeAssignableTo<IList<AuctionListDto>>().Subject;
+        body.Should().HaveCount(1);
+        mock.Verify(s => s.GetHistoryAsync(7), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetHistoryForUser_WhenAdminRequestsOtherUser_ReturnsOk()
+    {
+        var list = new List<AuctionListDto>
+        {
+            new() { Id = 12, Title = "Admin View", CurrentPrice = 900m, CloseDateTime = DateTime.UtcNow, Status = "sold", CategoryName = "Cars", SellerUsername = "x", BidCount = 2 }
+        };
+        var mock = new Mock<IAuctionService>();
+        mock.Setup(s => s.GetHistoryAsync(8)).ReturnsAsync(list);
+        var controller = CreateController(mock);
+        SetUser(controller, 1, "admin");
+
+        var result = await controller.GetHistoryForUser(8);
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        var body = ok.Value.Should().BeAssignableTo<IList<AuctionListDto>>().Subject;
+        body.Should().HaveCount(1);
+        mock.Verify(s => s.GetHistoryAsync(8), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetHistoryForUser_WhenEndUserRequestsOtherUser_ReturnsForbid()
+    {
+        var mock = new Mock<IAuctionService>();
+        var controller = CreateController(mock);
+        SetUser(controller, 5, "end_user");
+
+        var result = await controller.GetHistoryForUser(7);
 
         result.Should().BeOfType<ForbidResult>();
         mock.Verify(s => s.GetHistoryAsync(It.IsAny<int>()), Times.Never);

@@ -631,6 +631,122 @@ public class AuctionServiceTests
     }
 
     [Fact]
+    public async Task GetHistoryAsync_IncludesBidderOnlySellerOnlyAndBothRoles()
+    {
+        var (db, categoryId, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var target = new User
+        {
+            Username = "history-target",
+            Email = "history-target@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            WalletBalance = 50_000m
+        };
+        var otherSeller = new User
+        {
+            Username = "history-other",
+            Email = "history-other@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            WalletBalance = 50_000m
+        };
+        db.Users.AddRange(target, otherSeller);
+        await db.SaveChangesAsync();
+
+        var now = DateTime.UtcNow;
+        var bidderOnlyItem = new Item
+        {
+            SellerId = otherSeller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Bidder only item",
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 150m,
+            CurrentPrice = 100m,
+            CloseDateTime = now.AddDays(1),
+            CreatedAt = now.AddMinutes(-3),
+            Status = ItemStatus.Active
+        };
+        var sellerOnlyItem = new Item
+        {
+            SellerId = target.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Seller only item",
+            InitialPrice = 200m,
+            BidIncrement = 10m,
+            ReservePrice = 250m,
+            CurrentPrice = 200m,
+            CloseDateTime = now.AddDays(1),
+            CreatedAt = now.AddMinutes(-2),
+            Status = ItemStatus.Active
+        };
+        var bothItem = new Item
+        {
+            SellerId = target.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Both roles item",
+            InitialPrice = 300m,
+            BidIncrement = 10m,
+            ReservePrice = 350m,
+            CurrentPrice = 300m,
+            CloseDateTime = now.AddDays(1),
+            CreatedAt = now.AddMinutes(-1),
+            Status = ItemStatus.Active
+        };
+        var neitherItem = new Item
+        {
+            SellerId = otherSeller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Neither role item",
+            InitialPrice = 400m,
+            BidIncrement = 10m,
+            ReservePrice = 450m,
+            CurrentPrice = 400m,
+            CloseDateTime = now.AddDays(1),
+            CreatedAt = now,
+            Status = ItemStatus.Active
+        };
+        db.Items.AddRange(bidderOnlyItem, sellerOnlyItem, bothItem, neitherItem);
+        await db.SaveChangesAsync();
+
+        db.Bids.AddRange(
+            new Bid { ItemId = bidderOnlyItem.Id, BidderId = target.Id, Amount = 110m, IsAuto = false, CreatedAt = now.AddMinutes(-2) },
+            new Bid { ItemId = bothItem.Id, BidderId = target.Id, Amount = 310m, IsAuto = false, CreatedAt = now.AddMinutes(-1) }
+        );
+        await db.SaveChangesAsync();
+
+        var history = await service.GetHistoryAsync(target.Id);
+        var historyIds = history.Select(i => i.Id).ToHashSet();
+
+        historyIds.Should().Contain(bidderOnlyItem.Id);
+        historyIds.Should().Contain(sellerOnlyItem.Id);
+        historyIds.Should().Contain(bothItem.Id);
+        historyIds.Should().NotContain(neitherItem.Id);
+    }
+
+    [Fact]
+    public async Task GetHistoryAsync_ReturnsEmptyWhenUserHasNoParticipation()
+    {
+        var (db, _, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var user = new User
+        {
+            Username = "no-history-user",
+            Email = "no-history-user@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            WalletBalance = 10m
+        };
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+
+        var history = await service.GetHistoryAsync(user.Id);
+
+        history.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task AdminPatchAuction_WithAdditionalSubcategories_ReplacesItemTags()
     {
         var (db, _, _, _) = CreateSeededContext();

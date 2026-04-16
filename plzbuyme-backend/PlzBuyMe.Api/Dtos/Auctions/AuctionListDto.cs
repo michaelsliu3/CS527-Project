@@ -12,7 +12,9 @@ public record AuctionListDto
     public string Status { get; init; } = string.Empty;
     public string CategoryName { get; init; } = string.Empty;
     public List<string> CategoryNames { get; init; } = new();
+    public int SellerId { get; init; }
     public string SellerUsername { get; init; } = string.Empty;
+    public string? SellerAvatarUrl { get; init; }
     public string? SellerDisplayNameColor { get; init; }
     public int BidCount { get; init; }
 }

@@ -3,9 +3,10 @@ import { Link as RouterLink, useLocation, type Location } from 'react-router-dom
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { keyframes } from '@emotion/react'
 import { LuBox, LuImageOff } from 'react-icons/lu'
-import type { AuctionListItem } from '../api/auctions'
+import { getAuction, type AuctionListItem } from '../api/auctions'
 import { dark } from '../theme/colors'
 import { DisplayNameText } from './DisplayNameText'
+import { UserParticipationHoverCard } from './UserParticipationHoverCard'
 import { resolveMediaUrl } from '../utils/mediaUrl'
 import { resolveAuction3dModelKey } from '../utils/auction3dModel'
 
@@ -163,6 +164,12 @@ export function AuctionCard({
   const state = location.state as { backgroundLocation?: Location } | null
   const backgroundLocation = state?.backgroundLocation ?? location
   const [countdown, setCountdown] = useState(() => formatCountdown(auction.closeDateTime))
+  const [resolvedSellerId, setResolvedSellerId] = useState<number | null>(auction.sellerId ?? null)
+  const [resolvedSellerAvatarUrl, setResolvedSellerAvatarUrl] = useState<string | null | undefined>(
+    auction.sellerAvatarUrl
+  )
+  const [isResolvingSeller, setIsResolvingSeller] = useState(false)
+  const [autoOpenSellerPopoverToken, setAutoOpenSellerPopoverToken] = useState(0)
   const imageSrc = resolveMediaUrl(auction.imageUrl)
   const preferredCardImageSrc =
     imageSrc && /\/media\/(?:cars\/)?gt7\/car\d{3,5}\.png$/i.test(imageSrc)
@@ -178,6 +185,28 @@ export function AuctionCard({
   useEffect(() => {
     setCardImageSrc(preferredCardImageSrc)
   }, [preferredCardImageSrc])
+
+  useEffect(() => {
+    setResolvedSellerId(auction.sellerId ?? null)
+    setResolvedSellerAvatarUrl(auction.sellerAvatarUrl)
+    setIsResolvingSeller(false)
+    setAutoOpenSellerPopoverToken(0)
+  }, [auction.id, auction.sellerId, auction.sellerAvatarUrl])
+
+  const resolveSellerIdentity = async () => {
+    if (resolvedSellerId != null || isResolvingSeller) return
+    setIsResolvingSeller(true)
+    try {
+      const res = await getAuction(auction.id)
+      setResolvedSellerId(res.data.sellerId)
+      setResolvedSellerAvatarUrl(res.data.sellerAvatarUrl ?? null)
+      setAutoOpenSellerPopoverToken((v) => v + 1)
+    } catch {
+      // Keep fallback username text when detail resolution fails.
+    } finally {
+      setIsResolvingSeller(false)
+    }
+  }
 
   const statusColor =
     auction.status === 'active' ? 'green' : auction.status === 'sold' ? 'blue' : 'gray'
@@ -421,12 +450,46 @@ export function AuctionCard({
           </Flex>
           <Text fontSize="sm" color={dark.muted} lineHeight="1.5">
             by{' '}
-            <DisplayNameText
-              name={auction.sellerUsername}
-              displayNameColor={auction.sellerDisplayNameColor}
-              fallbackColor={dark.muted}
-              fontWeight="bold"
-            />
+            {resolvedSellerId != null ? (
+              <Box
+                as="span"
+                display="inline-flex"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                }}
+              >
+                <UserParticipationHoverCard
+                  userId={resolvedSellerId}
+                  username={auction.sellerUsername}
+                  avatarUrl={resolvedSellerAvatarUrl}
+                  displayNameColor={auction.sellerDisplayNameColor}
+                  fallbackColor={dark.muted}
+                  avatarSize="20px"
+                  showTriggerAvatar={false}
+                  openOnMountToken={autoOpenSellerPopoverToken > 0 ? autoOpenSellerPopoverToken : undefined}
+                />
+              </Box>
+            ) : (
+              <Box
+                as="span"
+                display="inline-flex"
+                onMouseEnter={() => {
+                  void resolveSellerIdentity()
+                }}
+                onFocus={() => {
+                  void resolveSellerIdentity()
+                }}
+              >
+                <DisplayNameText
+                  name={auction.sellerUsername}
+                  displayNameColor={auction.sellerDisplayNameColor}
+                  fallbackColor={dark.muted}
+                  fontWeight="bold"
+                  textDecoration={isResolvingSeller ? 'underline' : undefined}
+                />
+              </Box>
+            )}
           </Text>
           <Box mt="auto" pt={10}>
             <Flex align="center" justify="space-between" gap={3}>
