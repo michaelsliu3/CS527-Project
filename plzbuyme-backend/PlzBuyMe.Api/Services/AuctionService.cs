@@ -348,7 +348,9 @@ public class AuctionService : IAuctionService
         DateTime closeDateTime,
         string statusLower,
         List<string> categoryNames,
+        int sellerId,
         string sellerUsername,
+        string? sellerAvatarUrl,
         string? sellerDisplayNameColor,
         int bidCount) =>
         new()
@@ -363,7 +365,9 @@ public class AuctionService : IAuctionService
             Status = statusLower,
             CategoryName = categoryNames.FirstOrDefault() ?? string.Empty,
             CategoryNames = categoryNames,
+            SellerId = sellerId,
             SellerUsername = sellerUsername,
+            SellerAvatarUrl = sellerAvatarUrl,
             SellerDisplayNameColor = sellerDisplayNameColor,
             BidCount = bidCount
         };
@@ -682,7 +686,9 @@ public class AuctionService : IAuctionService
                     i.CloseDateTime,
                     i.Status,
                     i.CategoryIds,
+                    SellerId = i.SellerId,
                     SellerUsername = i.Seller.Username,
+                    SellerAvatarUrl = i.Seller.AvatarUrl,
                     SellerDisplayNameColor = i.Seller.DisplayNameColor,
                     BidCount = i.Bids.Count
                 })
@@ -704,7 +710,9 @@ public class AuctionService : IAuctionService
                     r.CloseDateTime,
                     r.Status.ToString().ToLowerInvariant(),
                     BuildCategoryNames(r.CategoryIds, nameMap),
+                    r.SellerId,
                     r.SellerUsername,
+                    r.SellerAvatarUrl,
                     r.SellerDisplayNameColor,
                     r.BidCount);
             }).ToList();
@@ -728,7 +736,9 @@ public class AuctionService : IAuctionService
                     i.CloseDateTime,
                     i.Status,
                     i.CategoryIds,
+                    SellerId = i.SellerId,
                     SellerUsername = i.Seller.Username,
+                    SellerAvatarUrl = i.Seller.AvatarUrl,
                     SellerDisplayNameColor = i.Seller.DisplayNameColor,
                     BidCount = i.Bids.Count
                 })
@@ -746,7 +756,9 @@ public class AuctionService : IAuctionService
                 r.CloseDateTime,
                 r.Status.ToString().ToLowerInvariant(),
                 BuildCategoryNames(r.CategoryIds, nameMap),
+                r.SellerId,
                 r.SellerUsername,
+                r.SellerAvatarUrl,
                 r.SellerDisplayNameColor,
                 r.BidCount)).ToList();
         }
@@ -1033,7 +1045,9 @@ public class AuctionService : IAuctionService
                 i.CloseDateTime,
                 i.Status,
                 i.CategoryIds,
+                SellerId = i.SellerId,
                 SellerUsername = i.Seller.Username,
+                SellerAvatarUrl = i.Seller.AvatarUrl,
                 SellerDisplayNameColor = i.Seller.DisplayNameColor,
                 BidCount = i.Bids.Count
             })
@@ -1051,7 +1065,9 @@ public class AuctionService : IAuctionService
             r.CloseDateTime,
             r.Status.ToString().ToLowerInvariant(),
             BuildCategoryNames(r.CategoryIds, nameMap),
+            r.SellerId,
             r.SellerUsername,
+            r.SellerAvatarUrl,
             r.SellerDisplayNameColor,
             r.BidCount)).ToList();
     }
@@ -1099,7 +1115,9 @@ public class AuctionService : IAuctionService
                 x.Item.CloseDateTime,
                 x.Item.Status.ToString().ToLowerInvariant(),
                 BuildCategoryNames(x.Item.CategoryIds, nameMap),
+                x.Item.SellerId,
                 x.Item.Seller.Username,
+                x.Item.Seller.AvatarUrl,
                 x.Item.Seller.DisplayNameColor,
                 x.Item.Bids.Count))
             .ToList();
@@ -1131,7 +1149,9 @@ public class AuctionService : IAuctionService
                 i.CloseDateTime,
                 i.Status,
                 i.CategoryIds,
+                SellerId = i.SellerId,
                 SellerUsername = i.Seller.Username,
+                SellerAvatarUrl = i.Seller.AvatarUrl,
                 SellerDisplayNameColor = i.Seller.DisplayNameColor,
                 BidCount = i.Bids.Count
             })
@@ -1149,7 +1169,9 @@ public class AuctionService : IAuctionService
             r.CloseDateTime,
             r.Status.ToString().ToLowerInvariant(),
             BuildCategoryNames(r.CategoryIds, nameMap),
+            r.SellerId,
             r.SellerUsername,
+            r.SellerAvatarUrl,
             r.SellerDisplayNameColor,
             r.BidCount)).ToList();
     }

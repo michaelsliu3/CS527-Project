@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Box, Button, Flex, Popover, Portal, Text } from '@chakra-ui/react'
 import { keyframes } from '@emotion/react'
 import { useNavigate } from 'react-router-dom'
@@ -14,6 +14,8 @@ interface UserParticipationHoverCardProps {
   displayNameColor?: string | null
   fallbackColor?: string
   avatarSize?: string
+  showTriggerAvatar?: boolean
+  openOnMountToken?: number
 }
 
 const gradientShift = keyframes`
@@ -48,6 +50,8 @@ export function UserParticipationHoverCard({
   displayNameColor,
   fallbackColor = dark.muted,
   avatarSize = '22px',
+  showTriggerAvatar = true,
+  openOnMountToken,
 }: UserParticipationHoverCardProps) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
@@ -61,6 +65,11 @@ export function UserParticipationHoverCard({
   const accentGlowSoft = `${accentColor}66`
   const accentGlowStrong = `${accentColor}B3`
   const accentGradient = hasGradientPreset ? presetGradient(normalizedNameColor) : null
+
+  useEffect(() => {
+    if (openOnMountToken == null) return
+    setOpen(true)
+  }, [openOnMountToken])
 
   const clearCloseTimer = () => {
     if (closeTimerRef.current != null) {
@@ -87,31 +96,34 @@ export function UserParticipationHoverCard({
     <Popover.Root
       lazyMount
       unmountOnExit
+      autoFocus={false}
       open={open}
       onOpenChange={(e) => setOpen(e.open)}
       positioning={{ placement: 'bottom-start', gutter: 0 }}
     >
       <Popover.Trigger asChild>
-        <Button
-          variant="ghost"
-          size="xs"
+        <Box
+          as="span"
+          display="inline-flex"
           p={0}
-          h="auto"
-          minH="unset"
           bg="transparent"
           border="none"
           borderRadius="0"
           boxShadow="none"
           color={fallbackColor}
+          cursor="pointer"
           _hover={{ bg: 'transparent', color: 'white' }}
-          _active={{ bg: 'transparent' }}
-          _focus={{ bg: 'transparent', boxShadow: 'none' }}
-          _focusVisible={{ bg: 'transparent', boxShadow: 'none', outline: 'none' }}
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+          }}
           onMouseEnter={openPopover}
           onMouseLeave={scheduleClosePopover}
         >
-          <Flex align="center" gap={2}>
-            <UserAvatar name={username} avatarUrl={avatarUrl} size={avatarSize} />
+          <Flex align="center" gap={showTriggerAvatar ? 2 : 0}>
+            {showTriggerAvatar ? (
+              <UserAvatar name={username} avatarUrl={avatarUrl} size={avatarSize} />
+            ) : null}
             <DisplayNameText
               name={username}
               displayNameColor={displayNameColor}
@@ -119,7 +131,7 @@ export function UserParticipationHoverCard({
               fontWeight="bold"
             />
           </Flex>
-        </Button>
+        </Box>
       </Popover.Trigger>
       <Portal>
         <Popover.Positioner zIndex={2800}>
@@ -208,7 +220,22 @@ export function UserParticipationHoverCard({
                 borderColor={dark.borderSubtle}
                 color="white"
                 _hover={{ bg: 'whiteAlpha.100' }}
-                onClick={() => {
+                _focus={{ boxShadow: 'none !important', borderColor: dark.borderSubtle, outline: 'none !important' }}
+                _focusVisible={{
+                  boxShadow: 'none !important',
+                  borderColor: dark.borderSubtle,
+                  outline: 'none !important',
+                  outlineOffset: '0',
+                }}
+                css={{
+                  '&:focus, &:focus-visible, &[data-focus], &[data-focus-visible]': {
+                    outline: 'none !important',
+                    boxShadow: 'none !important',
+                  },
+                }}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
                   setOpen(false)
                   navigate(`/users/${userId}/history`, {
                     state: {

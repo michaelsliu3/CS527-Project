@@ -32,7 +32,7 @@ describe('UserParticipationHoverCard', () => {
       </ChakraProvider>
     )
 
-    fireEvent.mouseEnter(screen.getByRole('button', { name: /bidder42/i }))
+    fireEvent.mouseEnter(screen.getByText('bidder42'))
     const viewButton = await screen.findByRole('button', { name: 'View participation history' })
     await user.click(viewButton)
 

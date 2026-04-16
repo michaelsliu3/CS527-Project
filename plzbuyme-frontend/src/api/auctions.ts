@@ -12,7 +12,9 @@ export interface AuctionListItem {
   status: string
   categoryName: string
   categoryNames?: string[]
+  sellerId?: number
   sellerUsername: string
+  sellerAvatarUrl?: string | null
   sellerDisplayNameColor?: string | null
   bidCount: number
 }
