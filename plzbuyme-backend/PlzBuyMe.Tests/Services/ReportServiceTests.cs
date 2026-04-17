@@ -59,6 +59,49 @@ public class ReportServiceTests
     }
 
     [Fact]
+    public async Task GetTotalEarnings_WithDateWindow_FiltersByCloseDate()
+    {
+        await using var db = CreateDbContext();
+        var cat = new Category { Name = "Cars", ParentId = null, StringKey = "rpt-cars-window" };
+        var seller = new User { Username = "s", Email = "s-window@x.com", PasswordHash = "h", Role = UserRole.EndUser };
+        db.Categories.Add(cat);
+        db.Users.Add(seller);
+        await db.SaveChangesAsync();
+
+        var now = DateTime.UtcNow;
+        db.Items.AddRange(
+            new Item
+            {
+                SellerId = seller.Id,
+                CategoryIds = new List<int> { cat.Id },
+                Title = "Inside Window",
+                InitialPrice = 100m,
+                BidIncrement = 10m,
+                ReservePrice = 100m,
+                CurrentPrice = 400m,
+                CloseDateTime = now.AddDays(-2),
+                Status = ItemStatus.Sold
+            },
+            new Item
+            {
+                SellerId = seller.Id,
+                CategoryIds = new List<int> { cat.Id },
+                Title = "Outside Window",
+                InitialPrice = 100m,
+                BidIncrement = 10m,
+                ReservePrice = 100m,
+                CurrentPrice = 600m,
+                CloseDateTime = now.AddDays(-20),
+                Status = ItemStatus.Sold
+            });
+        await db.SaveChangesAsync();
+
+        var service = new ReportService(db);
+        var total = await service.GetTotalEarningsAsync(now.AddDays(-5), now.AddDays(-1));
+        total.Should().Be(400m);
+    }
+
+    [Fact]
     public async Task GetEarningsByType_GroupsByCategory()
     {
         await using var db = CreateDbContext();
@@ -116,6 +159,33 @@ public class ReportServiceTests
     }
 
     [Fact]
+    public async Task GetEarningsByItem_PaginatesAndUsesDeterministicTieBreak()
+    {
+        await using var db = CreateDbContext();
+        var cat = new Category { Name = "Cars", ParentId = null, StringKey = "rpt-cars-page" };
+        var seller = new User { Username = "page-seller", Email = "page-seller@x.com", PasswordHash = "h", Role = UserRole.EndUser };
+        db.Categories.Add(cat);
+        db.Users.Add(seller);
+        await db.SaveChangesAsync();
+
+        db.Items.AddRange(
+            new Item { SellerId = seller.Id, CategoryIds = new List<int> { cat.Id }, Title = "A", InitialPrice = 100m, BidIncrement = 10m, ReservePrice = 100m, CurrentPrice = 500m, CloseDateTime = DateTime.UtcNow, Status = ItemStatus.Sold },
+            new Item { SellerId = seller.Id, CategoryIds = new List<int> { cat.Id }, Title = "B", InitialPrice = 100m, BidIncrement = 10m, ReservePrice = 100m, CurrentPrice = 500m, CloseDateTime = DateTime.UtcNow, Status = ItemStatus.Sold },
+            new Item { SellerId = seller.Id, CategoryIds = new List<int> { cat.Id }, Title = "C", InitialPrice = 100m, BidIncrement = 10m, ReservePrice = 100m, CurrentPrice = 300m, CloseDateTime = DateTime.UtcNow, Status = ItemStatus.Sold });
+        await db.SaveChangesAsync();
+
+        var orderedIds = await db.Items.Where(i => i.CurrentPrice == 500m).OrderBy(i => i.Id).Select(i => i.Id).ToListAsync();
+        var service = new ReportService(db);
+        var page1 = await service.GetEarningsByItemAsync(page: 1, pageSize: 1);
+        var page2 = await service.GetEarningsByItemAsync(page: 2, pageSize: 1);
+
+        page1.TotalCount.Should().Be(3);
+        page1.Items.Should().HaveCount(1);
+        page1.Items[0].ItemId.Should().Be(orderedIds[0]);
+        page2.Items[0].ItemId.Should().Be(orderedIds[1]);
+    }
+
+    [Fact]
     public async Task GetBestBuyers_ReturnsTopNSpendersWithWinCount()
     {
         await using var db = CreateDbContext();
@@ -143,5 +213,33 @@ public class ReportServiceTests
         var b1 = top.First(b => b.Username == "buyer1");
         b1.TotalSpent.Should().Be(250m);
         b1.WinCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task GetEarningsSummary_ReturnsAggregateMetrics()
+    {
+        await using var db = CreateDbContext();
+        var cat = new Category { Name = "Cars", ParentId = null, StringKey = "rpt-cars-summary" };
+        var seller1 = new User { Username = "seller1", Email = "summary-seller1@x.com", PasswordHash = "h", Role = UserRole.EndUser };
+        var seller2 = new User { Username = "seller2", Email = "summary-seller2@x.com", PasswordHash = "h", Role = UserRole.EndUser };
+        var buyer1 = new User { Username = "buyer1", Email = "summary-buyer1@x.com", PasswordHash = "h", Role = UserRole.EndUser };
+        var buyer2 = new User { Username = "buyer2", Email = "summary-buyer2@x.com", PasswordHash = "h", Role = UserRole.EndUser };
+        db.Categories.Add(cat);
+        db.Users.AddRange(seller1, seller2, buyer1, buyer2);
+        await db.SaveChangesAsync();
+
+        db.Items.AddRange(
+            new Item { SellerId = seller1.Id, CategoryIds = new List<int> { cat.Id }, Title = "S1", InitialPrice = 100m, BidIncrement = 10m, ReservePrice = 100m, CurrentPrice = 200m, CloseDateTime = DateTime.UtcNow.AddDays(-1), Status = ItemStatus.Sold, WinnerId = buyer1.Id },
+            new Item { SellerId = seller2.Id, CategoryIds = new List<int> { cat.Id }, Title = "S2", InitialPrice = 100m, BidIncrement = 10m, ReservePrice = 100m, CurrentPrice = 400m, CloseDateTime = DateTime.UtcNow.AddDays(-2), Status = ItemStatus.Sold, WinnerId = buyer2.Id });
+        await db.SaveChangesAsync();
+
+        var service = new ReportService(db);
+        var summary = await service.GetEarningsSummaryAsync();
+
+        summary.Total.Should().Be(600m);
+        summary.SoldCount.Should().Be(2);
+        summary.AverageSale.Should().Be(300m);
+        summary.DistinctSellers.Should().Be(2);
+        summary.DistinctBuyers.Should().Be(2);
     }
 }

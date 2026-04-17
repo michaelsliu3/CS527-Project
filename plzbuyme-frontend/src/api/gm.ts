@@ -105,6 +105,26 @@ export interface GmSoldHistoryFixtureResult {
   soldAuctionCount: number
 }
 
+export interface GmSeedSoldAuctionsPayload {
+  count: number
+  daysAgoMin?: number
+  daysAgoMax?: number
+  priceMin?: number
+  priceMax?: number
+  bidCountMin?: number
+  bidCountMax?: number
+  closedWithoutSaleRatio?: number
+  categoryMode?: string
+  categoryId?: number
+  sellerUserId?: number
+}
+
+export interface GmSeedSoldAuctionsResult {
+  createdSoldCount: number
+  createdClosedCount: number
+  totalBids: number
+}
+
 export function seedGmAuctions(payload: GmSeedAuctionsPayload) {
   return apiClient.post<GmSeedAuctionsResult>('admin/gm/auctions/seed', payload)
 }
@@ -131,6 +151,10 @@ export function seedGmSampleNotifications(payload: GmSampleNotificationsPayload)
 
 export function seedGmSoldHistoryFixture() {
   return apiClient.post<GmSoldHistoryFixtureResult>('admin/gm/fixtures/sold-history')
+}
+
+export function seedGmSoldAuctions(payload: GmSeedSoldAuctionsPayload) {
+  return apiClient.post<GmSeedSoldAuctionsResult>('admin/gm/auctions/seed-sold', payload)
 }
 
 export interface GmBulkCloseAuctionsPayload {

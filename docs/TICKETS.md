@@ -721,7 +721,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-40 — Admin sales reports upgrade (summary + breakdowns + leaders)
+## PBM-40 — Admin sales reports upgrade (summary + breakdowns + leaders) ✅
 
 **Layer:** Backend + Frontend  
 **Branch:** `PBM-40/admin-sales-reports-upgrade`  

@@ -20,6 +20,7 @@ public class GmToolsService : IGmToolsService
     private const int MaxManifestAuctionsBatch = 100;
     private const int MaxManifestSearchLimit = 50;
     private const int MaxAuctionsBatch = 50;
+    private const int MaxSoldAuctionsBatch = 200;
     private const int MaxUsersBatch = 50;
     private const int MaxQuestionsBatch = 30;
     private const int MaxWalletRecipients = 30;
@@ -637,6 +638,163 @@ public class GmToolsService : IGmToolsService
             (null, new GmSoldHistoryFixtureResultDto { SoldAuctionCount = sold }));
     }
 
+    public async Task<(string? Error, GmSeedSoldAuctionsResultDto? Data)> SeedSoldAuctionsAsync(
+        int adminUserId,
+        GmSeedSoldAuctionsDto dto)
+    {
+        if (dto.Count < 1 || dto.Count > MaxSoldAuctionsBatch)
+            return ($"Count must be between 1 and {MaxSoldAuctionsBatch}.", null);
+
+        if (dto.DaysAgoMin < 1 || dto.DaysAgoMax > 3650 || dto.DaysAgoMin > dto.DaysAgoMax)
+            return ("DaysAgoMin and DaysAgoMax must satisfy 1 <= min <= max <= 3650.", null);
+
+        if (dto.PriceMin <= 0m || dto.PriceMax <= 0m || dto.PriceMin > dto.PriceMax)
+            return ("PriceMin and PriceMax must be positive, and PriceMin must be <= PriceMax.", null);
+
+        if (dto.BidCountMin < 0 || dto.BidCountMax > MaxBidsPerAuction || dto.BidCountMin > dto.BidCountMax)
+            return ($"Bid counts must satisfy 0 <= min <= max <= {MaxBidsPerAuction}.", null);
+
+        if (dto.ClosedWithoutSaleRatio < 0m || dto.ClosedWithoutSaleRatio > 1m)
+            return ("ClosedWithoutSaleRatio must be between 0 and 1.", null);
+
+        var category = await ResolveLeafCategoryForModeAsync(dto.CategoryId, dto.CategoryMode);
+        if (category == null)
+            return ("Category not found or has no fields. Use a leaf category with field definitions.", null);
+
+        var sellersQuery = _db.Users
+            .AsNoTracking()
+            .Where(u => u.IsActive && (u.Role == UserRole.EndUser || u.Role == UserRole.Vip));
+        if (dto.SellerUserId.HasValue)
+            sellersQuery = sellersQuery.Where(u => u.Id == dto.SellerUserId.Value);
+        var sellers = await sellersQuery.OrderBy(u => u.Id).ToListAsync();
+        if (sellers.Count == 0)
+            return ("Seller not found or is not an active end-user account.", null);
+
+        var endUsers = await _db.Users
+            .AsNoTracking()
+            .Where(u => u.IsActive && (u.Role == UserRole.EndUser || u.Role == UserRole.Vip))
+            .OrderBy(u => u.Id)
+            .Take(200)
+            .ToListAsync();
+
+        var fields = category.CategoryFields.OrderBy(f => f.Id).ToList();
+        var createdSoldCount = 0;
+        var createdClosedCount = 0;
+        var totalBids = 0;
+
+        for (var i = 0; i < dto.Count; i++)
+        {
+            var seller = sellers[i % sellers.Count];
+            var availableBidders = endUsers.Where(u => u.Id != seller.Id).ToList();
+            var shouldCloseWithoutSale = Random.Shared.NextDouble() < (double)dto.ClosedWithoutSaleRatio;
+            if (!shouldCloseWithoutSale && availableBidders.Count == 0)
+                return ("Need at least one active end-user besides the seller to create sold auctions.", null);
+
+            var randomFieldValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var itemFieldValues = new List<ItemFieldValue>(fields.Count);
+            var daysAgo = Random.Shared.Next(dto.DaysAgoMin, dto.DaysAgoMax + 1);
+            var closeAt = DateTime.UtcNow
+                .AddDays(-daysAgo)
+                .AddMinutes(-Random.Shared.Next(0, 1440));
+            var createdAt = closeAt.AddDays(-Random.Shared.Next(1, 15));
+            var currentPrice = RandomMoney(dto.PriceMin, dto.PriceMax);
+            var initialPrice = Math.Max(1m, decimal.Round(currentPrice * 0.7m, 2, MidpointRounding.AwayFromZero));
+            var bidIncrement = decimal.Round(Math.Max(1m, currentPrice * 0.02m), 2, MidpointRounding.AwayFromZero);
+            var reservePrice = shouldCloseWithoutSale
+                ? decimal.Round(currentPrice + Math.Max(1m, currentPrice * 0.15m), 2, MidpointRounding.AwayFromZero)
+                : decimal.Round(Math.Max(initialPrice, currentPrice * 0.9m), 2, MidpointRounding.AwayFromZero);
+            if (shouldCloseWithoutSale && reservePrice <= currentPrice)
+                reservePrice = currentPrice + 1m;
+
+            foreach (var field in fields)
+            {
+                var value = RandomFieldValue(field);
+                randomFieldValues[field.FieldName] = value;
+                itemFieldValues.Add(new ItemFieldValue { FieldId = field.Id, Value = value });
+            }
+
+            var title = TryBuildGmSeedTitle(randomFieldValues)
+                ?? $"{category.Name} historical seed #{Random.Shared.Next(1000, 10000)}";
+            var item = new Item
+            {
+                SellerId = seller.Id,
+                CategoryIds = new List<int> { category.Id },
+                Title = title,
+                Description = "GM-seeded historical listing for report and QA testing.",
+                InitialPrice = initialPrice,
+                BidIncrement = bidIncrement,
+                ReservePrice = reservePrice,
+                CurrentPrice = currentPrice,
+                CloseDateTime = closeAt,
+                Status = shouldCloseWithoutSale ? ItemStatus.Closed : ItemStatus.Sold,
+                WinnerId = null,
+                CreatedAt = createdAt
+            };
+
+            if (!shouldCloseWithoutSale)
+            {
+                var winner = availableBidders[Random.Shared.Next(availableBidders.Count)];
+                item.WinnerId = winner.Id;
+            }
+
+            _db.Items.Add(item);
+            await _db.SaveChangesAsync();
+
+            foreach (var row in itemFieldValues)
+                row.ItemId = item.Id;
+            _db.ItemFieldValues.AddRange(itemFieldValues);
+
+            var bidCount = Random.Shared.Next(dto.BidCountMin, dto.BidCountMax + 1);
+            if (!shouldCloseWithoutSale && bidCount == 0)
+                bidCount = 1;
+            if (bidCount > 0 && availableBidders.Count > 0)
+            {
+                var startAmount = Math.Max(initialPrice, currentPrice - bidIncrement * bidCount);
+                for (var b = 0; b < bidCount; b++)
+                {
+                    var amount = b == bidCount - 1
+                        ? currentPrice
+                        : decimal.Round(startAmount + bidIncrement * (b + 1), 2, MidpointRounding.AwayFromZero);
+                    var bidder = availableBidders[(i + b) % availableBidders.Count];
+                    if (!shouldCloseWithoutSale && b == bidCount - 1 && item.WinnerId.HasValue)
+                    {
+                        bidder = availableBidders.FirstOrDefault(x => x.Id == item.WinnerId.Value) ?? bidder;
+                    }
+
+                    _db.Bids.Add(new Bid
+                    {
+                        ItemId = item.Id,
+                        BidderId = bidder.Id,
+                        Amount = amount,
+                        IsAuto = false,
+                        CreatedAt = closeAt.AddMinutes(-bidCount + b)
+                    });
+                    totalBids++;
+                }
+            }
+
+            await _db.SaveChangesAsync();
+            if (shouldCloseWithoutSale)
+                createdClosedCount++;
+            else
+                createdSoldCount++;
+        }
+
+        _logger.LogWarning(
+            "GM tools: admin {AdminId} seeded historical auctions sold={SoldCount} closed={ClosedCount} bids={BidCount}",
+            adminUserId,
+            createdSoldCount,
+            createdClosedCount,
+            totalBids);
+
+        return (null, new GmSeedSoldAuctionsResultDto
+        {
+            CreatedSoldCount = createdSoldCount,
+            CreatedClosedCount = createdClosedCount,
+            TotalBids = totalBids
+        });
+    }
+
     public async Task<(string? Error, GmBulkCloseAuctionsResultDto? Data)> BulkCloseActiveAuctionsAsync(
         int adminUserId,
         GmBulkCloseAuctionsDto dto)
@@ -708,6 +866,25 @@ public class GmToolsService : IGmToolsService
             return null;
 
         return candidates[Random.Shared.Next(candidates.Count)];
+    }
+
+    private async Task<Category?> ResolveLeafCategoryForModeAsync(int? categoryId, string? categoryMode)
+    {
+        if (categoryId.HasValue)
+            return await ResolveLeafCategoryAsync(categoryId);
+
+        if (!string.IsNullOrWhiteSpace(categoryMode) &&
+            !string.Equals(categoryMode.Trim(), "auto", StringComparison.OrdinalIgnoreCase))
+        {
+            var normalized = categoryMode.Trim();
+            return await _db.Categories
+                .Include(c => c.CategoryFields)
+                .FirstOrDefaultAsync(c =>
+                    c.CategoryFields.Any() &&
+                    (c.StringKey == normalized || c.Name == normalized));
+        }
+
+        return await ResolveLeafCategoryAsync(null);
     }
 
     private async Task<List<User>> GetBidderPoolAsync(int sellerId)
@@ -812,6 +989,15 @@ public class GmToolsService : IGmToolsService
         {
             return null;
         }
+    }
+
+    private static decimal RandomMoney(decimal min, decimal max)
+    {
+        if (min == max)
+            return decimal.Round(min, 2, MidpointRounding.AwayFromZero);
+        var ratio = (decimal)Random.Shared.NextDouble();
+        var raw = min + ((max - min) * ratio);
+        return decimal.Round(raw, 2, MidpointRounding.AwayFromZero);
     }
 
     public async Task<(string? Error, GmCategoryMutationResultDto? Data)> CreateCategoryAsync(

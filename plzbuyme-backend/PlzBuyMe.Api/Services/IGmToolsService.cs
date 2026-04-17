@@ -25,6 +25,8 @@ public interface IGmToolsService
 
     Task<(string? Error, GmSoldHistoryFixtureResultDto? Data)> SeedSoldHistoryFixtureAsync(int adminUserId);
 
+    Task<(string? Error, GmSeedSoldAuctionsResultDto? Data)> SeedSoldAuctionsAsync(int adminUserId, GmSeedSoldAuctionsDto dto);
+
     Task<(string? Error, GmBulkCloseAuctionsResultDto? Data)> BulkCloseActiveAuctionsAsync(int adminUserId, GmBulkCloseAuctionsDto dto);
 
     Task<(string? Error, GmRunCloseSweepResultDto? Data)> RunCloseSweepAsync(int adminUserId);

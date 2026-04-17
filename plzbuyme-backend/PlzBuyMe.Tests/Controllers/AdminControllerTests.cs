@@ -103,4 +103,50 @@ public class AdminControllerTests
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
+
+    [Fact]
+    public async Task ReportsEndpoints_InvalidDateRange_ReturnBadRequest()
+    {
+        await using var db = CreateDbContext();
+        var admin = new User
+        {
+            Username = "admin2",
+            Email = "admin2@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.Admin,
+            IsActive = true
+        };
+        db.Users.Add(admin);
+        await db.SaveChangesAsync();
+
+        var controller = new AdminController(CreateAuthService(db), new ReportService(db));
+        ControllerTestHelpers.SetUser(controller, admin.Id, "admin2");
+
+        var from = DateTime.UtcNow;
+        var to = from.AddDays(-1);
+        var result = await controller.GetTotalEarnings(from, to);
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task BestSelling_WithInvalidTop_ReturnsBadRequest()
+    {
+        await using var db = CreateDbContext();
+        var admin = new User
+        {
+            Username = "admin3",
+            Email = "admin3@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.Admin,
+            IsActive = true
+        };
+        db.Users.Add(admin);
+        await db.SaveChangesAsync();
+
+        var controller = new AdminController(CreateAuthService(db), new ReportService(db));
+        ControllerTestHelpers.SetUser(controller, admin.Id, "admin3");
+
+        var result = await controller.GetBestSelling(101);
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
 }

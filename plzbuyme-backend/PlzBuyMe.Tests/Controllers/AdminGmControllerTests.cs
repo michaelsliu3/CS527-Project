@@ -71,6 +71,47 @@ public class AdminGmControllerTests
     }
 
     [Fact]
+    public async Task SeedSoldAuctions_AsEndUser_ReturnsForbidden()
+    {
+        var factory = new PlzBuyMeWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var loginResponse = await client.PostAsJsonAsync("api/auth/login", new { username = "seller1", password = "password" });
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var auth = await loginResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+        auth.Should().NotBeNull();
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "api/admin/gm/auctions/seed-sold");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", auth!.Token);
+        request.Content = JsonContent.Create(new { count = 1 });
+        var response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task SeedSoldAuctions_AsAdmin_ReturnsOk()
+    {
+        var factory = new PlzBuyMeWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var loginResponse = await client.PostAsJsonAsync("api/auth/login", new { username = "admin", password = "admin123" });
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var auth = await loginResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+        auth.Should().NotBeNull();
+
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth!.Token);
+        var response = await client.PostAsJsonAsync(
+            "api/admin/gm/auctions/seed-sold",
+            new { count = 2, bidCountMin = 0, bidCountMax = 1, closedWithoutSaleRatio = 0.5 });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<SeedSoldAuctionsResponseStub>();
+        body.Should().NotBeNull();
+        (body!.CreatedSoldCount + body.CreatedClosedCount).Should().Be(2);
+    }
+
+    [Fact]
     public async Task BulkCloseActive_AsAdmin_ReturnsOk()
     {
         var factory = new PlzBuyMeWebApplicationFactory();
@@ -204,5 +245,12 @@ public class AdminGmControllerTests
         public string? Title { get; set; }
         public string? Make { get; set; }
         public string? Model { get; set; }
+    }
+
+    private sealed class SeedSoldAuctionsResponseStub
+    {
+        public int CreatedSoldCount { get; set; }
+        public int CreatedClosedCount { get; set; }
+        public int TotalBids { get; set; }
     }
 }
