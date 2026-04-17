@@ -112,10 +112,10 @@ describe('SearchBar', () => {
   it('shows car-specific sort options when cars context is active', async () => {
     renderSearchBar('/auctions?categoryId=2')
     await waitFor(() => {
-      expect(screen.getAllByRole('option', { name: /Newest/i }).length).toBeGreaterThan(0)
+      expect(screen.getAllByRole('option', { name: /Year: newest/i }).length).toBeGreaterThan(0)
+      expect(screen.getAllByRole('option', { name: /Mileage: low to high/i }).length).toBeGreaterThan(0)
     })
-    expect(screen.getAllByRole('option', { name: /Year: newest/i }).length).toBeGreaterThan(0)
-    expect(screen.getAllByRole('option', { name: /Mileage: low to high/i }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('option', { name: /Newest/i }).length).toBeGreaterThan(0)
   })
 
   it('updates query params with selected sort on submit', async () => {
