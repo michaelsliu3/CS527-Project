@@ -658,7 +658,26 @@ public class AuctionService : IAuctionService
         if (!string.IsNullOrWhiteSpace(query.Seller))
         {
             var sellerLower = query.Seller.Trim().ToLower();
-            q = q.Where(i => i.Seller != null && i.Seller.Username.ToLower().Contains(sellerLower));
+            var isPrivilegedRequester = requesterRole is UserRole.Admin or UserRole.CustomerRep;
+            if (isPrivilegedRequester)
+            {
+                q = q.Where(i => i.Seller != null && i.Seller.Username.ToLower().Contains(sellerLower));
+            }
+            else if (requesterUserId.HasValue)
+            {
+                var currentUserId = requesterUserId.Value;
+                q = q.Where(i =>
+                    i.Seller != null &&
+                    i.Seller.Username.ToLower().Contains(sellerLower) &&
+                    (!i.Seller.IsAuctionIdentityAnonymous || i.SellerId == currentUserId));
+            }
+            else
+            {
+                q = q.Where(i =>
+                    i.Seller != null &&
+                    !i.Seller.IsAuctionIdentityAnonymous &&
+                    i.Seller.Username.ToLower().Contains(sellerLower));
+            }
         }
         if (query.Condition != null && query.Condition.Count > 0)
         {

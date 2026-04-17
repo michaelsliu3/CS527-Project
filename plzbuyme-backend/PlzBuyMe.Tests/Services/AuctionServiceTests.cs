@@ -1149,6 +1149,50 @@ public class AuctionServiceTests
     }
 
     [Fact]
+    public async Task SearchAsync_SellerFilter_NonPrivilegedView_DoesNotMatchAnonymousSellerRealName()
+    {
+        var (db, categoryId, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var seller = db.Users.Single(u => u.Username == "seller1");
+        var viewer = db.Users.Single(u => u.Username == "bidder2");
+        seller.IsAuctionIdentityAnonymous = true;
+
+        var item = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Seller filter privacy listing",
+            InitialPrice = 1250m,
+            BidIncrement = 100m,
+            ReservePrice = 1500m,
+            CurrentPrice = 1250m,
+            CloseDateTime = DateTime.UtcNow.AddDays(2),
+            Status = ItemStatus.Active,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Items.Add(item);
+        await db.SaveChangesAsync();
+
+        var endUserSearch = await service.SearchAsync(
+            new SearchQueryDto { Seller = seller.Username, Page = 1, PageSize = 20 },
+            requesterUserId: viewer.Id,
+            requesterRole: UserRole.EndUser);
+        endUserSearch.Items.Should().NotContain(i => i.Id == item.Id);
+
+        var selfSearch = await service.SearchAsync(
+            new SearchQueryDto { Seller = seller.Username, Page = 1, PageSize = 20 },
+            requesterUserId: seller.Id,
+            requesterRole: UserRole.EndUser);
+        selfSearch.Items.Should().Contain(i => i.Id == item.Id);
+
+        var adminSearch = await service.SearchAsync(
+            new SearchQueryDto { Seller = seller.Username, Page = 1, PageSize = 20 },
+            requesterUserId: 999,
+            requesterRole: UserRole.Admin);
+        adminSearch.Items.Should().Contain(i => i.Id == item.Id);
+    }
+
+    [Fact]
     public async Task AuctionIdentityAnonymity_AdminView_CanSeeTrueIdentity()
     {
         var (db, categoryId, _, _) = CreateSeededContext();
