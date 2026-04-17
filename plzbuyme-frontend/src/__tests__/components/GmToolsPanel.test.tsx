@@ -138,7 +138,7 @@ describe('GmToolsPanel', () => {
     })
 
     renderPanel()
-    await user.click(screen.getByRole('tab', { name: /Wallet \/ fixtures/i }))
+    await user.click(screen.getByRole('tab', { name: /History \/ reports/i }))
     await user.click(screen.getByTestId('gm-seed-custom-sold'))
 
     await waitFor(() => {

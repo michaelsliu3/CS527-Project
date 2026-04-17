@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ChakraProvider } from '@chakra-ui/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
@@ -107,89 +107,115 @@ describe('ReportsPage', () => {
     expect(screen.getByText('Reports')).toBeInTheDocument()
     expect(screen.getByText(/Total earnings:/)).toBeInTheDocument()
     expect(screen.getByText(/Total earnings:\s*\$50,000\.25/)).toBeInTheDocument()
-    expect(screen.getByText(/Sold auctions/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/Sold auctions/i).length).toBeGreaterThan(0)
   })
 
-  it('By Type tab fetches and displays data', async () => {
-    const user = userEvent.setup()
+  it('By Type panel fetches and displays data', async () => {
     renderReportsPage()
-    await waitFor(() => {
-      expect(adminApi.getTotalEarnings).toHaveBeenCalled()
-    })
-    await user.click(screen.getByRole('tab', { name: 'By Type' }))
     await waitFor(() => {
       expect(adminApi.getEarningsByType).toHaveBeenCalled()
     })
-    expect(screen.getByText('Sedans')).toBeInTheDocument()
-    expect(screen.getByText('SUVs')).toBeInTheDocument()
-    expect(screen.getByText(/30,?000/)).toBeInTheDocument()
-    expect(screen.getByText(/20,?000/)).toBeInTheDocument()
+    expect(screen.getAllByText('Sedans').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('SUVs').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/30,?000/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/20,?000/).length).toBeGreaterThan(0)
   })
 
-  it('Best Selling tab fetches and displays data', async () => {
-    const user = userEvent.setup()
+  it('Best Selling panel fetches and displays data', async () => {
     renderReportsPage()
-    await waitFor(() => {
-      expect(adminApi.getTotalEarnings).toHaveBeenCalled()
-    })
-    await user.click(screen.getByRole('tab', { name: 'Best Selling' }))
     await waitFor(() => {
       expect(adminApi.getBestSelling).toHaveBeenCalledWith(10, expect.any(Object))
     })
-    expect(screen.getByText('Honda Civic')).toBeInTheDocument()
-    expect(screen.getByText(/25,?000/)).toBeInTheDocument()
-    expect(screen.getByText('12')).toBeInTheDocument()
+    expect(screen.getAllByText('Honda Civic').length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/25,?000/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('12').length).toBeGreaterThan(0)
   })
 
-  it('Best Buyers tab fetches and displays data', async () => {
+  it('paginates best-selling panel in groups of 5', async () => {
     const user = userEvent.setup()
+    vi.mocked(adminApi.getBestSelling).mockResolvedValueOnce({
+      data: Array.from({ length: 8 }, (_, i) => ({
+        itemId: i + 1,
+        title: `Car ${i + 1}`,
+        price: 10000 + i,
+        bidCount: i + 2,
+      })),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as never)
+
     renderReportsPage()
-    await waitFor(() => {
-      expect(adminApi.getTotalEarnings).toHaveBeenCalled()
-    })
-    await user.click(screen.getByRole('tab', { name: 'Best Buyers' }))
+    await waitFor(() => expect(adminApi.getBestSelling).toHaveBeenCalled())
+    expect(screen.getAllByText(/Page 1 \/ 2/).length).toBeGreaterThan(0)
+    await user.click(screen.getAllByRole('button', { name: 'Next' })[2])
+    expect(screen.getAllByText(/Page 2 \/ 2/).length).toBeGreaterThan(0)
+  })
+
+  it('Best Buyers panel fetches and displays data', async () => {
+    renderReportsPage()
     await waitFor(() => {
       expect(adminApi.getBestBuyers).toHaveBeenCalledWith(10, expect.any(Object))
     })
-    const buyerCell = screen.getByText('buyer1')
-    const buyerRow = buyerCell.closest('tr')
-    expect(buyerRow).not.toBeNull()
-    expect(within(buyerRow as HTMLTableRowElement).getByText(/45,?000/)).toBeInTheDocument()
-    expect(within(buyerRow as HTMLTableRowElement).getByText('3')).toBeInTheDocument()
+    const buyerTableRow = screen
+      .getAllByRole('row')
+      .find((row) => row.textContent?.includes('buyer1') && row.textContent?.includes('45,000.00'))
+    expect(buyerTableRow).toBeDefined()
+    expect(within(buyerTableRow as HTMLTableRowElement).getByText(/45,?000/)).toBeInTheDocument()
+    expect(within(buyerTableRow as HTMLTableRowElement).getByText('3')).toBeInTheDocument()
   })
 
-  it('applies shared filters and sends them to report requests', async () => {
+  it('paginates best-buyers panel in groups of 5', async () => {
     const user = userEvent.setup()
+    vi.mocked(adminApi.getBestBuyers).mockResolvedValueOnce({
+      data: Array.from({ length: 7 }, (_, i) => ({
+        userId: i + 1,
+        username: `buyer${i + 1}`,
+        totalSpent: 2000 + i * 10,
+        winCount: i + 1,
+      })),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as never)
+
+    renderReportsPage()
+    await waitFor(() => expect(adminApi.getBestBuyers).toHaveBeenCalled())
+    expect(screen.getAllByText(/Page 1 \/ 2/).length).toBeGreaterThan(0)
+    await user.click(screen.getAllByRole('button', { name: 'Next' })[3])
+    expect(screen.getAllByText(/Page 2 \/ 2/).length).toBeGreaterThan(0)
+  })
+
+  it('renders without the top date filter bar and uses default report params', async () => {
     renderReportsPage()
     await waitFor(() => {
-      expect(adminApi.getTotalEarnings).toHaveBeenCalled()
+      expect(adminApi.getTotalEarnings).toHaveBeenCalledWith(expect.objectContaining({ top: 10 }))
     })
-
-    await user.clear(screen.getByLabelText('From'))
-    await user.type(screen.getByLabelText('From'), '2026-01-01')
-    await user.clear(screen.getByLabelText('To'))
-    await user.type(screen.getByLabelText('To'), '2026-03-01')
-    fireEvent.change(screen.getByLabelText('Top N'), { target: { value: '15' } })
-    await user.click(screen.getByRole('button', { name: 'Apply' }))
-
-    await waitFor(() => {
-      expect(adminApi.getTotalEarnings).toHaveBeenLastCalledWith(
-        expect.objectContaining({ from: '2026-01-01', to: '2026-03-01', top: 15 }),
-      )
-    })
+    expect(screen.queryByLabelText('From')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('To')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Top N')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument()
   })
 
   it('paginates by-item table', async () => {
     const user = userEvent.setup()
     renderReportsPage()
-    await user.click(screen.getByRole('tab', { name: 'By Item' }))
     await waitFor(() => {
-      expect(adminApi.getEarningsByItem).toHaveBeenCalledWith(expect.objectContaining({ page: 1, pageSize: 25 }))
+      expect(adminApi.getEarningsByItem).toHaveBeenCalledWith(expect.objectContaining({ page: 1, pageSize: 5 }))
     })
 
-    await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getAllByRole('button', { name: 'Next' })[1])
     await waitFor(() => {
-      expect(adminApi.getEarningsByItem).toHaveBeenCalledWith(expect.objectContaining({ page: 2, pageSize: 25 }))
+      expect(adminApi.getEarningsByItem).toHaveBeenCalledWith(expect.objectContaining({ page: 2, pageSize: 5 }))
+    })
+  })
+
+  it('requests by-user table with page size 5', async () => {
+    renderReportsPage()
+    await waitFor(() => {
+      expect(adminApi.getEarningsByUser).toHaveBeenCalledWith(expect.objectContaining({ page: 1, pageSize: 5 }))
     })
   })
 })

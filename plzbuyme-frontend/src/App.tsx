@@ -16,7 +16,6 @@ import { AlertsPage } from './pages/AlertsPage'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { QuestionsPage } from './pages/QuestionsPage'
 import { RepDashboard } from './pages/rep/RepDashboard'
-import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { ReportsPage } from './pages/admin/ReportsPage'
 import { UserParticipationHistoryPage } from './pages/UserParticipationHistoryPage'
 
@@ -117,7 +116,7 @@ function App() {
                 </ProtectedRoute>
               }
             >
-              <Route index element={<AdminDashboard />} />
+              <Route index element={<ReportsPage />} />
               <Route path="reports" element={<ReportsPage />} />
               <Route path="gm" element={<Navigate to="/admin" replace />} />
             </Route>
