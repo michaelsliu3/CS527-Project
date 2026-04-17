@@ -58,6 +58,27 @@ public class AuthController : ControllerBase
     }
 
     [Authorize]
+    [HttpPatch("profile/auction-identity-anonymity")]
+    public async Task<IActionResult> UpdateAuctionIdentityAnonymity([FromBody] UpdateAuctionIdentityAnonymityDto? dto)
+    {
+        if (dto == null)
+            return BadRequest(new AuthErrorDto { Code = "ValidationError", Message = "Request body is required." });
+
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            return Forbid();
+
+        var result = await _authService.UpdateAuctionIdentityAnonymityAsync(userId, dto.IsAuctionIdentityAnonymous);
+        if (result.NotFound)
+            return NotFound();
+
+        return Ok(new UpdateAuctionIdentityAnonymityDto
+        {
+            IsAuctionIdentityAnonymous = result.IsAuctionIdentityAnonymous
+        });
+    }
+
+    [Authorize]
     [HttpPost("profile/avatar")]
     public async Task<IActionResult> UploadAvatar([FromBody] SetAvatarDto? dto)
     {

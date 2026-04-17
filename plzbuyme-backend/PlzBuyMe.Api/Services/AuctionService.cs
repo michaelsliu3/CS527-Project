@@ -27,6 +27,15 @@ public class AuctionService : IAuctionService
         "Fair",
         "Poor"
     };
+    private static readonly string[] AnonymousAnimals =
+    {
+        "otter", "falcon", "lynx", "panda", "koala", "orca", "badger", "wolf",
+        "eagle", "fox", "tiger", "rabbit", "dolphin", "ibis", "marten", "yak",
+        "beaver", "heron", "lemur", "narwhal", "quokka", "wombat", "cougar", "gecko",
+        "manatee", "pelican", "reindeer", "salamander", "toucan", "walrus", "alpaca", "buffalo",
+        "caracal", "ferret", "gazelle", "hamster", "jaguar", "meerkat", "newt", "owl",
+        "porcupine", "raccoon"
+    };
 
     private static readonly Regex CatalogCarExternalIdRegex = new(
         @"car(\d{3,7})",
@@ -38,6 +47,12 @@ public class AuctionService : IAuctionService
 
     private static string WithWalletBalanceDisclaimer(string primary) =>
         $"{primary}\n\n{WalletBalanceDisclaimerParagraph}";
+
+    private readonly record struct PublicIdentity(
+        string DisplayUsername,
+        string? RevealUsername,
+        string? AvatarUrl,
+        string? DisplayNameColor);
 
     private readonly AppDbContext _db;
     private readonly IAlertService _alertService;
@@ -337,6 +352,39 @@ public class AuctionService : IAuctionService
         return (imageUrl, imageUrl);
     }
 
+    private static string BuildAnonymousAlias(int userId)
+    {
+        var index = Math.Abs(userId) % AnonymousAnimals.Length;
+        return $"[anonymous {AnonymousAnimals[index]}]";
+    }
+
+    private static string BuildAnonymousPlainAlias(int userId)
+    {
+        var index = Math.Abs(userId) % AnonymousAnimals.Length;
+        return $"anonymous {AnonymousAnimals[index]}";
+    }
+
+    private static PublicIdentity ResolvePublicIdentity(
+        int userId,
+        string username,
+        string? avatarUrl,
+        string? displayNameColor,
+        bool isAuctionIdentityAnonymous,
+        int? requesterUserId,
+        UserRole? requesterRole)
+    {
+        if (!isAuctionIdentityAnonymous)
+            return new PublicIdentity(username, null, avatarUrl, displayNameColor);
+
+        var alias = BuildAnonymousAlias(userId);
+        var plainAlias = BuildAnonymousPlainAlias(userId);
+        var isSelf = requesterUserId == userId;
+        var isPrivileged = requesterRole is UserRole.Admin or UserRole.CustomerRep;
+        var displayUsername = isSelf ? $"{username} {alias}" : plainAlias;
+        var revealUsername = isPrivileged ? username : null;
+        return new PublicIdentity(displayUsername, revealUsername, null, displayNameColor);
+    }
+
     private AuctionListDto ToAuctionListDto(
         int id,
         string title,
@@ -352,8 +400,21 @@ public class AuctionService : IAuctionService
         string sellerUsername,
         string? sellerAvatarUrl,
         string? sellerDisplayNameColor,
-        int bidCount) =>
-        new()
+        bool sellerIsAuctionIdentityAnonymous,
+        int? requesterUserId,
+        UserRole? requesterRole,
+        int bidCount)
+    {
+        var sellerIdentity = ResolvePublicIdentity(
+            sellerId,
+            sellerUsername,
+            sellerAvatarUrl,
+            sellerDisplayNameColor,
+            sellerIsAuctionIdentityAnonymous,
+            requesterUserId,
+            requesterRole);
+
+        return new AuctionListDto
         {
             Id = id,
             Title = title,
@@ -366,11 +427,13 @@ public class AuctionService : IAuctionService
             CategoryName = categoryNames.FirstOrDefault() ?? string.Empty,
             CategoryNames = categoryNames,
             SellerId = sellerId,
-            SellerUsername = sellerUsername,
-            SellerAvatarUrl = sellerAvatarUrl,
-            SellerDisplayNameColor = sellerDisplayNameColor,
+            SellerUsername = sellerIdentity.DisplayUsername,
+            SellerRevealUsername = sellerIdentity.RevealUsername,
+            SellerAvatarUrl = sellerIdentity.AvatarUrl,
+            SellerDisplayNameColor = sellerIdentity.DisplayNameColor,
             BidCount = bidCount
         };
+    }
 
     private async Task<Dictionary<int, string>> LoadCategoryNameMapAsync(IEnumerable<int> categoryIds)
     {
@@ -554,7 +617,13 @@ public class AuctionService : IAuctionService
         await _db.SaveChangesAsync();
     }
 
-    public async Task<PaginatedResultDto<AuctionListDto>> SearchAsync(SearchQueryDto query)
+    public Task<PaginatedResultDto<AuctionListDto>> SearchAsync(SearchQueryDto query) =>
+        SearchAsync(query, null, null);
+
+    public async Task<PaginatedResultDto<AuctionListDto>> SearchAsync(
+        SearchQueryDto query,
+        int? requesterUserId,
+        UserRole? requesterRole)
     {
         var page = Math.Max(1, query.Page);
         var pageSize = Math.Clamp(query.PageSize, 1, 50);
@@ -589,7 +658,26 @@ public class AuctionService : IAuctionService
         if (!string.IsNullOrWhiteSpace(query.Seller))
         {
             var sellerLower = query.Seller.Trim().ToLower();
-            q = q.Where(i => i.Seller != null && i.Seller.Username.ToLower().Contains(sellerLower));
+            var isPrivilegedRequester = requesterRole is UserRole.Admin or UserRole.CustomerRep;
+            if (isPrivilegedRequester)
+            {
+                q = q.Where(i => i.Seller != null && i.Seller.Username.ToLower().Contains(sellerLower));
+            }
+            else if (requesterUserId.HasValue)
+            {
+                var currentUserId = requesterUserId.Value;
+                q = q.Where(i =>
+                    i.Seller != null &&
+                    i.Seller.Username.ToLower().Contains(sellerLower) &&
+                    (!i.Seller.IsAuctionIdentityAnonymous || i.SellerId == currentUserId));
+            }
+            else
+            {
+                q = q.Where(i =>
+                    i.Seller != null &&
+                    !i.Seller.IsAuctionIdentityAnonymous &&
+                    i.Seller.Username.ToLower().Contains(sellerLower));
+            }
         }
         if (query.Condition != null && query.Condition.Count > 0)
         {
@@ -690,6 +778,7 @@ public class AuctionService : IAuctionService
                     SellerUsername = i.Seller.Username,
                     SellerAvatarUrl = i.Seller.AvatarUrl,
                     SellerDisplayNameColor = i.Seller.DisplayNameColor,
+                    SellerIsAuctionIdentityAnonymous = i.Seller.IsAuctionIdentityAnonymous,
                     BidCount = i.Bids.Count
                 })
                 .ToListAsync();
@@ -714,6 +803,9 @@ public class AuctionService : IAuctionService
                     r.SellerUsername,
                     r.SellerAvatarUrl,
                     r.SellerDisplayNameColor,
+                    r.SellerIsAuctionIdentityAnonymous,
+                    requesterUserId,
+                    requesterRole,
                     r.BidCount);
             }).ToList();
         }
@@ -740,6 +832,7 @@ public class AuctionService : IAuctionService
                     SellerUsername = i.Seller.Username,
                     SellerAvatarUrl = i.Seller.AvatarUrl,
                     SellerDisplayNameColor = i.Seller.DisplayNameColor,
+                    SellerIsAuctionIdentityAnonymous = i.Seller.IsAuctionIdentityAnonymous,
                     BidCount = i.Bids.Count
                 })
                 .ToListAsync();
@@ -760,6 +853,9 @@ public class AuctionService : IAuctionService
                 r.SellerUsername,
                 r.SellerAvatarUrl,
                 r.SellerDisplayNameColor,
+                r.SellerIsAuctionIdentityAnonymous,
+                requesterUserId,
+                requesterRole,
                 r.BidCount)).ToList();
         }
 
@@ -959,7 +1055,13 @@ public class AuctionService : IAuctionService
         public List<string>? SelectValues { get; set; }
     }
 
-    public async Task<AuctionDetailDto?> GetByIdAsync(int id)
+    public Task<AuctionDetailDto?> GetByIdAsync(int id) =>
+        GetByIdAsync(id, null, null);
+
+    public async Task<AuctionDetailDto?> GetByIdAsync(
+        int id,
+        int? requesterUserId,
+        UserRole? requesterRole)
     {
         var item = await _db.Items
             .Include(i => i.Seller)
@@ -973,16 +1075,29 @@ public class AuctionService : IAuctionService
 
         var bidHistory = item.Bids
             .OrderByDescending(b => b.CreatedAt)
-            .Select(b => new BidHistoryItemDto
+            .Select(b =>
             {
-                Id = b.Id,
-                BidderId = b.BidderId,
-                BidderUsername = b.Bidder.Username,
-                BidderAvatarUrl = b.Bidder.AvatarUrl,
-                BidderDisplayNameColor = b.Bidder.DisplayNameColor,
-                Amount = b.Amount,
-                IsAuto = b.IsAuto,
-                CreatedAt = b.CreatedAt
+                var bidderIdentity = ResolvePublicIdentity(
+                    b.BidderId,
+                    b.Bidder.Username,
+                    b.Bidder.AvatarUrl,
+                    b.Bidder.DisplayNameColor,
+                    b.Bidder.IsAuctionIdentityAnonymous,
+                    requesterUserId,
+                    requesterRole);
+
+                return new BidHistoryItemDto
+                {
+                    Id = b.Id,
+                    BidderId = b.BidderId,
+                    BidderUsername = bidderIdentity.DisplayUsername,
+                    BidderRevealUsername = bidderIdentity.RevealUsername,
+                    BidderAvatarUrl = bidderIdentity.AvatarUrl,
+                    BidderDisplayNameColor = bidderIdentity.DisplayNameColor,
+                    Amount = b.Amount,
+                    IsAuto = b.IsAuto,
+                    CreatedAt = b.CreatedAt
+                };
             })
             .ToList();
 
@@ -992,6 +1107,14 @@ public class AuctionService : IAuctionService
             item.ImageSource);
 
         var categoryNames = BuildCategoryNames(item.CategoryIds, nameMap);
+        var sellerIdentity = ResolvePublicIdentity(
+            item.SellerId,
+            item.Seller.Username,
+            item.Seller.AvatarUrl,
+            item.Seller.DisplayNameColor,
+            item.Seller.IsAuctionIdentityAnonymous,
+            requesterUserId,
+            requesterRole);
 
         return new AuctionDetailDto
         {
@@ -1006,9 +1129,10 @@ public class AuctionService : IAuctionService
             CategoryName = categoryNames.FirstOrDefault() ?? string.Empty,
             CategoryNames = categoryNames,
             SellerId = item.SellerId,
-            SellerUsername = item.Seller.Username,
-            SellerAvatarUrl = item.Seller.AvatarUrl,
-            SellerDisplayNameColor = item.Seller.DisplayNameColor,
+            SellerUsername = sellerIdentity.DisplayUsername,
+            SellerRevealUsername = sellerIdentity.RevealUsername,
+            SellerAvatarUrl = sellerIdentity.AvatarUrl,
+            SellerDisplayNameColor = sellerIdentity.DisplayNameColor,
             InitialPrice = item.InitialPrice,
             BidIncrement = item.BidIncrement,
             ReservePrice = item.ReservePrice,
@@ -1049,6 +1173,7 @@ public class AuctionService : IAuctionService
                 SellerUsername = i.Seller.Username,
                 SellerAvatarUrl = i.Seller.AvatarUrl,
                 SellerDisplayNameColor = i.Seller.DisplayNameColor,
+                SellerIsAuctionIdentityAnonymous = i.Seller.IsAuctionIdentityAnonymous,
                 BidCount = i.Bids.Count
             })
             .ToListAsync();
@@ -1069,10 +1194,20 @@ public class AuctionService : IAuctionService
             r.SellerUsername,
             r.SellerAvatarUrl,
             r.SellerDisplayNameColor,
+            r.SellerIsAuctionIdentityAnonymous,
+            userId,
+            UserRole.EndUser,
             r.BidCount)).ToList();
     }
 
-    public async Task<List<AuctionListDto>> GetSimilarAsync(int itemId, int limit = 10)
+    public Task<List<AuctionListDto>> GetSimilarAsync(int itemId, int limit = 10) =>
+        GetSimilarAsync(itemId, limit, null, null);
+
+    public async Task<List<AuctionListDto>> GetSimilarAsync(
+        int itemId,
+        int limit,
+        int? requesterUserId,
+        UserRole? requesterRole)
     {
         var item = await _db.Items
             .Include(i => i.ItemFieldValues)
@@ -1119,13 +1254,22 @@ public class AuctionService : IAuctionService
                 x.Item.Seller.Username,
                 x.Item.Seller.AvatarUrl,
                 x.Item.Seller.DisplayNameColor,
+                x.Item.Seller.IsAuctionIdentityAnonymous,
+                requesterUserId,
+                requesterRole,
                 x.Item.Bids.Count))
             .ToList();
 
         return scored;
     }
 
-    public async Task<List<AuctionListDto>> GetHistoryAsync(int userId)
+    public Task<List<AuctionListDto>> GetHistoryAsync(int userId) =>
+        GetHistoryAsync(userId, null, null);
+
+    public async Task<List<AuctionListDto>> GetHistoryAsync(
+        int userId,
+        int? requesterUserId,
+        UserRole? requesterRole)
     {
         var itemIds = await _db.Bids.Where(b => b.BidderId == userId).Select(b => b.ItemId).Distinct().ToListAsync();
         var soldByUser = await _db.Items.Where(i => i.SellerId == userId).Select(i => i.Id).ToListAsync();
@@ -1153,6 +1297,7 @@ public class AuctionService : IAuctionService
                 SellerUsername = i.Seller.Username,
                 SellerAvatarUrl = i.Seller.AvatarUrl,
                 SellerDisplayNameColor = i.Seller.DisplayNameColor,
+                SellerIsAuctionIdentityAnonymous = i.Seller.IsAuctionIdentityAnonymous,
                 BidCount = i.Bids.Count
             })
             .ToListAsync();
@@ -1173,6 +1318,9 @@ public class AuctionService : IAuctionService
             r.SellerUsername,
             r.SellerAvatarUrl,
             r.SellerDisplayNameColor,
+            r.SellerIsAuctionIdentityAnonymous,
+            requesterUserId,
+            requesterRole,
             r.BidCount)).ToList();
     }
 

@@ -14,6 +14,7 @@ public record AuctionListDto
     public List<string> CategoryNames { get; init; } = new();
     public int SellerId { get; init; }
     public string SellerUsername { get; init; } = string.Empty;
+    public string? SellerRevealUsername { get; init; }
     public string? SellerAvatarUrl { get; init; }
     public string? SellerDisplayNameColor { get; init; }
     public int BidCount { get; init; }

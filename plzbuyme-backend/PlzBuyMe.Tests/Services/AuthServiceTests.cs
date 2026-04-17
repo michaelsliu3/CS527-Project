@@ -411,4 +411,29 @@ public class AuthServiceTests
         persisted!.IsActive.Should().BeFalse();
         persisted.AvatarUrl.Should().BeNull();
     }
+
+    [Fact]
+    public async Task UpdateAuctionIdentityAnonymity_PersistsFlagAndProfileReturnsLatestValue()
+    {
+        using var context = TestDbContextFactory.Create();
+        var user = new User
+        {
+            Username = "privacy-user",
+            Email = "privacy-user@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            IsActive = true
+        };
+        context.Users.Add(user);
+        await context.SaveChangesAsync();
+
+        var authService = CreateAuthService(context);
+        var update = await authService.UpdateAuctionIdentityAnonymityAsync(user.Id, true);
+        update.NotFound.Should().BeFalse();
+        update.IsAuctionIdentityAnonymous.Should().BeTrue();
+
+        var profile = await authService.GetProfileAsync(user.Id);
+        profile.Should().NotBeNull();
+        profile!.IsAuctionIdentityAnonymous.Should().BeTrue();
+    }
 }

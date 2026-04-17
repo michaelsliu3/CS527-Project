@@ -10,6 +10,18 @@ interface UserAvatarProps {
   color?: string
 }
 
+function resolveFallbackInitial(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return '?'
+
+  const anonymousMatch = trimmed.match(/^\[anonymous\s+([a-z]+)\]$/i)
+  if (anonymousMatch) {
+    return anonymousMatch[1][0]?.toUpperCase() ?? '?'
+  }
+
+  return trimmed[0]?.toUpperCase() ?? '?'
+}
+
 export function UserAvatar({
   name,
   avatarUrl,
@@ -22,7 +34,7 @@ export function UserAvatar({
   useEffect(() => {
     setImageErrored(false)
   }, [resolvedSrc])
-  const fallback = (name.trim()[0] ?? '?').toUpperCase()
+  const fallback = resolveFallbackInitial(name)
 
   const frameProps: BoxProps = {
     w: size,

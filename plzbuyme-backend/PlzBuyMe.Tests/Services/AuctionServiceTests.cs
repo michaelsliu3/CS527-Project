@@ -1083,4 +1083,183 @@ public class AuctionServiceTests
 
         result.Items.Select(i => i.Id).Should().Contain(target.Id);
     }
+
+    [Fact]
+    public async Task AuctionIdentityAnonymity_EndUserView_HidesSellerAndBidderIdentityAcrossSearchDetailAndHistory()
+    {
+        var (db, categoryId, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var seller = db.Users.Single(u => u.Username == "seller1");
+        var bidder = db.Users.Single(u => u.Username == "bidder1");
+        var viewer = db.Users.Single(u => u.Username == "bidder2");
+        seller.IsAuctionIdentityAnonymous = true;
+        seller.DisplayNameColor = "#A78BFA";
+        bidder.IsAuctionIdentityAnonymous = true;
+        bidder.DisplayNameColor = "RAINBOW";
+
+        var item = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Privacy test listing",
+            InitialPrice = 1000m,
+            BidIncrement = 100m,
+            ReservePrice = 1300m,
+            CurrentPrice = 1100m,
+            CloseDateTime = DateTime.UtcNow.AddDays(2),
+            Status = ItemStatus.Active,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Items.Add(item);
+        await db.SaveChangesAsync();
+        db.Bids.Add(new Bid
+        {
+            ItemId = item.Id,
+            BidderId = bidder.Id,
+            Amount = 1100m,
+            IsAuto = false,
+            CreatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var search = await service.SearchAsync(
+            new SearchQueryDto { Q = "Privacy test listing", Page = 1, PageSize = 20 },
+            requesterUserId: viewer.Id,
+            requesterRole: UserRole.EndUser);
+        search.Items.Should().ContainSingle(i => i.Id == item.Id);
+        var listIdentity = search.Items.Single(i => i.Id == item.Id);
+        listIdentity.SellerUsername.Should().StartWith("anonymous ");
+        listIdentity.SellerAvatarUrl.Should().BeNull();
+        listIdentity.SellerDisplayNameColor.Should().Be("#A78BFA");
+
+        var detail = await service.GetByIdAsync(item.Id, requesterUserId: viewer.Id, requesterRole: UserRole.EndUser);
+        detail.Should().NotBeNull();
+        detail!.SellerUsername.Should().StartWith("anonymous ");
+        detail.SellerAvatarUrl.Should().BeNull();
+        detail.SellerDisplayNameColor.Should().Be("#A78BFA");
+        detail.BidHistory.Should().ContainSingle();
+        detail.BidHistory[0].BidderUsername.Should().StartWith("anonymous ");
+        detail.BidHistory[0].BidderAvatarUrl.Should().BeNull();
+        detail.BidHistory[0].BidderDisplayNameColor.Should().Be("RAINBOW");
+
+        var history = await service.GetHistoryAsync(seller.Id, requesterUserId: viewer.Id, requesterRole: UserRole.EndUser);
+        history.Should().Contain(i => i.Id == item.Id);
+        history.Single(i => i.Id == item.Id).SellerUsername.Should().StartWith("anonymous ");
+        history.Single(i => i.Id == item.Id).SellerDisplayNameColor.Should().Be("#A78BFA");
+    }
+
+    [Fact]
+    public async Task SearchAsync_SellerFilter_NonPrivilegedView_DoesNotMatchAnonymousSellerRealName()
+    {
+        var (db, categoryId, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var seller = db.Users.Single(u => u.Username == "seller1");
+        var viewer = db.Users.Single(u => u.Username == "bidder2");
+        seller.IsAuctionIdentityAnonymous = true;
+
+        var item = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Seller filter privacy listing",
+            InitialPrice = 1250m,
+            BidIncrement = 100m,
+            ReservePrice = 1500m,
+            CurrentPrice = 1250m,
+            CloseDateTime = DateTime.UtcNow.AddDays(2),
+            Status = ItemStatus.Active,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Items.Add(item);
+        await db.SaveChangesAsync();
+
+        var endUserSearch = await service.SearchAsync(
+            new SearchQueryDto { Seller = seller.Username, Page = 1, PageSize = 20 },
+            requesterUserId: viewer.Id,
+            requesterRole: UserRole.EndUser);
+        endUserSearch.Items.Should().NotContain(i => i.Id == item.Id);
+
+        var selfSearch = await service.SearchAsync(
+            new SearchQueryDto { Seller = seller.Username, Page = 1, PageSize = 20 },
+            requesterUserId: seller.Id,
+            requesterRole: UserRole.EndUser);
+        selfSearch.Items.Should().Contain(i => i.Id == item.Id);
+
+        var adminSearch = await service.SearchAsync(
+            new SearchQueryDto { Seller = seller.Username, Page = 1, PageSize = 20 },
+            requesterUserId: 999,
+            requesterRole: UserRole.Admin);
+        adminSearch.Items.Should().Contain(i => i.Id == item.Id);
+    }
+
+    [Fact]
+    public async Task AuctionIdentityAnonymity_AdminView_CanSeeTrueIdentity()
+    {
+        var (db, categoryId, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var seller = db.Users.Single(u => u.Username == "seller1");
+        seller.IsAuctionIdentityAnonymous = true;
+
+        var item = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Admin visibility listing",
+            InitialPrice = 2000m,
+            BidIncrement = 100m,
+            ReservePrice = 2300m,
+            CurrentPrice = 2000m,
+            CloseDateTime = DateTime.UtcNow.AddDays(2),
+            Status = ItemStatus.Active,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Items.Add(item);
+        await db.SaveChangesAsync();
+
+        var search = await service.SearchAsync(
+            new SearchQueryDto { Q = "Admin visibility listing", Page = 1, PageSize = 20 },
+            requesterUserId: 999,
+            requesterRole: UserRole.Admin);
+        var listIdentity = search.Items.Single(i => i.Id == item.Id);
+        listIdentity.SellerUsername.Should().StartWith("anonymous ");
+        listIdentity.SellerRevealUsername.Should().Be("seller1");
+    }
+
+    [Fact]
+    public async Task AuctionIdentityAnonymity_SellerSelfView_ShowsRealNameWithAnonymousAlias()
+    {
+        var (db, categoryId, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var seller = db.Users.Single(u => u.Username == "seller1");
+        seller.IsAuctionIdentityAnonymous = true;
+
+        var item = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Self visibility listing",
+            InitialPrice = 1500m,
+            BidIncrement = 100m,
+            ReservePrice = 1700m,
+            CurrentPrice = 1500m,
+            CloseDateTime = DateTime.UtcNow.AddDays(2),
+            Status = ItemStatus.Active,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Items.Add(item);
+        await db.SaveChangesAsync();
+
+        var search = await service.SearchAsync(
+            new SearchQueryDto { Q = "Self visibility listing", Page = 1, PageSize = 20 },
+            requesterUserId: seller.Id,
+            requesterRole: UserRole.EndUser);
+        var listIdentity = search.Items.Single(i => i.Id == item.Id);
+        listIdentity.SellerUsername.Should().StartWith("seller1 [anonymous ");
+        listIdentity.SellerRevealUsername.Should().BeNull();
+
+        var detail = await service.GetByIdAsync(item.Id, requesterUserId: seller.Id, requesterRole: UserRole.EndUser);
+        detail.Should().NotBeNull();
+        detail!.SellerUsername.Should().StartWith("seller1 [anonymous ");
+        detail.SellerRevealUsername.Should().BeNull();
+    }
 }

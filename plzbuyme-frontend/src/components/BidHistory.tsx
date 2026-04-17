@@ -39,6 +39,7 @@ export function BidHistory({ bids }: BidHistoryProps) {
                     <UserParticipationHoverCard
                       userId={bid.bidderId}
                       username={bid.bidderUsername}
+                      revealUsername={bid.bidderRevealUsername}
                       avatarUrl={bid.bidderAvatarUrl}
                       displayNameColor={bid.bidderDisplayNameColor}
                       fallbackColor="white"

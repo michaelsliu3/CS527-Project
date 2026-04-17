@@ -12,6 +12,7 @@ public interface IAuthService
     Task<RegisterResult> RegisterAsync(RegisterDto dto);
     Task<LoginResult> LoginAsync(LoginDto dto);
     Task<ProfileDto?> GetProfileAsync(int userId);
+    Task<(bool NotFound, bool IsAuctionIdentityAnonymous)> UpdateAuctionIdentityAnonymityAsync(int userId, bool isAuctionIdentityAnonymous);
     Task<(bool NotFound, bool Forbidden, string? ValidationError, string? DisplayNameColor)> UpdateDisplayNameColorAsync(int userId, string? displayNameColor);
     Task<(bool NotFound, string? ValidationError, string? AvatarUrl)> UploadAvatarAsync(int userId, string? avatarKey);
     Task<(bool NotFound, string? AvatarUrl)> RemoveAvatarAsync(int userId);

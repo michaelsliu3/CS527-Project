@@ -704,7 +704,7 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 
 ---
 
-## PBM-39 — Profile privacy toggle for auction identity anonymization
+## PBM-39 — Profile privacy toggle for auction identity anonymization ✅
 
 **Layer:** Backend + Frontend  
 **Branch:** `PBM-39/profile-auction-anonymity-toggle`  

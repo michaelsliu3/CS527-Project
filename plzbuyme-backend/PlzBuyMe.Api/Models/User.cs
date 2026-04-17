@@ -4,6 +4,7 @@ public class User
 {
     public int Id { get; set; }
     public string Username { get; set; } = string.Empty;
+    public bool IsAuctionIdentityAnonymous { get; set; }
     public string? AvatarUrl { get; set; }
     public string? AvatarStorageKey { get; set; }
     public string? DisplayNameColor { get; set; }
