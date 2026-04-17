@@ -25,7 +25,6 @@ public class GmToolsService : IGmToolsService
     private const int MaxQuestionsBatch = 30;
     private const int MaxWalletRecipients = 30;
     private const decimal MaxWalletAmountEach = 10_000_000m;
-    private const int MaxBidsPerAuction = 12;
     private const int MaxSampleAlerts = 10;
     private const int MaxSampleNotifications = 20;
     private const string DefaultDemoPassword = "GmDemo123!";
@@ -153,8 +152,8 @@ public class GmToolsService : IGmToolsService
         if (dto.CloseHoursMin < 1 || dto.CloseHoursMax > 8760 || dto.CloseHoursMin > dto.CloseHoursMax)
             return ("CloseHoursMin and CloseHoursMax must satisfy 1 ≤ min ≤ max ≤ 8760.", null);
 
-        if (dto.BidCountMin < 0 || dto.BidCountMax > MaxBidsPerAuction || dto.BidCountMin > dto.BidCountMax)
-            return ($"Bid counts must satisfy 0 ≤ min ≤ max ≤ {MaxBidsPerAuction}.", null);
+        if (dto.BidCountMin < 0 || dto.BidCountMin > dto.BidCountMax)
+            return ("Bid counts must satisfy 0 ≤ min ≤ max.", null);
 
         var seller = await ResolveSellerAsync(dto.SellerUserId);
         if (seller == null)
@@ -225,8 +224,8 @@ public class GmToolsService : IGmToolsService
         if (dto.CloseHoursMin < 1 || dto.CloseHoursMax > 8760 || dto.CloseHoursMin > dto.CloseHoursMax)
             return ("CloseHoursMin and CloseHoursMax must satisfy 1 ≤ min ≤ max ≤ 8760.", null);
 
-        if (dto.BidCountMin < 0 || dto.BidCountMax > MaxBidsPerAuction || dto.BidCountMin > dto.BidCountMax)
-            return ($"Bid counts must satisfy 0 ≤ min ≤ max ≤ {MaxBidsPerAuction}.", null);
+        if (dto.BidCountMin < 0 || dto.BidCountMin > dto.BidCountMax)
+            return ("Bid counts must satisfy 0 ≤ min ≤ max.", null);
 
         var manifestPath = ResolveGt7ManifestPath();
         if (manifestPath == null || !File.Exists(manifestPath))
@@ -651,8 +650,8 @@ public class GmToolsService : IGmToolsService
         if (dto.PriceMin <= 0m || dto.PriceMax <= 0m || dto.PriceMin > dto.PriceMax)
             return ("PriceMin and PriceMax must be positive, and PriceMin must be <= PriceMax.", null);
 
-        if (dto.BidCountMin < 0 || dto.BidCountMax > MaxBidsPerAuction || dto.BidCountMin > dto.BidCountMax)
-            return ($"Bid counts must satisfy 0 <= min <= max <= {MaxBidsPerAuction}.", null);
+        if (dto.BidCountMin < 0 || dto.BidCountMin > dto.BidCountMax)
+            return ("Bid counts must satisfy 0 <= min <= max.", null);
 
         if (dto.ClosedWithoutSaleRatio < 0m || dto.ClosedWithoutSaleRatio > 1m)
             return ("ClosedWithoutSaleRatio must be between 0 and 1.", null);
