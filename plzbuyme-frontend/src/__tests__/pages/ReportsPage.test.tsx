@@ -158,10 +158,11 @@ describe('ReportsPage', () => {
     await waitFor(() => {
       expect(adminApi.getBestBuyers).toHaveBeenCalledWith(10, expect.any(Object))
     })
-    const buyerTableRow = screen
-      .getAllByRole('row')
-      .find((row) => row.textContent?.includes('buyer1') && row.textContent?.includes('45,000.00'))
-    expect(buyerTableRow).toBeDefined()
+    const buyerMatches = await screen.findAllByText('buyer1')
+    const buyerCell = buyerMatches.find((el) => el.tagName.toLowerCase() === 'td')
+    expect(buyerCell).toBeDefined()
+    const buyerTableRow = buyerCell?.closest('tr')
+    expect(buyerTableRow).not.toBeNull()
     expect(within(buyerTableRow as HTMLTableRowElement).getByText(/45,?000/)).toBeInTheDocument()
     expect(within(buyerTableRow as HTMLTableRowElement).getByText('3')).toBeInTheDocument()
   })
@@ -183,9 +184,9 @@ describe('ReportsPage', () => {
 
     renderReportsPage()
     await waitFor(() => expect(adminApi.getBestBuyers).toHaveBeenCalled())
-    expect(screen.getAllByText(/Page 1 \/ 2/).length).toBeGreaterThan(0)
-    await user.click(screen.getAllByRole('button', { name: 'Next' })[3])
-    expect(screen.getAllByText(/Page 2 \/ 2/).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText(/Page 1 \/ 2/)).length).toBeGreaterThan(0)
+    await user.click((await screen.findAllByRole('button', { name: 'Next' }))[3])
+    expect((await screen.findAllByText(/Page 2 \/ 2/)).length).toBeGreaterThan(0)
   })
 
   it('renders without the top date filter bar and uses default report params', async () => {
@@ -206,7 +207,8 @@ describe('ReportsPage', () => {
       expect(adminApi.getEarningsByItem).toHaveBeenCalledWith(expect.objectContaining({ page: 1, pageSize: 5 }))
     })
 
-    await user.click(screen.getAllByRole('button', { name: 'Next' })[1])
+    const nextButtons = await screen.findAllByRole('button', { name: 'Next' })
+    await user.click(nextButtons[1])
     await waitFor(() => {
       expect(adminApi.getEarningsByItem).toHaveBeenCalledWith(expect.objectContaining({ page: 2, pageSize: 5 }))
     })
