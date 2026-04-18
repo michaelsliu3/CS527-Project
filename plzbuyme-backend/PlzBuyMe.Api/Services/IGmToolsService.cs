@@ -41,4 +41,18 @@ public interface IGmToolsService
         GmUpdateCategoryDto dto);
 
     Task<(string? Error, GmDeleteCategoryResultDto? Data)> DeleteCategoryAsync(int adminUserId, int categoryId);
+
+    Task<(string? Error, GmCategoryFieldMutationResultDto? Data)> CreateCategoryFieldAsync(
+        int adminUserId,
+        int categoryId,
+        GmCreateCategoryFieldDto dto);
+
+    Task<(string? Error, GmCategoryFieldMutationResultDto? Data)> UpdateCategoryFieldAsync(
+        int adminUserId,
+        int fieldId,
+        GmUpdateCategoryFieldDto dto);
+
+    Task<(string? Error, GmDeleteCategoryFieldResultDto? Data)> DeleteCategoryFieldAsync(
+        int adminUserId,
+        int fieldId);
 }

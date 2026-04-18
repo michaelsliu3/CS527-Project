@@ -975,6 +975,92 @@ public class AuctionServiceTests
     }
 
     [Fact]
+    public async Task SearchAsync_RelevanceSort_PrioritizesKeywordBonusesWithStableTieBreak()
+    {
+        var (db, categoryId, _, _) = CreateSeededContext();
+        var service = CreateService(db);
+        var makeFieldId = db.CategoryFields.Single(f => f.CategoryId == categoryId && f.FieldName == "Make").Id;
+
+        var seller = new User
+        {
+            Username = "relevance-seller",
+            Email = "relevance-seller@example.com",
+            PasswordHash = "hash",
+            Role = UserRole.EndUser,
+            WalletBalance = 100000m
+        };
+        db.Users.Add(seller);
+        await db.SaveChangesAsync();
+
+        var now = DateTime.UtcNow;
+        var titleMatch = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Supra Launch Edition",
+            Description = "Clean condition",
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 120m,
+            CurrentPrice = 100m,
+            CloseDateTime = now.AddDays(2),
+            CreatedAt = now.AddMinutes(-5),
+            Status = ItemStatus.Active
+        };
+        var descriptionMatch = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Toyota Coupe",
+            Description = "Includes supra body kit",
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 120m,
+            CurrentPrice = 100m,
+            CloseDateTime = now.AddDays(1),
+            CreatedAt = now.AddMinutes(-10),
+            Status = ItemStatus.Active
+        };
+        var noKeywordMatch = new Item
+        {
+            SellerId = seller.Id,
+            CategoryIds = new List<int> { categoryId },
+            Title = "Toyota Daily Driver",
+            Description = "Reliable commuter",
+            InitialPrice = 100m,
+            BidIncrement = 10m,
+            ReservePrice = 120m,
+            CurrentPrice = 100m,
+            CloseDateTime = now.AddDays(3),
+            CreatedAt = now.AddMinutes(-15),
+            Status = ItemStatus.Active
+        };
+
+        db.Items.AddRange(titleMatch, descriptionMatch, noKeywordMatch);
+        await db.SaveChangesAsync();
+        db.ItemFieldValues.AddRange(
+            new ItemFieldValue { ItemId = titleMatch.Id, FieldId = makeFieldId, Value = "Toyota" },
+            new ItemFieldValue { ItemId = descriptionMatch.Id, FieldId = makeFieldId, Value = "Toyota" },
+            new ItemFieldValue { ItemId = noKeywordMatch.Id, FieldId = makeFieldId, Value = "Toyota" });
+        await db.SaveChangesAsync();
+
+        var result = await service.SearchAsync(new SearchQueryDto
+        {
+            CategoryId = categoryId,
+            Seller = seller.Username,
+            Q = "supra",
+            Sort = "relevance",
+            FieldFilters = $"{{\"{makeFieldId}\":\"Toyota\"}}",
+            Page = 1,
+            PageSize = 10
+        });
+
+        result.Items.Select(i => i.Title).Should().ContainInOrder(
+            "Supra Launch Edition",
+            "Toyota Coupe");
+    }
+
+    [Fact]
     public async Task SearchAsync_MakeFilterWithoutCategoryId_MatchesAcrossCarSubcategories()
     {
         var (db, sedanId, _, _) = CreateSeededContext();

@@ -213,6 +213,35 @@ export interface GmDeleteCategoryResult {
   deleted: boolean
 }
 
+export interface GmCreateCategoryFieldPayload {
+  fieldName: string
+  fieldType: 'text' | 'number' | 'select'
+  isRequired: boolean
+  options?: string[] | null
+  selectMode?: 'single' | 'multi' | 'incremental' | null
+}
+
+export interface GmUpdateCategoryFieldPayload {
+  fieldName?: string
+  isRequired?: boolean
+  options?: string[] | null
+}
+
+export interface GmCategoryFieldMutationResult {
+  id: number
+  categoryId: number
+  fieldName: string
+  fieldType: 'text' | 'number' | 'select'
+  isRequired: boolean
+  options?: string[] | null
+  selectMode?: 'single' | 'multi' | 'incremental' | null
+}
+
+export interface GmDeleteCategoryFieldResult {
+  id: number
+  deleted: boolean
+}
+
 export function gmCreateCategory(payload: GmCreateCategoryPayload) {
   return apiClient.post<GmCategoryMutationResult>('admin/gm/categories', payload)
 }
@@ -223,4 +252,16 @@ export function gmUpdateCategory(categoryId: number, payload: GmUpdateCategoryPa
 
 export function gmDeleteCategory(categoryId: number) {
   return apiClient.delete<GmDeleteCategoryResult>(`admin/gm/categories/${categoryId}`)
+}
+
+export function gmCreateCategoryField(categoryId: number, payload: GmCreateCategoryFieldPayload) {
+  return apiClient.post<GmCategoryFieldMutationResult>(`admin/gm/categories/${categoryId}/fields`, payload)
+}
+
+export function gmUpdateCategoryField(fieldId: number, payload: GmUpdateCategoryFieldPayload) {
+  return apiClient.patch<GmCategoryFieldMutationResult>(`admin/gm/fields/${fieldId}`, payload)
+}
+
+export function gmDeleteCategoryField(fieldId: number) {
+  return apiClient.delete<GmDeleteCategoryFieldResult>(`admin/gm/fields/${fieldId}`)
 }

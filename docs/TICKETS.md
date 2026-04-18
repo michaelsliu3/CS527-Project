@@ -690,18 +690,34 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 **PR Title:** `[PBM-38] implement advanced auction search filters and ranking`
 
 - **Motivation:** The project gets more credit for supporting more complex searches. Current browse filters are solid but still mostly flat (single-dimension toggles with limited composition/scoring).
-- **Goal:** Add richer, composable filtering and ranking so users can run expressive queries across many auction dimensions in one request.
-- **Backend scope:** Extend browse API with advanced predicates, such as:
-  - multi-select include/exclude logic per field (e.g., include `BMW|Mercedes`, exclude `EV`);
-  - numeric range composition (`price`, `year`, `mileage`) with multiple disjoint ranges;
-  - recency windows (`listedWithinDays`, `closingWithinHours`);
-  - seller/auction quality signals (`minBidCount`, `sellerRatingMin` when available);
-  - optional weighted relevance scoring mode (text match + field overlap + recency + bid activity), with deterministic tie-breaks.
-- **Query contract:** Introduce a versioned, documented JSON filter schema (or strict query-params spec) and validate unknown/invalid operators with clear `400` messages.
-- **Frontend scope:** Build an advanced filter builder UI (chips/groups) with AND/OR grouping, include/exclude controls, saved presets, and URL/state persistence for shareable searches.
-- **Performance:** Add DB/index strategy and query-shape guards so complex filters remain performant under larger datasets (pagination + cap rules + safe defaults).
-- **Tests:** Add backend tests for operator semantics and ranking stability, plus frontend tests for composing/removing complex filters and preserving state through refresh/navigation.
-
+- **Goal:** Make browse filtering fully data-driven from category field definitions, so filter properties can be added/removed by admins without frontend code changes.
+- **Backend scope:**
+  - Add GM-admin CRUD endpoints for category field definitions:
+    - `POST /api/admin/gm/categories/{categoryId}/fields`
+    - `PATCH /api/admin/gm/fields/{fieldId}`
+    - `DELETE /api/admin/gm/fields/{fieldId}`
+  - Enforce validation:
+    - field name required and unique within a category (case-insensitive)
+    - `fieldType` supports `text | number | select`
+    - select fields require non-empty `options`
+    - field type is immutable after creation
+    - block delete if any `ItemFieldValue` rows reference the field
+  - Add `sort=relevance` to browse search; score should reward stronger matches (field-filter matches + keyword boosts) with deterministic tie-breakers.
+- **Frontend scope:**
+  - Add a new **Fields** panel in GM tools (after Categories) to manage category-specific item properties/filters dynamically.
+  - Build dynamic browse filters from `GET /api/categories/{id}/fields`:
+    - `text` -> text input
+    - `number` -> min/max range input
+    - `select` -> multi-select chips/options
+  - Show applied filter chips and allow removing individual filters.
+  - Submit dynamic filters through `fieldFilters` JSON, not hardcoded car params.
+  - Add URL migration that converts legacy car params (`make`, `model`, `yearMin`, etc.) to `fieldFilters` once fields are loaded.
+- **Data/default behavior:**
+  - Keep existing car fields (`Make`, `Model`, `Year`, `Mileage`, `Condition`, `Transmission`, `Fuel Type`, `Exterior Color`) as seeded defaults in `CategoryFields`.
+  - Treat filters as category-specific item properties owned by category field definitions in DB.
+- **Tests:**
+  - Backend: category-field CRUD validation and delete guard; relevance sort ordering.
+  - Frontend: GM field CRUD flow; dynamic filter rendering + submission; legacy URL migration; applied-chip removal behavior.
 ---
 
 ## PBM-39 — Profile privacy toggle for auction identity anonymization ✅
@@ -846,3 +862,20 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Implementation:** Persist a low-detail toggle (`localStorage`) exposed in GM Tools; wire auction-list pages to react to toggle changes without full reload.
 - **Rendering behavior:** When low-detail mode is enabled and a page contains several 3D-capable listings, render static 3D placeholders instead of live `Su7ThreeHero` previews; also disable timer/category glow effects.
 - **Validation:** Add frontend tests for low-detail toggle behavior, static 3D fallback rendering, and card-level low-detail visual flags.
+
+### PBM-DOC-1 — README onboarding, contribution guide, and grader notes
+
+**Layer:** Documentation + Dev Experience  
+**Branch:** `PBM-DOC-1/readme-onboarding-contrib-grader-notes`  
+**PR Title:** `[PBM-DOC-1] add complete README with setup, contribution flow, grader notes, and helper scripts`
+
+- **Scope:** Create or expand project documentation so a new developer/grader can clone, install dependencies, run both apps, understand the project purpose, and contribute with minimal setup friction.
+- **README content:**
+  - Project overview: brief platform description, architecture (frontend/backend), and key features.
+  - Installation instructions: prerequisites, environment variables, backend/frontend setup, database setup/seed, and run commands.
+  - Usage quickstart: local URLs, default seeded accounts (if appropriate), and core user flows to verify.
+  - Contribution guide: branch naming, commit/PR expectations, testing requirements, and code style/lint/test commands.
+  - Grader notes: assumptions, known limitations, demo credentials/test data guidance, and where to find key design docs.
+- **Dev-ex helper scripts (optional but recommended):** add cross-platform-friendly scripts (or npm/task wrappers) for common tasks such as install-all, start-all, test-all, and seed/reset to streamline first-time setup.
+- **Deliverables:** updated `README.md`, optional `CONTRIBUTING.md` and/or `docs/GRADER_NOTES.md`, plus any setup helper scripts referenced by docs.
+- **Validation:** Follow the README from a clean clone (or clean environment) and confirm setup/run/test flows work as documented without relying on undocumented steps.

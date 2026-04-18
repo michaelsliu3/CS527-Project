@@ -28,6 +28,25 @@ public class GmToolsService : IGmToolsService
     private const int MaxSampleAlerts = 10;
     private const int MaxSampleNotifications = 20;
     private const string DefaultDemoPassword = "GmDemo123!";
+    private const string SelectModeMulti = "multi";
+    private const string SelectModeSingle = "single";
+    private const string SelectModeIncremental = "incremental";
+    private static readonly JsonSerializerOptions SelectFieldOptionsJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
+    private static readonly HashSet<string> ProtectedDefaultFilterFieldNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Make",
+        "Model",
+        "Year",
+        "Mileage",
+        "Condition",
+        "Transmission",
+        "Fuel Type",
+        "Exterior Color"
+    };
 
     private static readonly string[] Makes =
     {
@@ -975,19 +994,10 @@ public class GmToolsService : IGmToolsService
 
     private static string? PickSelectOption(string? optionsJson)
     {
-        if (string.IsNullOrWhiteSpace(optionsJson))
+        var list = DeserializeOptions(optionsJson);
+        if (list == null || list.Count == 0)
             return null;
-        try
-        {
-            var list = JsonSerializer.Deserialize<List<string>>(optionsJson);
-            if (list == null || list.Count == 0)
-                return null;
-            return list[Random.Shared.Next(list.Count)];
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        return list[Random.Shared.Next(list.Count)];
     }
 
     private static decimal RandomMoney(decimal min, decimal max)
@@ -1127,4 +1137,229 @@ public class GmToolsService : IGmToolsService
         _logger.LogWarning("GM tools: admin {AdminId} deleted category {CategoryId}", adminUserId, categoryId);
         return (null, new GmDeleteCategoryResultDto { Id = categoryId, Deleted = true });
     }
+
+    public async Task<(string? Error, GmCategoryFieldMutationResultDto? Data)> CreateCategoryFieldAsync(
+        int adminUserId,
+        int categoryId,
+        GmCreateCategoryFieldDto dto)
+    {
+        var categoryExists = await _db.Categories.AnyAsync(c => c.Id == categoryId);
+        if (!categoryExists)
+            return ("Category not found.", null);
+
+        var fieldName = dto.FieldName.Trim();
+        if (fieldName.Length is < 1 or > 64)
+            return ("Field name is required and must be at most 64 characters.", null);
+
+        if (!TryParseFieldType(dto.FieldType, out var fieldType))
+            return ("Field type must be one of: text, number, select.", null);
+
+        var duplicateNameExists = await _db.CategoryFields.AnyAsync(f =>
+            f.CategoryId == categoryId &&
+            f.FieldName.ToLower() == fieldName.ToLower());
+        if (duplicateNameExists)
+            return ("A field with this name already exists in this category.", null);
+
+        var (optionsError, optionsJson, normalizedOptions, normalizedSelectMode) =
+            NormalizeFieldOptions(fieldType, fieldName, dto.Options, dto.SelectMode);
+        if (optionsError != null)
+            return (optionsError, null);
+
+        var row = new CategoryField
+        {
+            CategoryId = categoryId,
+            FieldName = fieldName,
+            FieldType = fieldType,
+            IsRequired = dto.IsRequired,
+            Options = optionsJson
+        };
+
+        _db.CategoryFields.Add(row);
+        await _db.SaveChangesAsync();
+
+        _logger.LogWarning(
+            "GM tools: admin {AdminId} created category field {FieldId} in category {OwnerCategoryId} (requested category {RequestedCategoryId})",
+            adminUserId,
+            row.Id,
+            categoryId,
+            categoryId);
+
+        return (null, ToCategoryFieldMutationResult(row, normalizedOptions, normalizedSelectMode));
+    }
+
+    public Task<(string? Error, GmCategoryFieldMutationResultDto? Data)> UpdateCategoryFieldAsync(
+        int adminUserId,
+        int fieldId,
+        GmUpdateCategoryFieldDto dto)
+    {
+        _ = adminUserId;
+        _ = fieldId;
+        _ = dto;
+        return Task.FromResult<(string? Error, GmCategoryFieldMutationResultDto? Data)>(
+            ("Category fields are immutable after creation. Create a new field for customizations.", null));
+    }
+
+    public async Task<(string? Error, GmDeleteCategoryFieldResultDto? Data)> DeleteCategoryFieldAsync(
+        int adminUserId,
+        int fieldId)
+    {
+        var row = await _db.CategoryFields.FirstOrDefaultAsync(f => f.Id == fieldId);
+        if (row == null)
+            return ("Category field not found.", null);
+
+        if (IsProtectedDefaultFilterFieldName(row.FieldName))
+            return ("Cannot delete protected default filters from GM tools.", null);
+
+        if (await _db.ItemFieldValues.AnyAsync(iv => iv.FieldId == fieldId))
+            return ("Cannot delete a category field that has item values.", null);
+
+        _db.CategoryFields.Remove(row);
+        await _db.SaveChangesAsync();
+
+        _logger.LogWarning(
+            "GM tools: admin {AdminId} deleted category field {FieldId}",
+            adminUserId,
+            fieldId);
+
+        return (null, new GmDeleteCategoryFieldResultDto
+        {
+            Id = fieldId,
+            Deleted = true
+        });
+    }
+
+    private static bool TryParseFieldType(string? raw, out FieldType fieldType)
+    {
+        var normalized = raw?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            fieldType = default;
+            return false;
+        }
+
+        return Enum.TryParse(normalized, true, out fieldType);
+    }
+
+    private static (string? Error, string? OptionsJson, List<string>? Options, string? SelectMode) NormalizeFieldOptions(
+        FieldType fieldType,
+        string fieldName,
+        List<string>? options,
+        string? selectModeRaw)
+    {
+        var normalizedSelectMode = NormalizeSelectMode(selectModeRaw);
+        if (fieldType != FieldType.Select)
+        {
+            if (options != null && options.Any(o => !string.IsNullOrWhiteSpace(o)))
+                return ("Options are only supported for select fields.", null, null, null);
+            if (!string.IsNullOrWhiteSpace(normalizedSelectMode))
+                return ("Select mode is only supported for select fields.", null, null, null);
+            return (null, null, null, null);
+        }
+
+        if (options == null || options.Count == 0)
+            return ("Select fields require at least one option.", null, null, null);
+
+        var cleaned = options
+            .Select(o => o?.Trim() ?? string.Empty)
+            .Where(o => o.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (cleaned.Count == 0)
+            return ("Select fields require at least one option.", null, null, null);
+
+        if (normalizedSelectMode is null &&
+            fieldName.Contains("condition", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedSelectMode = SelectModeIncremental;
+        }
+
+        if (normalizedSelectMode is not null &&
+            normalizedSelectMode is not SelectModeMulti and not SelectModeSingle and not SelectModeIncremental)
+        {
+            return ("Select mode must be one of: single, multi, incremental.", null, null, null);
+        }
+
+        var payload = new SelectFieldOptionsPayload
+        {
+            Options = cleaned,
+            SelectMode = normalizedSelectMode
+        };
+        return (null, JsonSerializer.Serialize(payload, SelectFieldOptionsJsonOptions), cleaned, normalizedSelectMode);
+    }
+
+    private static string? NormalizeSelectMode(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+        return raw.Trim().ToLowerInvariant();
+    }
+
+    private static bool IsProtectedDefaultFilterFieldName(string? fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(fieldName))
+            return false;
+        return ProtectedDefaultFilterFieldNames.Contains(fieldName.Trim());
+    }
+
+    private static GmCategoryFieldMutationResultDto ToCategoryFieldMutationResult(
+        CategoryField row,
+        List<string>? options,
+        string? selectMode)
+    {
+        return new GmCategoryFieldMutationResultDto
+        {
+            Id = row.Id,
+            CategoryId = row.CategoryId,
+            FieldName = row.FieldName,
+            FieldType = row.FieldType.ToString().ToLowerInvariant(),
+            IsRequired = row.IsRequired,
+            Options = options,
+            SelectMode = selectMode
+        };
+    }
+
+    private static List<string>? DeserializeOptions(string? optionsJson)
+    {
+        var (options, _) = DeserializeOptionsPayload(optionsJson);
+        return options;
+    }
+
+    private static (List<string>? Options, string? SelectMode) DeserializeOptionsPayload(string? optionsJson)
+    {
+        if (string.IsNullOrWhiteSpace(optionsJson))
+            return (null, null);
+        try
+        {
+            using var doc = JsonDocument.Parse(optionsJson);
+            if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            {
+                var list = JsonSerializer.Deserialize<List<string>>(optionsJson) ?? new List<string>();
+                return (list, null);
+            }
+
+            if (doc.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                var payload = JsonSerializer.Deserialize<SelectFieldOptionsPayload>(
+                    optionsJson,
+                    SelectFieldOptionsJsonOptions);
+                var options = payload?.Options ?? new List<string>();
+                var selectMode = NormalizeSelectMode(payload?.SelectMode);
+                return (options, selectMode);
+            }
+        }
+        catch (JsonException)
+        {
+            // Fall through to empty payload.
+        }
+
+        return (new List<string>(), null);
+    }
+
+    private sealed record SelectFieldOptionsPayload
+    {
+        public List<string> Options { get; init; } = new();
+        public string? SelectMode { get; init; }
+    }
+
 }

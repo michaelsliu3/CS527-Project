@@ -29,10 +29,7 @@ const TOP_RIGHT_SORT_OPTIONS = [
   { value: 'price_asc', label: 'Price: low to high' },
   { value: 'price_desc', label: 'Price: high to low' },
   { value: 'most_bids', label: 'Most bids' },
-  { value: 'year_newest', label: 'Year: newest' },
-  { value: 'year_oldest', label: 'Year: oldest' },
-  { value: 'mileage_low', label: 'Mileage: low to high' },
-  { value: 'mileage_high', label: 'Mileage: high to low' },
+  { value: 'relevance', label: 'Relevance' },
 ]
 const STATUS_TABS = [
   { value: '', label: 'All' },
@@ -67,29 +64,13 @@ function buildBrowseParams(searchParams: URLSearchParams): BrowseParams {
   if (closingAfter) params.closingAfter = closingAfter
   const seller = searchParams.get('seller')
   if (seller) params.seller = seller
+  const fieldFilters = searchParams.get('fieldFilters')
+  if (fieldFilters) params.fieldFilters = fieldFilters
   const sort = searchParams.get('sort')
   if (sort) params.sort = sort
   const page = searchParams.get('page')
   if (page) params.page = Number(page) || 1
   params.pageSize = normalizeGridPageSize(searchParams.get('pageSize'))
-  const make = searchParams.get('make')
-  if (make) params.make = make
-  const model = searchParams.get('model')
-  if (model) params.model = model
-  const yearMin = searchParams.get('yearMin')
-  if (yearMin) params.yearMin = Number(yearMin)
-  const yearMax = searchParams.get('yearMax')
-  if (yearMax) params.yearMax = Number(yearMax)
-  const mileageMax = searchParams.get('mileageMax')
-  if (mileageMax) params.mileageMax = Number(mileageMax)
-  const exteriorColor = searchParams.get('exteriorColor')
-  if (exteriorColor) params.exteriorColor = exteriorColor
-  const condition = searchParams.getAll('condition')
-  if (condition.length) params.condition = condition
-  const transmission = searchParams.getAll('transmission')
-  if (transmission.length) params.transmission = transmission
-  const fuelType = searchParams.getAll('fuelType')
-  if (fuelType.length) params.fuelType = fuelType
   return params
 }
 

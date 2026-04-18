@@ -627,6 +627,9 @@ public class AuctionService : IAuctionService
     {
         var page = Math.Max(1, query.Page);
         var pageSize = Math.Clamp(query.PageSize, 1, 50);
+        HashSet<int>? effectiveFieldOwnerIds = null;
+        if (query.CategoryId.HasValue)
+            effectiveFieldOwnerIds = await ResolveEffectiveFieldOwnerCategoryIdsAsync(query.CategoryId.Value);
 
         var q = _db.Items
             .Include(i => i.Seller)
@@ -682,8 +685,13 @@ public class AuctionService : IAuctionService
         if (query.Condition != null && query.Condition.Count > 0)
         {
             var conditionValues = ExpandConditionFilterValues(query.Condition);
-            var conditionFieldIds = await _db.CategoryFields
+            var conditionFieldQuery = _db.CategoryFields
                 .Where(f => f.FieldName == "Condition")
+                .AsQueryable();
+            if (effectiveFieldOwnerIds is { Count: > 0 })
+                conditionFieldQuery = conditionFieldQuery.Where(f => effectiveFieldOwnerIds.Contains(f.CategoryId));
+
+            var conditionFieldIds = await conditionFieldQuery
                 .Select(f => f.Id)
                 .Distinct()
                 .ToListAsync();
@@ -691,7 +699,7 @@ public class AuctionService : IAuctionService
                 q = q.Where(i => i.ItemFieldValues.Any(iv => conditionFieldIds.Contains(iv.FieldId) && conditionValues.Contains(iv.Value)));
         }
 
-        var fieldFilters = await BuildFieldFiltersAsync(query);
+        var fieldFilters = await BuildFieldFiltersAsync(query, effectiveFieldOwnerIds);
         foreach (var filter in fieldFilters)
         {
             var fieldIds = filter.FieldIds;
@@ -738,12 +746,17 @@ public class AuctionService : IAuctionService
         }
 
         var sortKind = query.Sort?.ToLowerInvariant();
+        var useRelevanceSort = sortKind == "relevance";
         var useFieldSort = sortKind is "year_newest" or "year_oldest" or "mileage_low" or "mileage_high";
         int? yearFieldId = null, mileageFieldId = null;
         if (query.CategoryId.HasValue && useFieldSort)
         {
-            var fieldIds = await _db.CategoryFields
-                .Where(f => f.CategoryId == query.CategoryId.Value && (f.FieldName == "Year" || f.FieldName == "Mileage"))
+            var fieldIdsQuery = _db.CategoryFields
+                .Where(f => f.FieldName == "Year" || f.FieldName == "Mileage")
+                .AsQueryable();
+            if (effectiveFieldOwnerIds is { Count: > 0 })
+                fieldIdsQuery = fieldIdsQuery.Where(f => effectiveFieldOwnerIds.Contains(f.CategoryId));
+            var fieldIds = await fieldIdsQuery
                 .Select(f => new { f.FieldName, f.Id })
                 .ToListAsync();
             yearFieldId = fieldIds.FirstOrDefault(f => f.FieldName == "Year")?.Id;
@@ -752,7 +765,64 @@ public class AuctionService : IAuctionService
 
         List<AuctionListDto> items;
         int total;
-        if (useFieldSort && (yearFieldId.HasValue || mileageFieldId.HasValue))
+        if (useRelevanceSort)
+        {
+            var orderedIds = await GetItemIdsOrderedByRelevanceAsync(q, query.Q, fieldFilters);
+            total = orderedIds.Count;
+            var idsForPage = orderedIds.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            if (idsForPage.Count == 0)
+                return new PaginatedResultDto<AuctionListDto> { Items = new List<AuctionListDto>(), TotalCount = total, Page = page, PageSize = pageSize };
+            var rows = await _db.Items
+                .Include(i => i.Seller)
+                .Where(i => idsForPage.Contains(i.Id))
+                .Select(i => new
+                {
+                    i.Id,
+                    i.Title,
+                    i.ImageUrl,
+                    i.ImageStorageKey,
+                    i.ImageSource,
+                    i.ImageMatchLevel,
+                    i.CurrentPrice,
+                    i.CloseDateTime,
+                    i.Status,
+                    i.CategoryIds,
+                    SellerId = i.SellerId,
+                    SellerUsername = i.Seller.Username,
+                    SellerAvatarUrl = i.Seller.AvatarUrl,
+                    SellerDisplayNameColor = i.Seller.DisplayNameColor,
+                    SellerIsAuctionIdentityAnonymous = i.Seller.IsAuctionIdentityAnonymous,
+                    BidCount = i.Bids.Count
+                })
+                .ToListAsync();
+            var allCatIds = rows.SelectMany(r => r.CategoryIds).Distinct();
+            var nameMap = await LoadCategoryNameMapAsync(allCatIds);
+            var byId = rows.ToDictionary(r => r.Id);
+            items = idsForPage.Select(id =>
+            {
+                var r = byId[id];
+                return ToAuctionListDto(
+                    r.Id,
+                    r.Title,
+                    r.ImageUrl,
+                    r.ImageStorageKey,
+                    r.ImageSource,
+                    r.ImageMatchLevel,
+                    r.CurrentPrice,
+                    r.CloseDateTime,
+                    r.Status.ToString().ToLowerInvariant(),
+                    BuildCategoryNames(r.CategoryIds, nameMap),
+                    r.SellerId,
+                    r.SellerUsername,
+                    r.SellerAvatarUrl,
+                    r.SellerDisplayNameColor,
+                    r.SellerIsAuctionIdentityAnonymous,
+                    requesterUserId,
+                    requesterRole,
+                    r.BidCount);
+            }).ToList();
+        }
+        else if (useFieldSort && (yearFieldId.HasValue || mileageFieldId.HasValue))
         {
             var orderedIds = await GetItemIdsOrderedByNumericFieldAsync(q, sortKind!, yearFieldId, mileageFieldId);
             total = orderedIds.Count;
@@ -862,6 +932,110 @@ public class AuctionService : IAuctionService
         return new PaginatedResultDto<AuctionListDto> { Items = items, TotalCount = total, Page = page, PageSize = pageSize };
     }
 
+    private async Task<List<int>> GetItemIdsOrderedByRelevanceAsync(
+        IQueryable<Item> baseQuery,
+        string? keyword,
+        IReadOnlyList<FieldFilterValue> fieldFilters)
+    {
+        var itemRows = await baseQuery
+            .Select(i => new { i.Id, i.Title, i.Description, i.CreatedAt, i.CloseDateTime })
+            .ToListAsync();
+        if (itemRows.Count == 0) return new List<int>();
+
+        var itemIds = itemRows.Select(r => r.Id).ToList();
+        var filterFieldIds = fieldFilters
+            .SelectMany(f => f.FieldIds)
+            .Distinct()
+            .ToList();
+
+        var fieldValuesByItem = filterFieldIds.Count == 0
+            ? new Dictionary<int, List<(int FieldId, string Value)>>()
+            : (await _db.ItemFieldValues
+                .Where(iv => itemIds.Contains(iv.ItemId) && filterFieldIds.Contains(iv.FieldId))
+                .Select(iv => new { iv.ItemId, iv.FieldId, iv.Value })
+                .ToListAsync())
+                .GroupBy(iv => iv.ItemId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(v => (v.FieldId, v.Value ?? string.Empty)).ToList());
+
+        var normalizedKeyword = keyword?.Trim();
+        var hasKeyword = !string.IsNullOrWhiteSpace(normalizedKeyword);
+        var scoredRows = itemRows.Select(row =>
+        {
+            var score = 0;
+            fieldValuesByItem.TryGetValue(row.Id, out var values);
+            values ??= new List<(int FieldId, string Value)>();
+
+            foreach (var filter in fieldFilters)
+            {
+                var matched = false;
+                if (filter.Text != null)
+                {
+                    var textLower = filter.Text.Trim().ToLowerInvariant();
+                    matched = values.Any(v =>
+                        filter.FieldIds.Contains(v.FieldId) &&
+                        v.Item2.ToLowerInvariant().Contains(textLower));
+                }
+                else if (filter.Min.HasValue || filter.Max.HasValue)
+                {
+                    var min = filter.Min ?? int.MinValue;
+                    var max = filter.Max ?? int.MaxValue;
+                    matched = values.Any(v =>
+                        filter.FieldIds.Contains(v.FieldId) &&
+                        int.TryParse(v.Item2, out var numericValue) &&
+                        numericValue >= min &&
+                        numericValue <= max);
+                }
+                else if (filter.SelectValues != null && filter.SelectValues.Count > 0)
+                {
+                    var normalizedValues = filter.SelectValues
+                        .Select(v => v?.Trim())
+                        .Where(v => !string.IsNullOrWhiteSpace(v))
+                        .Select(v => v!.ToLowerInvariant())
+                        .ToHashSet();
+
+                    matched = values.Any(v =>
+                        filter.FieldIds.Contains(v.FieldId) &&
+                        normalizedValues.Contains(v.Item2.Trim().ToLowerInvariant()));
+                }
+
+                if (matched) score += 1;
+            }
+
+            if (hasKeyword && normalizedKeyword != null)
+            {
+                if (!string.IsNullOrWhiteSpace(row.Title) &&
+                    row.Title.Contains(normalizedKeyword, StringComparison.OrdinalIgnoreCase))
+                {
+                    score += 2;
+                }
+
+                if (!string.IsNullOrWhiteSpace(row.Description) &&
+                    row.Description.Contains(normalizedKeyword, StringComparison.OrdinalIgnoreCase))
+                {
+                    score += 1;
+                }
+            }
+
+            return new
+            {
+                row.Id,
+                row.CloseDateTime,
+                row.CreatedAt,
+                Score = score
+            };
+        });
+
+        return scoredRows
+            .OrderByDescending(r => r.Score)
+            .ThenBy(r => r.CloseDateTime)
+            .ThenByDescending(r => r.CreatedAt)
+            .ThenByDescending(r => r.Id)
+            .Select(r => r.Id)
+            .ToList();
+    }
+
     private async Task<List<int>> GetItemIdsOrderedByNumericFieldAsync(
         IQueryable<Item> baseQuery,
         string sortKind,
@@ -909,11 +1083,16 @@ public class AuctionService : IAuctionService
                 .ToList();
     }
 
-    private async Task<List<FieldFilterValue>> BuildFieldFiltersAsync(SearchQueryDto query)
+    private async Task<List<FieldFilterValue>> BuildFieldFiltersAsync(
+        SearchQueryDto query,
+        IReadOnlySet<int>? effectiveFieldOwnerIds)
     {
         var result = new List<FieldFilterValue>();
-        var fieldRows = await _db.CategoryFields
-            .Where(f => !query.CategoryId.HasValue || f.CategoryId == query.CategoryId.Value)
+        var fieldRowsQuery = _db.CategoryFields.AsQueryable();
+        if (effectiveFieldOwnerIds is { Count: > 0 })
+            fieldRowsQuery = fieldRowsQuery.Where(f => effectiveFieldOwnerIds.Contains(f.CategoryId));
+
+        var fieldRows = await fieldRowsQuery
             .Select(f => new { f.FieldName, f.Id })
             .ToListAsync();
         var fieldsByName = fieldRows
@@ -1330,7 +1509,12 @@ public class AuctionService : IAuctionService
             .Include(iv => iv.Field)
             .Where(iv => iv.Field != null && iv.Field.FieldName == fieldName);
         if (categoryId.HasValue)
-            q = q.Where(iv => iv.Field!.CategoryId == categoryId.Value);
+        {
+            var effectiveFieldOwnerIds = await ResolveEffectiveFieldOwnerCategoryIdsAsync(categoryId.Value);
+            if (effectiveFieldOwnerIds.Count == 0)
+                return Array.Empty<string>();
+            q = q.Where(iv => effectiveFieldOwnerIds.Contains(iv.Field!.CategoryId));
+        }
         if (!string.IsNullOrWhiteSpace(prefix))
         {
             var p = prefix.Trim();
@@ -1343,6 +1527,30 @@ public class AuctionService : IAuctionService
             .Select(g => g.Key)
             .ToListAsync();
         return values;
+    }
+
+    private async Task<HashSet<int>> ResolveEffectiveFieldOwnerCategoryIdsAsync(int requestedCategoryId)
+    {
+        var categories = await _db.Categories
+            .AsNoTracking()
+            .Select(c => new { c.Id, c.ParentId })
+            .ToListAsync();
+        var parentById = categories.ToDictionary(c => c.Id, c => c.ParentId);
+        if (!parentById.ContainsKey(requestedCategoryId))
+            return new HashSet<int>();
+
+        var ownerIds = new HashSet<int>();
+        var cursor = requestedCategoryId;
+        while (true)
+        {
+            ownerIds.Add(cursor);
+            var parentId = parentById[cursor];
+            if (!parentId.HasValue || !parentById.ContainsKey(parentId.Value))
+                break;
+            cursor = parentId.Value;
+        }
+
+        return ownerIds;
     }
 
     public async Task<(string? Error, AuctionDetailDto? Detail)> AdminPatchAuctionAsync(

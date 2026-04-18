@@ -11,10 +11,13 @@ export interface CategoryDto {
 
 export interface CategoryFieldDto {
   id: number
+  categoryId: number
   fieldName: string
   fieldType: 'text' | 'number' | 'select'
   isRequired: boolean
   options?: string[] | null
+  selectMode?: 'single' | 'multi' | 'incremental' | null
+  isInherited: boolean
 }
 
 export function fetchCategories() {

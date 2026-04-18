@@ -351,4 +351,251 @@ public class GmToolsServiceTests
         error.Should().NotBeNullOrEmpty();
         data.Should().BeNull();
     }
+
+    [Fact]
+    public async Task CreateCategoryField_SelectWithoutOptions_ReturnsError()
+    {
+        await using var db = CreateDb();
+        var category = new Category { Name = "Boats", StringKey = "boats" };
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+        var svc = CreateService(db);
+
+        var (error, data) = await svc.CreateCategoryFieldAsync(
+            1,
+            category.Id,
+            new GmCreateCategoryFieldDto
+            {
+                FieldName = "Hull Type",
+                FieldType = "select",
+                Options = new List<string>()
+            });
+
+        error.Should().Be("Select fields require at least one option.");
+        data.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CreateCategoryField_DuplicateNameWithinCategory_ReturnsError()
+    {
+        await using var db = CreateDb();
+        var category = new Category { Name = "Boats", StringKey = "boats" };
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+        db.CategoryFields.Add(new CategoryField
+        {
+            CategoryId = category.Id,
+            FieldName = "Length",
+            FieldType = FieldType.Number
+        });
+        await db.SaveChangesAsync();
+        var svc = CreateService(db);
+
+        var (error, data) = await svc.CreateCategoryFieldAsync(
+            1,
+            category.Id,
+            new GmCreateCategoryFieldDto
+            {
+                FieldName = "length",
+                FieldType = "number"
+            });
+
+        error.Should().Be("A field with this name already exists in this category.");
+        data.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CreateCategoryField_ForSubcategory_PersistsOnSelectedCategory()
+    {
+        await using var db = CreateDb();
+        var root = new Category { Name = "Cars", StringKey = "cars" };
+        db.Categories.Add(root);
+        await db.SaveChangesAsync();
+        var child = new Category { Name = "Sedans", ParentId = root.Id, StringKey = "sedans" };
+        db.Categories.Add(child);
+        await db.SaveChangesAsync();
+        var svc = CreateService(db);
+
+        var (error, data) = await svc.CreateCategoryFieldAsync(
+            1,
+            child.Id,
+            new GmCreateCategoryFieldDto
+            {
+                FieldName = "Make",
+                FieldType = "text",
+                IsRequired = true
+            });
+
+        error.Should().BeNull();
+        data.Should().NotBeNull();
+        data!.CategoryId.Should().Be(child.Id);
+        var persisted = await db.CategoryFields.SingleAsync();
+        persisted.CategoryId.Should().Be(child.Id);
+    }
+
+    [Fact]
+    public async Task CreateCategoryField_SelectWithIncrementalMode_PersistsSelectMode()
+    {
+        await using var db = CreateDb();
+        var category = new Category { Name = "Cars", StringKey = "cars" };
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+        var svc = CreateService(db);
+
+        var (error, data) = await svc.CreateCategoryFieldAsync(
+            1,
+            category.Id,
+            new GmCreateCategoryFieldDto
+            {
+                FieldName = "Condition",
+                FieldType = "select",
+                IsRequired = false,
+                Options = new List<string> { "Poor", "Fair", "Good", "Excellent" },
+                SelectMode = "incremental",
+            });
+
+        error.Should().BeNull();
+        data.Should().NotBeNull();
+        data!.SelectMode.Should().Be("incremental");
+    }
+
+    [Fact]
+    public async Task CreateCategoryField_ConditionDefaultsToIncrementalSelectMode()
+    {
+        await using var db = CreateDb();
+        var category = new Category { Name = "Cars", StringKey = "cars" };
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+        var svc = CreateService(db);
+
+        var (error, data) = await svc.CreateCategoryFieldAsync(
+            1,
+            category.Id,
+            new GmCreateCategoryFieldDto
+            {
+                FieldName = "Condition",
+                FieldType = "select",
+                IsRequired = false,
+                Options = new List<string> { "Poor", "Fair", "Good", "Excellent" },
+            });
+
+        error.Should().BeNull();
+        data.Should().NotBeNull();
+        data!.SelectMode.Should().Be("incremental");
+    }
+
+    [Fact]
+    public async Task UpdateCategoryField_ReturnsImmutableError()
+    {
+        await using var db = CreateDb();
+        var category = new Category { Name = "Boats", StringKey = "boats" };
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+        var field = new CategoryField
+        {
+            CategoryId = category.Id,
+            FieldName = "Hull Type",
+            FieldType = FieldType.Select,
+            IsRequired = true,
+            Options = "[\"V-Hull\",\"Pontoon\"]"
+        };
+        db.CategoryFields.Add(field);
+        await db.SaveChangesAsync();
+
+        var svc = CreateService(db);
+        var (error, data) = await svc.UpdateCategoryFieldAsync(
+            1,
+            field.Id,
+            new GmUpdateCategoryFieldDto
+            {
+                FieldName = "Hull Style",
+                IsRequired = false,
+                Options = new List<string> { "Catamaran", "Tritoon" }
+            });
+
+        error.Should().Be("Category fields are immutable after creation. Create a new field for customizations.");
+        data.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteCategoryField_WhenUsedByItems_ReturnsError()
+    {
+        await using var db = CreateDb();
+        var category = new Category { Name = "Boats", StringKey = "boats" };
+        var user = new User
+        {
+            Username = "seller",
+            Email = "seller@boats.test",
+            PasswordHash = "h",
+            Role = UserRole.EndUser,
+            IsActive = true
+        };
+        db.Categories.Add(category);
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var field = new CategoryField
+        {
+            CategoryId = category.Id,
+            FieldName = "Horsepower",
+            FieldType = FieldType.Number
+        };
+        db.CategoryFields.Add(field);
+        await db.SaveChangesAsync();
+
+        var item = new Item
+        {
+            SellerId = user.Id,
+            CategoryIds = new List<int> { category.Id },
+            Title = "Boat",
+            Description = "desc",
+            CurrentPrice = 10m,
+            InitialPrice = 10m,
+            BidIncrement = 1m,
+            ReservePrice = 5m,
+            Status = ItemStatus.Active,
+            CloseDateTime = DateTime.UtcNow.AddHours(1)
+        };
+        db.Items.Add(item);
+        await db.SaveChangesAsync();
+
+        db.ItemFieldValues.Add(new ItemFieldValue
+        {
+            ItemId = item.Id,
+            FieldId = field.Id,
+            Value = "180"
+        });
+        await db.SaveChangesAsync();
+
+        var svc = CreateService(db);
+        var (error, data) = await svc.DeleteCategoryFieldAsync(1, field.Id);
+
+        error.Should().Be("Cannot delete a category field that has item values.");
+        data.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteCategoryField_WhenDefaultFilter_ReturnsProtectedError()
+    {
+        await using var db = CreateDb();
+        var category = new Category { Name = "Cars", StringKey = "cars" };
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+
+        var field = new CategoryField
+        {
+            CategoryId = category.Id,
+            FieldName = "Condition",
+            FieldType = FieldType.Select,
+            IsRequired = false,
+            Options = "[\"Poor\",\"Fair\",\"Good\"]"
+        };
+        db.CategoryFields.Add(field);
+        await db.SaveChangesAsync();
+
+        var svc = CreateService(db);
+        var (error, data) = await svc.DeleteCategoryFieldAsync(1, field.Id);
+
+        error.Should().Be("Cannot delete protected default filters from GM tools.");
+        data.Should().BeNull();
+    }
 }
