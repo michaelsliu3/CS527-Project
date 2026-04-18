@@ -187,7 +187,7 @@ export function ReportsPage() {
     },
     user: {
       title: 'Earnings by User',
-      subtitle: 'Seller and winner totals per user.',
+      subtitle: 'Totals sold as seller and spent as buyer per user.',
       colSpan: { base: 1, xl: 6 },
       content: <EarningsByUserTab filters={filters} />,
     },
@@ -691,10 +691,10 @@ function EarningsByUserTab({ filters }: { filters: ReportsFilters }) {
         Refresh
       </Button>
       <AwsMetricBarChart
-        title="Seller vs buyer totals"
+        title="Sold vs spent totals"
         subtitle="Stacked totals per user"
-        primaryLabel="Seller total"
-        secondaryLabel="Winner total"
+        primaryLabel="Sold total"
+        secondaryLabel="Spent total"
         data={items.slice(0, 8).map((row) => ({
           label: row.username,
           value: row.totalAsSeller,
@@ -708,8 +708,8 @@ function EarningsByUserTab({ filters }: { filters: ReportsFilters }) {
           <thead>
             <tr>
               <th style={{ ...thBase, textAlign: 'left' }}>User</th>
-              <th style={{ ...thBase, textAlign: 'right' }}>As Seller</th>
-              <th style={{ ...thBase, textAlign: 'right' }}>As Winner</th>
+              <th style={{ ...thBase, textAlign: 'right' }}>Sold (as seller)</th>
+              <th style={{ ...thBase, textAlign: 'right' }}>Spent (as winner)</th>
             </tr>
           </thead>
           <tbody>
