@@ -230,6 +230,66 @@ public class GmToolsServiceTests
     }
 
     [Fact]
+    public async Task SeedSoldAuctions_AboveMax_ReturnsError()
+    {
+        await using var db = CreateDb();
+        var svc = CreateService(db);
+
+        var (error, data) = await svc.SeedSoldAuctionsAsync(1, new GmSeedSoldAuctionsDto
+        {
+            Count = 201
+        });
+
+        error.Should().NotBeNullOrEmpty();
+        data.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SeedSoldAuctions_CreatesSoldAndClosedWithHistoricalCloseDates()
+    {
+        await using var db = CreateDb();
+        var cars = new Category { Name = "Cars", StringKey = "cars" };
+        db.Categories.Add(cars);
+        await db.SaveChangesAsync();
+        var sedans = new Category { Name = "Sedans", ParentId = cars.Id, StringKey = "sedans" };
+        db.Categories.Add(sedans);
+        await db.SaveChangesAsync();
+        db.CategoryFields.AddRange(
+            new CategoryField { CategoryId = sedans.Id, FieldName = "Make", FieldType = FieldType.Text },
+            new CategoryField { CategoryId = sedans.Id, FieldName = "Model", FieldType = FieldType.Text });
+
+        db.Users.AddRange(
+            new User { Username = "seller-a", Email = "seller-a@test.com", PasswordHash = "h", Role = UserRole.EndUser, IsActive = true },
+            new User { Username = "seller-b", Email = "seller-b@test.com", PasswordHash = "h", Role = UserRole.EndUser, IsActive = true },
+            new User { Username = "bidder-a", Email = "bidder-a@test.com", PasswordHash = "h", Role = UserRole.EndUser, IsActive = true });
+        await db.SaveChangesAsync();
+
+        var svc = CreateService(db);
+        var (error, data) = await svc.SeedSoldAuctionsAsync(1, new GmSeedSoldAuctionsDto
+        {
+            Count = 6,
+            CategoryId = sedans.Id,
+            DaysAgoMin = 3,
+            DaysAgoMax = 7,
+            BidCountMin = 1,
+            BidCountMax = 2,
+            ClosedWithoutSaleRatio = 0.5m
+        });
+
+        error.Should().BeNull();
+        data.Should().NotBeNull();
+        var result = data!;
+        (result.CreatedSoldCount + result.CreatedClosedCount).Should().Be(6);
+        result.TotalBids.Should().BeGreaterThan(0);
+
+        var items = await db.Items.AsNoTracking().ToListAsync();
+        items.Should().HaveCount(6);
+        items.Count(i => i.Status == ItemStatus.Sold).Should().Be(result.CreatedSoldCount);
+        items.Count(i => i.Status == ItemStatus.Closed).Should().Be(result.CreatedClosedCount);
+        items.All(i => i.CloseDateTime <= DateTime.UtcNow.AddDays(-3)).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task CreateCategory_Valid_PersistsWithStringKey()
     {
         await using var db = CreateDb();

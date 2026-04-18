@@ -18,6 +18,7 @@ vi.mock('../../api/gm', () => ({
   seedGmSampleAlerts: vi.fn(),
   seedGmSampleNotifications: vi.fn(),
   seedGmSoldHistoryFixture: vi.fn(),
+  seedGmSoldAuctions: vi.fn(),
   gmBulkCloseActiveAuctions: vi.fn(),
   gmRunCloseSweep: vi.fn(),
   gmDeleteAllAuctions: vi.fn(),
@@ -124,6 +125,29 @@ describe('GmToolsPanel', () => {
     await waitFor(() => {
       expect(showErrorToast).toHaveBeenCalledWith('GM tools', 'Count must be between 1 and 100.')
     })
+  })
+
+  it('custom sold seeding posts and shows success toast', async () => {
+    const user = userEvent.setup()
+    vi.mocked(gmApi.seedGmSoldAuctions).mockResolvedValue({
+      data: { createdSoldCount: 3, createdClosedCount: 2, totalBids: 7 },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as never,
+    })
+
+    renderPanel()
+    await user.click(screen.getByRole('tab', { name: /History \/ reports/i }))
+    await user.click(screen.getByTestId('gm-seed-custom-sold'))
+
+    await waitFor(() => {
+      expect(gmApi.seedGmSoldAuctions).toHaveBeenCalled()
+    })
+    expect(showSuccessToast).toHaveBeenCalledWith(
+      'Custom sold auctions seeded',
+      expect.stringContaining('Sold: 3, closed: 2'),
+    )
   })
 })
 

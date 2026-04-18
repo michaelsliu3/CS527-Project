@@ -39,6 +39,13 @@ public record GmSoldHistoryFixtureResultDto
     public int SoldAuctionCount { get; init; }
 }
 
+public record GmSeedSoldAuctionsResultDto
+{
+    public int CreatedSoldCount { get; init; }
+    public int CreatedClosedCount { get; init; }
+    public int TotalBids { get; init; }
+}
+
 public record GmBulkCloseAuctionsResultDto
 {
     public int ProcessedCount { get; init; }

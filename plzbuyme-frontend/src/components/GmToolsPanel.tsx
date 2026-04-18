@@ -12,6 +12,7 @@ import {
   gmRunCloseSweep,
   gmUpdateCategory,
   gmWalletTopUp,
+  seedGmSoldAuctions,
   seedGmAuctionsFromManifest,
   seedGmQuestions,
   seedGmSampleAlerts,
@@ -285,6 +286,17 @@ export function GmToolsPanel() {
 
   const [nUser, setNUser] = useState('2')
   const [nCount, setNCount] = useState('5')
+  const [soldCount, setSoldCount] = useState('10')
+  const [soldDaysMin, setSoldDaysMin] = useState('1')
+  const [soldDaysMax, setSoldDaysMax] = useState('180')
+  const [soldPriceMin, setSoldPriceMin] = useState('1000')
+  const [soldPriceMax, setSoldPriceMax] = useState('100000')
+  const [soldBidMin, setSoldBidMin] = useState('1')
+  const [soldBidMax, setSoldBidMax] = useState('5')
+  const [soldClosedRatio, setSoldClosedRatio] = useState('0')
+  const [soldCategoryMode, setSoldCategoryMode] = useState('auto')
+  const [soldCategoryId, setSoldCategoryId] = useState('')
+  const [soldSellerId, setSoldSellerId] = useState('')
 
   const [categoryTree, setCategoryTree] = useState<CategoryDto[]>([])
   const [categoriesLoading, setCategoriesLoading] = useState(false)
@@ -484,6 +496,38 @@ export function GmToolsPanel() {
       try {
         const { data } = await seedGmSoldHistoryFixture()
         showSuccessToast('Sold history fixture', `Sold auction count: ${data.soldAuctionCount}.`)
+      } catch (err) {
+        if (isAxiosError(err) && err.response?.data) {
+          const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
+          showErrorToast('GM tools', msg)
+        } else {
+          showErrorToast('GM tools', 'Request failed.')
+        }
+      }
+    })
+
+  const onSeedCustomSold = () =>
+    run('soldCustom', async () => {
+      try {
+        const payload = {
+          count: Number.parseInt(soldCount, 10) || 0,
+          daysAgoMin: Number.parseInt(soldDaysMin, 10) || 1,
+          daysAgoMax: Number.parseInt(soldDaysMax, 10) || 180,
+          priceMin: Number.parseFloat(soldPriceMin) || 1000,
+          priceMax: Number.parseFloat(soldPriceMax) || 100000,
+          bidCountMin: Number.parseInt(soldBidMin, 10) || 0,
+          bidCountMax: Number.parseInt(soldBidMax, 10) || 0,
+          closedWithoutSaleRatio: Number.parseFloat(soldClosedRatio) || 0,
+          categoryMode: soldCategoryMode.trim() || undefined,
+          categoryId: parseOptionalInt(soldCategoryId),
+          sellerUserId: parseOptionalInt(soldSellerId),
+        }
+        const { data } = await seedGmSoldAuctions(payload)
+        showSuccessToast(
+          'Custom sold auctions seeded',
+          `Sold: ${data.createdSoldCount}, closed: ${data.createdClosedCount}, bids: ${data.totalBids}.`,
+        )
+        notifyAuctionListRefresh()
       } catch (err) {
         if (isAxiosError(err) && err.response?.data) {
           const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
@@ -803,6 +847,9 @@ export function GmToolsPanel() {
             <Tabs.Trigger value="categories" color="white" flexShrink={0}>
               Categories
             </Tabs.Trigger>
+            <Tabs.Trigger value="history" color="white" flexShrink={0}>
+              History / reports
+            </Tabs.Trigger>
             <Tabs.Trigger value="users" color="white" flexShrink={0}>
               Users
             </Tabs.Trigger>
@@ -810,7 +857,7 @@ export function GmToolsPanel() {
               Q&amp;A
             </Tabs.Trigger>
             <Tabs.Trigger value="wallet" color="white" flexShrink={0}>
-              Wallet / fixtures
+              Wallet
             </Tabs.Trigger>
             <Tabs.Trigger value="samples" color="white" flexShrink={0}>
               Alerts / notifications
@@ -1270,23 +1317,73 @@ export function GmToolsPanel() {
                       Run
                     </Button>
                   </Flex>
-                  <Text fontWeight="semibold" color="white" mb={3} mt={2}>
-                    Sold / closed history fixture
-                  </Text>
-                  <Text fontSize="sm" color={dark.label} mb={3}>
-                    Idempotent: adds sold and some closed auctions for reports when below the internal threshold (see{' '}
-                    <Text as="span" fontFamily="mono">SeedData.SeedSoldItemsForReports</Text>).
-                  </Text>
+            </Flex>
+          </Tabs.Content>
+
+          <Tabs.Content value="history">
+            <Flex direction="column" gap={8}>
+              <Box>
+                <Text fontWeight="semibold" color="white" mb={3}>
+                  Sold / closed history fixture
+                </Text>
+                <Text fontSize="sm" color={dark.label} mb={3}>
+                  Idempotent: adds sold and some closed auctions for reports when below the internal threshold (see{' '}
+                  <Text as="span" fontFamily="mono">SeedData.SeedSoldItemsForReports</Text>).
+                </Text>
+                <Button
+                  bg="brand.500"
+                  color="white"
+                  _hover={{ bg: 'brand.400' }}
+                  loading={busy === 'sold'}
+                  onClick={onSoldFixture}
+                  alignSelf="flex-start"
+                >
+                  Run fixture
+                </Button>
+              </Box>
+
+              <Box>
+                <Text fontWeight="semibold" color="white" mb={3}>
+                  Custom sold auctions
+                </Text>
+                <Text fontSize="sm" color={dark.label} mb={3}>
+                  Create historical sold/closed auctions with configurable ranges for report testing.
+                </Text>
+                <Flex direction="column" gap={3}>
+                  <Flex gap={3} flexWrap="wrap">
+                    <Box flex="1" minW="120px">{field('Count', soldCount, setSoldCount, 'max 200')}</Box>
+                    <Box flex="1" minW="120px">{field('Closed ratio (0-1)', soldClosedRatio, setSoldClosedRatio)}</Box>
+                  </Flex>
+                  <Flex gap={3} flexWrap="wrap">
+                    <Box flex="1" minW="120px">{field('Days ago min', soldDaysMin, setSoldDaysMin)}</Box>
+                    <Box flex="1" minW="120px">{field('Days ago max', soldDaysMax, setSoldDaysMax)}</Box>
+                  </Flex>
+                  <Flex gap={3} flexWrap="wrap">
+                    <Box flex="1" minW="120px">{field('Price min', soldPriceMin, setSoldPriceMin)}</Box>
+                    <Box flex="1" minW="120px">{field('Price max', soldPriceMax, setSoldPriceMax)}</Box>
+                  </Flex>
+                  <Flex gap={3} flexWrap="wrap">
+                    <Box flex="1" minW="120px">{field('Bid count min', soldBidMin, setSoldBidMin)}</Box>
+                    <Box flex="1" minW="120px">{field('Bid count max', soldBidMax, setSoldBidMax)}</Box>
+                  </Flex>
+                  <Flex gap={3} flexWrap="wrap">
+                    <Box flex="1" minW="120px">{field('Category mode', soldCategoryMode, setSoldCategoryMode, 'auto')}</Box>
+                    <Box flex="1" minW="120px">{field('Category ID (optional)', soldCategoryId, setSoldCategoryId)}</Box>
+                  </Flex>
+                  <Box maxW="240px">{field('Seller user ID (optional)', soldSellerId, setSoldSellerId)}</Box>
                   <Button
+                    data-testid="gm-seed-custom-sold"
                     bg="brand.500"
                     color="white"
                     _hover={{ bg: 'brand.400' }}
-                    loading={busy === 'sold'}
-                    onClick={onSoldFixture}
+                    loading={busy === 'soldCustom'}
+                    onClick={onSeedCustomSold}
                     alignSelf="flex-start"
                   >
-                    Run fixture
+                    Seed custom sold auctions
                   </Button>
+                </Flex>
+              </Box>
             </Flex>
           </Tabs.Content>
 

@@ -14,6 +14,25 @@ export interface CreateRepResponse {
 
 export interface EarningsReport {
   total: number
+  soldCount: number
+  averageSale: number
+  distinctSellers: number
+  distinctBuyers: number
+}
+
+export interface ReportQueryParams {
+  from?: string
+  to?: string
+  top?: number
+  page?: number
+  pageSize?: number
+}
+
+export interface PaginatedResult<T> {
+  items: T[]
+  totalCount: number
+  page: number
+  pageSize: number
 }
 
 export interface EarningsByTypeItem {
@@ -53,26 +72,26 @@ export function createRep(dto: CreateRepDto) {
   return apiClient.post<CreateRepResponse>('admin/reps', dto)
 }
 
-export function getTotalEarnings() {
-  return apiClient.get<EarningsReport>('admin/reports/earnings')
+export function getTotalEarnings(params?: ReportQueryParams) {
+  return apiClient.get<EarningsReport>('admin/reports/earnings', { params })
 }
 
-export function getEarningsByType() {
-  return apiClient.get<EarningsByTypeItem[]>('admin/reports/earnings-by-type')
+export function getEarningsByType(params?: ReportQueryParams) {
+  return apiClient.get<EarningsByTypeItem[]>('admin/reports/earnings-by-type', { params })
 }
 
-export function getEarningsByUser() {
-  return apiClient.get<EarningsByUserItem[]>('admin/reports/earnings-by-user')
+export function getEarningsByUser(params?: ReportQueryParams) {
+  return apiClient.get<PaginatedResult<EarningsByUserItem>>('admin/reports/earnings-by-user', { params })
 }
 
-export function getEarningsByItem() {
-  return apiClient.get<EarningsByItemItem[]>('admin/reports/earnings-by-item')
+export function getEarningsByItem(params?: ReportQueryParams) {
+  return apiClient.get<PaginatedResult<EarningsByItemItem>>('admin/reports/earnings-by-item', { params })
 }
 
-export function getBestSelling(top = 10) {
-  return apiClient.get<BestSellingItem[]>('admin/reports/best-selling', { params: { top } })
+export function getBestSelling(top = 10, params?: ReportQueryParams) {
+  return apiClient.get<BestSellingItem[]>('admin/reports/best-selling', { params: { ...params, top } })
 }
 
-export function getBestBuyers(top = 10) {
-  return apiClient.get<BestBuyer[]>('admin/reports/best-buyers', { params: { top } })
+export function getBestBuyers(top = 10, params?: ReportQueryParams) {
+  return apiClient.get<BestBuyer[]>('admin/reports/best-buyers', { params: { ...params, top } })
 }

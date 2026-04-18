@@ -124,6 +124,18 @@ public class AdminGmController : ControllerBase
         return Ok(data);
     }
 
+    [HttpPost("auctions/seed-sold")]
+    public async Task<IActionResult> SeedSoldAuctions([FromBody] GmSeedSoldAuctionsDto? dto)
+    {
+        if (dto == null)
+            return BadRequest("Request body is required.");
+
+        var (error, data) = await _gmToolsService.SeedSoldAuctionsAsync(GetAdminUserId(), dto);
+        if (error != null)
+            return BadRequest(error);
+        return Ok(data);
+    }
+
     [HttpPost("auctions/close-active")]
     public async Task<IActionResult> BulkCloseActiveAuctions([FromBody] GmBulkCloseAuctionsDto? dto)
     {

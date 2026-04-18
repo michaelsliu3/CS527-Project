@@ -683,11 +683,12 @@ End-user policy only (`[Authorize(Policy = "EndUser")]`). Used for **demo / deve
 | Method | Route                              | Description                 | Access |
 |--------|--------------------------------------|-----------------------------|--------|
 | POST   | `api/admin/reps`                    | Create rep account          | Admin  |
-| GET    | `api/admin/reports/earnings`        | Total & per-item earnings   | Admin  |
-| GET    | `api/admin/reports/earnings-by-type`| Earnings by category        | Admin  |
-| GET    | `api/admin/reports/earnings-by-user`| Earnings by end-user        | Admin  |
-| GET    | `api/admin/reports/best-selling`    | Best-selling items          | Admin  |
-| GET    | `api/admin/reports/best-buyers`     | Top buyers                  | Admin  |
+| GET    | `api/admin/reports/earnings`        | Summary metrics (`total`, `soldCount`, `averageSale`, `distinctSellers`, `distinctBuyers`) with optional date window (`from`, `to`) | Admin  |
+| GET    | `api/admin/reports/earnings-by-item`| Sold items with optional date window + pagination (`page`, `pageSize`) | Admin  |
+| GET    | `api/admin/reports/earnings-by-type`| Earnings by category with optional date window | Admin  |
+| GET    | `api/admin/reports/earnings-by-user`| Earnings by end-user with optional date window + pagination (`page`, `pageSize`) | Admin  |
+| GET    | `api/admin/reports/best-selling`    | Best-selling items (`top` 1..100) with optional date window | Admin  |
+| GET    | `api/admin/reports/best-buyers`     | Top buyers (`top` 1..100) with optional date window | Admin  |
 
 #### Admin GM tools — `api/admin/gm`
 
@@ -703,6 +704,7 @@ These endpoints are **admin-only** (`AdminOnly` policy). They exist for **demos,
 | POST | `api/admin/gm/alerts/sample` | Create keyword sample alerts for a user | Admin |
 | POST | `api/admin/gm/notifications/sample` | Insert sample in-app notifications for a user | Admin |
 | POST | `api/admin/gm/fixtures/sold-history` | Idempotently extend sold/closed history via existing `SeedData.SeedSoldItemsForReports` | Admin |
+| POST | `api/admin/gm/auctions/seed-sold` | Create customizable historical sold/closed auctions for report QA (`count`, days window, price range, bid range, close ratio, category mode/id, seller id) | Admin |
 | POST | `api/admin/gm/auctions/close-active` | Body `{ "mode": "natural" \| "closed" }`: end every **active** listing in one batch (natural = reserve rules; closed = no sale). Max 500 active per request | Admin |
 | POST | `api/admin/gm/auctions/run-close-sweep` | Run the same **expired** close pass as the background job (active + `close_datetime` in the past) | Admin |
 | POST | `api/admin/gm/auctions/delete-all` | **Destructive (QA/demo reset):** deletes every `Item` and related bids, auto-bids, bid holds, and notifications tied to an item id. Uses a transaction and bulk `ExecuteDelete` on relational providers; in-memory tests use explicit removes. **Do not expose to untrusted production admins.** | Admin |
@@ -937,7 +939,7 @@ Two items are "similar" if they share the same subcategory and were listed withi
 
 ### GM tools (bulk seeding)
 
-Admin-only **GM tools** (right-edge dock tab + slide-in panel, `api/admin/gm/*` API) bulk-generate auctions (including **GT7 manifest**-driven listings aligned with `create-auctions-temp.mjs`), users, Q&amp;A threads, wallet credits, sample alerts/notifications, and optional sold-history fixtures for **demos, load tests, and QA**. Administrators can also **end all active listings** in one batch, **run the expired close sweep** manually, or **delete every auction** (and dependent bid/hold/notification rows) to reset a test environment—treat the last as **highly destructive** and only for controlled or non-production deployments. Batch sizes limit abuse. Successful GM actions are audit-logged at Warning level with the admin id and affected counts. Optional **`Gt7CarManifest:Path`** points at `gt7-car-thumbnails.manifest.json` when `plzbuyme-cdn` is not next to the API project.
+Admin-only **GM tools** (right-edge dock tab + slide-in panel, `api/admin/gm/*` API) bulk-generate auctions (including **GT7 manifest**-driven listings aligned with `create-auctions-temp.mjs`), users, Q&amp;A threads, wallet credits, sample alerts/notifications, and optional sold-history fixtures for **demos, load tests, and QA**. The GM panel also includes **custom sold-auction seeding** (`/api/admin/gm/auctions/seed-sold`) so report datasets are easy to tune by date range, sale prices, bid density, and sold-vs-closed mix. Administrators can also **end all active listings** in one batch, **run the expired close sweep** manually, or **delete every auction** (and dependent bid/hold/notification rows) to reset a test environment—treat the last as **highly destructive** and only for controlled or non-production deployments. Batch sizes limit abuse. Successful GM actions are audit-logged at Warning level with the admin id and affected counts. Optional **`Gt7CarManifest:Path`** points at `gt7-car-thumbnails.manifest.json` when `plzbuyme-cdn` is not next to the API project.
 
 ### Report Queries (pseudocode)
 
@@ -945,6 +947,15 @@ Admin-only **GM tools** (right-edge dock tab + slide-in panel, `api/admin/gm/*` 
 ```sql
 SELECT SUM(current_price) AS total FROM items WHERE status = 'sold';
 ```
+
+**Shared report semantics (PBM-40):**
+- Sold-only basis: all report aggregates use `items.status = 'sold'` unless explicitly a "closed without sale" fixture in GM test data.
+- Date filters: `from` and `to` apply to sold timestamp (`items.close_datetime`) and are inclusive bounds; invalid ranges (`from > to`) return `400`.
+- Ranking tie-breaks:
+  - best-selling items: `price DESC`, `bid_count DESC`, `item_id ASC`
+  - best-buyers: `total_spent DESC`, `win_count DESC`, `user_id ASC`
+  - paged earnings-by-item: `price DESC`, `item_id ASC`
+  - paged earnings-by-user: `(seller_total + winner_total) DESC`, `user_id ASC`
 
 **Earnings per Item Type:**
 ```
