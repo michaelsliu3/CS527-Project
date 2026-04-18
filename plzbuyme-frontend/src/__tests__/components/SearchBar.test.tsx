@@ -71,7 +71,36 @@ describe('SearchBar', () => {
       data: [
         { id: 10, categoryId: 1, fieldName: 'Make', fieldType: 'text', isRequired: true, options: null, isInherited: true },
         { id: 11, categoryId: 1, fieldName: 'Year', fieldType: 'number', isRequired: false, options: null, isInherited: true },
-        { id: 12, categoryId: 1, fieldName: 'Fuel Type', fieldType: 'select', isRequired: false, options: ['Gasoline', 'Electric'], isInherited: true },
+        {
+          id: 12,
+          categoryId: 1,
+          fieldName: 'Fuel Type',
+          fieldType: 'select',
+          isRequired: false,
+          options: ['Gasoline', 'Electric'],
+          selectMode: 'multi',
+          isInherited: true,
+        },
+        {
+          id: 13,
+          categoryId: 1,
+          fieldName: 'Condition',
+          fieldType: 'select',
+          isRequired: false,
+          options: ['Poor', 'Fair', 'Good', 'Excellent'],
+          selectMode: 'incremental',
+          isInherited: true,
+        },
+        {
+          id: 14,
+          categoryId: 1,
+          fieldName: 'Transmission',
+          fieldType: 'select',
+          isRequired: false,
+          options: ['Automatic', 'Manual'],
+          selectMode: 'single',
+          isInherited: true,
+        },
       ],
       status: 200,
       statusText: 'OK',
@@ -99,6 +128,8 @@ describe('SearchBar', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Vehicle Details/i })).toBeInTheDocument()
       expect(screen.getByRole('button', { name: /Fuel Type/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Condition/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Transmission/i })).toBeInTheDocument()
       expect(screen.getByText('Make')).toBeInTheDocument()
       expect(screen.getByText('Year range')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Gasoline' })).toBeInTheDocument()
@@ -110,6 +141,25 @@ describe('SearchBar', () => {
     await waitFor(() => {
       expect(categoriesApi.fetchCategoryFields).toHaveBeenCalledWith(1)
     })
+  })
+
+  it('uses slider UI for incremental select fields', async () => {
+    const user = userEvent.setup()
+    renderSearchBar('/auctions?categoryId=2', 'filters')
+    const conditionToggle = await screen.findByRole('button', { name: /Condition/i })
+    await user.click(conditionToggle)
+    expect(screen.getByText('Poor')).toBeInTheDocument()
+    expect(screen.getByText('Excellent')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Clear/i }).length).toBeGreaterThan(0)
+  })
+
+  it('uses dropdown UI for single select fields', async () => {
+    const user = userEvent.setup()
+    renderSearchBar('/auctions?categoryId=2', 'filters')
+    const transmissionToggle = await screen.findByRole('button', { name: /Transmission/i })
+    await user.click(transmissionToggle)
+    expect(screen.getAllByRole('option', { name: /Automatic/i }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('option', { name: /Manual/i }).length).toBeGreaterThan(0)
   })
 
   it('submits dynamic fieldFilters JSON on apply', async () => {

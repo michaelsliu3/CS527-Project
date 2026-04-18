@@ -200,6 +200,18 @@ function buildDynamicFieldSections(fields: CategoryFieldDto[]): DynamicFieldSect
     }))
 }
 
+function isIncrementalSelectField(field: CategoryFieldDto): boolean {
+  if (field.fieldType !== 'select') return false
+  const mode = normalizeKey(field.selectMode)
+  if (mode === 'incremental') return true
+  if (!mode && normalizeKey(field.fieldName).includes('condition')) return true
+  return false
+}
+
+function isSingleSelectField(field: CategoryFieldDto): boolean {
+  return field.fieldType === 'select' && normalizeKey(field.selectMode) === 'single'
+}
+
 interface DateFilterPickerProps {
   label: string
   textSize?: 'xs' | 'sm'
@@ -1436,50 +1448,6 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
 
             {dynamicCategoryFields.length > 0 ? (
               <>
-                <Box py={3}>
-                  <Wrap gap={2}>
-                    {dynamicCategoryFields.map((fieldDef) => {
-                      const draft = dynamicFieldDrafts[fieldDef.id] ?? {}
-                      const textValue = draft.text?.trim() ?? ''
-                      const minValue = draft.min?.trim() ?? ''
-                      const maxValue = draft.max?.trim() ?? ''
-                      const selectedOptions = draft.options ?? []
-                      let label = ''
-                      if (fieldDef.fieldType === 'text' && textValue) {
-                        label = `${fieldDef.fieldName}: ${textValue}`
-                      } else if (
-                        fieldDef.fieldType === 'number' &&
-                        (minValue.length > 0 || maxValue.length > 0)
-                      ) {
-                        label = `${fieldDef.fieldName}: ${minValue || 'Any'}-${maxValue || 'Any'}`
-                      } else if (fieldDef.fieldType === 'select' && selectedOptions.length > 0) {
-                        label = `${fieldDef.fieldName}: ${selectedOptions.join(', ')}`
-                      }
-                      if (!label) return null
-                      return (
-                        <WrapItem key={`chip-${fieldDef.id}`}>
-                          <Button
-                            type="button"
-                            size="xs"
-                            variant="outline"
-                            borderColor={dark.borderSubtle}
-                            color="white"
-                            _hover={{ bg: 'whiteAlpha.100' }}
-                            onClick={() =>
-                              setDynamicFieldDrafts((prev) => {
-                                const next = { ...prev }
-                                delete next[fieldDef.id]
-                                return next
-                              })
-                            }
-                          >
-                            {label} x
-                          </Button>
-                        </WrapItem>
-                      )
-                    })}
-                  </Wrap>
-                </Box>
                 {dynamicFieldSections.map((section) => (
                   <Box key={section.key} borderBottomWidth="1px" borderColor={dark.borderSubtle}>
                     <Button
@@ -1572,6 +1540,116 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
                             )
                           }
                           const selectedOptions = draft.options ?? []
+                          if (isIncrementalSelectField(fieldDef)) {
+                            const incrementalOptions = fieldDef.options ?? []
+                            const selectedOption = selectedOptions[0]
+                            const selectedIndex = selectedOption
+                              ? incrementalOptions.findIndex((option) => option === selectedOption)
+                              : -1
+                            const fallbackIndex = selectedIndex >= 0 ? selectedIndex : 0
+                            return (
+                              <Box key={fieldDef.id}>
+                                <Flex justify="space-between" align="center" mb={1}>
+                                  <Text fontSize="xs" color={dark.muted}>
+                                    {fieldDef.fieldName}
+                                  </Text>
+                                  <Button
+                                    type="button"
+                                    size="xs"
+                                    variant="ghost"
+                                    color={dark.muted}
+                                    _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+                                    onClick={() =>
+                                      setDynamicFieldDrafts((prev) => ({
+                                        ...prev,
+                                        [fieldDef.id]: { ...prev[fieldDef.id], options: [] },
+                                      }))
+                                    }
+                                  >
+                                    Clear
+                                  </Button>
+                                </Flex>
+                                <Slider.Root
+                                  min={0}
+                                  max={Math.max(0, incrementalOptions.length - 1)}
+                                  step={1}
+                                  value={[fallbackIndex]}
+                                  onValueChange={(details) => {
+                                    if (!details.value.length) return
+                                    const option = incrementalOptions[details.value[0]]
+                                    if (!option) return
+                                    setDynamicFieldDrafts((prev) => ({
+                                      ...prev,
+                                      [fieldDef.id]: { ...prev[fieldDef.id], options: [option] },
+                                    }))
+                                  }}
+                                >
+                                  <Slider.Control py={2}>
+                                    <Slider.Track h="6px" bg="whiteAlpha.200" borderRadius="full">
+                                      <Slider.Range bg="brand.500" />
+                                    </Slider.Track>
+                                    <Slider.Thumb
+                                      index={0}
+                                      boxSize={5}
+                                      bg="white"
+                                      borderWidth="2px"
+                                      borderColor={dark.cardBg}
+                                    />
+                                  </Slider.Control>
+                                </Slider.Root>
+                                <SimpleGrid columns={Math.max(1, incrementalOptions.length)} mt={2} gap={1}>
+                                  {incrementalOptions.map((option, optionIndex) => (
+                                    <Text
+                                      key={option}
+                                      fontSize="2xs"
+                                      textAlign="center"
+                                      color={selectedIndex === optionIndex ? 'white' : dark.muted}
+                                      fontWeight={selectedIndex === optionIndex ? 'semibold' : 'normal'}
+                                    >
+                                      {option}
+                                    </Text>
+                                  ))}
+                                </SimpleGrid>
+                              </Box>
+                            )
+                          }
+                          if (isSingleSelectField(fieldDef)) {
+                            const selectedOption = selectedOptions[0] ?? ''
+                            return (
+                              <Box key={fieldDef.id}>
+                                <Text fontSize="xs" color={dark.muted} mb={1}>
+                                  {fieldDef.fieldName}
+                                </Text>
+                                <select
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 12px',
+                                    background: dark.inputBg,
+                                    border: `1px solid ${dark.borderSubtle}`,
+                                    borderRadius: '6px',
+                                    color: 'white',
+                                  }}
+                                  value={selectedOption}
+                                  onChange={(e) =>
+                                    setDynamicFieldDrafts((prev) => ({
+                                      ...prev,
+                                      [fieldDef.id]: {
+                                        ...prev[fieldDef.id],
+                                        options: e.target.value ? [e.target.value] : [],
+                                      },
+                                    }))
+                                  }
+                                >
+                                  <option value="">Any</option>
+                                  {(fieldDef.options ?? []).map((option) => (
+                                    <option key={option} value={option}>
+                                      {option}
+                                    </option>
+                                  ))}
+                                </select>
+                              </Box>
+                            )
+                          }
                           return (
                             <Box key={fieldDef.id}>
                               <Text fontSize="xs" color={dark.muted} mb={1}>

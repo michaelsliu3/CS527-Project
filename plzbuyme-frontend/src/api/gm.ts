@@ -218,6 +218,7 @@ export interface GmCreateCategoryFieldPayload {
   fieldType: 'text' | 'number' | 'select'
   isRequired: boolean
   options?: string[] | null
+  selectMode?: 'single' | 'multi' | 'incremental' | null
 }
 
 export interface GmUpdateCategoryFieldPayload {
@@ -233,6 +234,7 @@ export interface GmCategoryFieldMutationResult {
   fieldType: 'text' | 'number' | 'select'
   isRequired: boolean
   options?: string[] | null
+  selectMode?: 'single' | 'multi' | 'incremental' | null
 }
 
 export interface GmDeleteCategoryFieldResult {

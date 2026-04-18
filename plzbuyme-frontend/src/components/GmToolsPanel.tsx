@@ -53,22 +53,40 @@ function parseUserIds(raw: string): number[] {
     .filter((n) => Number.isFinite(n))
 }
 
-function parseFieldOptions(raw: string): string[] {
-  return raw
-    .split('\n')
-    .flatMap((line) => line.split(','))
-    .map((value) => value.trim())
-    .filter(Boolean)
-}
-
 type GmFieldTemplate = {
   key: string
   fieldName: string
   fieldType: 'text' | 'number' | 'select'
   isRequired: boolean
   options: string[] | null
+  selectMode?: 'single' | 'multi' | 'incremental' | null
   sourceCategoryId: number
   usageCount: number
+}
+
+const PROTECTED_DEFAULT_FILTER_FIELD_NAMES = new Set([
+  'make',
+  'model',
+  'year',
+  'mileage',
+  'condition',
+  'transmission',
+  'fuel type',
+  'exterior color',
+])
+
+function isProtectedDefaultFilterFieldName(fieldName: string): boolean {
+  return PROTECTED_DEFAULT_FILTER_FIELD_NAMES.has(fieldName.trim().toLowerCase())
+}
+
+function resolveEffectiveSelectMode(
+  fieldName: string,
+  selectMode?: CategoryFieldDto['selectMode'] | null,
+): 'single' | 'multi' | 'incremental' {
+  if (selectMode === 'single' || selectMode === 'multi' || selectMode === 'incremental') {
+    return selectMode
+  }
+  return fieldName.trim().toLowerCase().includes('condition') ? 'incremental' : 'multi'
 }
 
 function buildTemplateKey(
@@ -76,12 +94,14 @@ function buildTemplateKey(
   fieldType: CategoryFieldDto['fieldType'],
   isRequired: boolean,
   options: string[] | null | undefined,
+  selectMode?: CategoryFieldDto['selectMode'],
 ): string {
   return [
     fieldName.trim().toLowerCase(),
     fieldType,
     isRequired ? 'req' : 'opt',
     (options ?? []).map((v) => v.trim().toLowerCase()).sort().join('|'),
+    fieldType === 'select' ? resolveEffectiveSelectMode(fieldName, selectMode) : '',
   ].join('::')
 }
 
@@ -359,7 +379,10 @@ export function GmToolsPanel() {
   const [newFieldName, setNewFieldName] = useState('')
   const [newFieldType, setNewFieldType] = useState<'text' | 'number' | 'select'>('text')
   const [newFieldRequired, setNewFieldRequired] = useState(true)
-  const [newFieldOptions, setNewFieldOptions] = useState('')
+  const [newFieldOptionDraft, setNewFieldOptionDraft] = useState('')
+  const [newFieldOptionList, setNewFieldOptionList] = useState<string[]>([])
+  const [newFieldSelectMode, setNewFieldSelectMode] = useState<'single' | 'multi' | 'incremental'>('multi')
+  const [newFieldSelectModeTouched, setNewFieldSelectModeTouched] = useState(false)
 
   const flatCategories = useMemo(() => flattenCategoryDtos(categoryTree), [categoryTree])
   const categoryNameById = useMemo(() => {
@@ -369,6 +392,16 @@ export function GmToolsPanel() {
     }
     return map
   }, [flatCategories])
+
+  useEffect(() => {
+    if (newFieldType !== 'select') return
+    if (newFieldSelectModeTouched) return
+    if (newFieldName.trim().toLowerCase().includes('condition')) {
+      setNewFieldSelectMode('incremental')
+      return
+    }
+    setNewFieldSelectMode('multi')
+  }, [newFieldName, newFieldSelectModeTouched, newFieldType])
 
   const loadGmCategories = useCallback(async () => {
     setCategoriesLoading(true)
@@ -425,6 +458,7 @@ export function GmToolsPanel() {
             fieldRow.fieldType,
             fieldRow.isRequired,
             fieldRow.options ?? null,
+            fieldRow.selectMode,
           )
           const existing = templates.get(key)
           if (existing) {
@@ -437,6 +471,7 @@ export function GmToolsPanel() {
             fieldType: fieldRow.fieldType,
             isRequired: fieldRow.isRequired,
             options: fieldRow.options ?? null,
+            selectMode: resolveEffectiveSelectMode(fieldRow.fieldName, fieldRow.selectMode),
             sourceCategoryId: row.categoryId,
             usageCount: 1,
           })
@@ -488,6 +523,22 @@ export function GmToolsPanel() {
     } finally {
       setBusy(null)
     }
+  }
+
+  const addNewFieldOption = () => {
+    const nextOption = newFieldOptionDraft.trim()
+    if (!nextOption) return
+    setNewFieldOptionList((prev) => {
+      if (prev.some((existing) => existing.toLowerCase() === nextOption.toLowerCase())) {
+        return prev
+      }
+      return [...prev, nextOption]
+    })
+    setNewFieldOptionDraft('')
+  }
+
+  const removeNewFieldOption = (optionToRemove: string) => {
+    setNewFieldOptionList((prev) => prev.filter((entry) => entry !== optionToRemove))
   }
 
   const onSeedAuctions = () =>
@@ -928,18 +979,22 @@ export function GmToolsPanel() {
       }
 
       try {
-        const options = parseFieldOptions(newFieldOptions)
+        const options = newFieldOptionList
         await gmCreateCategoryField(categoryId, {
           fieldName: newFieldName.trim(),
           fieldType: newFieldType,
           isRequired: newFieldRequired,
           options: newFieldType === 'select' ? options : null,
+          selectMode: newFieldType === 'select' ? newFieldSelectMode : null,
         })
         showSuccessToast('Category field created', newFieldName.trim())
         setNewFieldName('')
         setNewFieldType('text')
         setNewFieldRequired(true)
-        setNewFieldOptions('')
+        setNewFieldOptionDraft('')
+        setNewFieldOptionList([])
+        setNewFieldSelectMode('multi')
+        setNewFieldSelectModeTouched(false)
         await loadAllFieldTemplates()
         await loadCategoryFields(categoryId)
         notifyAuctionListRefresh()
@@ -971,6 +1026,7 @@ export function GmToolsPanel() {
           fieldType: template.fieldType,
           isRequired: template.isRequired,
           options: template.fieldType === 'select' ? template.options ?? [] : null,
+          selectMode: template.fieldType === 'select' ? template.selectMode ?? 'multi' : null,
         })
         showSuccessToast('Field assigned', `${template.fieldName} added to category #${categoryId}.`)
         await loadAllFieldTemplates()
@@ -1508,6 +1564,11 @@ export function GmToolsPanel() {
                             <Text color={dark.muted} fontSize="xs">
                               type={fieldRow.fieldType} required={fieldRow.isRequired ? 'yes' : 'no'}
                             </Text>
+                            {fieldRow.fieldType === 'select' && (
+                              <Text color={dark.muted} fontSize="xs">
+                                select mode: {resolveEffectiveSelectMode(fieldRow.fieldName, fieldRow.selectMode)}
+                              </Text>
+                            )}
                             <Text color={dark.muted} fontSize="xs">
                               used by {fieldRow.usageCount} categor{fieldRow.usageCount === 1 ? 'y' : 'ies'}; sample source #
                               {fieldRow.sourceCategoryId} {categoryNameById.get(fieldRow.sourceCategoryId) ?? 'unknown'}
@@ -1559,7 +1620,10 @@ export function GmToolsPanel() {
                     <select
                       style={nativeSelectSx}
                       value={newFieldType}
-                      onChange={(e) => setNewFieldType(e.target.value as 'text' | 'number' | 'select')}
+                      onChange={(e) => {
+                        setNewFieldType(e.target.value as 'text' | 'number' | 'select')
+                        setNewFieldSelectModeTouched(false)
+                      }}
                     >
                       <option value="text">text</option>
                       <option value="number">number</option>
@@ -1575,12 +1639,74 @@ export function GmToolsPanel() {
                     <Checkbox.Label color={dark.label}>Required</Checkbox.Label>
                   </Checkbox.Root>
                   {newFieldType === 'select' &&
-                    field(
-                      'Options (comma separated)',
-                      newFieldOptions,
-                      setNewFieldOptions,
-                      'Option A, Option B',
-                    )}
+                    <>
+                      <Box>
+                        <Text mb={1} color={dark.label} fontSize="xs">Select mode</Text>
+                        <select
+                          style={nativeSelectSx}
+                          value={newFieldSelectMode}
+                          onChange={(e) => {
+                            setNewFieldSelectMode(e.target.value as 'single' | 'multi' | 'incremental')
+                            setNewFieldSelectModeTouched(true)
+                          }}
+                        >
+                          <option value="single">single (dropdown)</option>
+                          <option value="multi">multi (chips)</option>
+                          <option value="incremental">incremental (slider)</option>
+                        </select>
+                      </Box>
+                      <Box>
+                        <Text mb={1} color={dark.label} fontSize="xs">Options</Text>
+                        {newFieldOptionList.length > 0 ? (
+                          <Flex gap={2} flexWrap="wrap" mb={2}>
+                            {newFieldOptionList.map((option) => (
+                              <Button
+                                key={option}
+                                type="button"
+                                size="xs"
+                                variant="outline"
+                                borderColor={dark.borderSubtle}
+                                color="white"
+                                _hover={{ bg: 'whiteAlpha.100' }}
+                                onClick={() => removeNewFieldOption(option)}
+                              >
+                                {option} x
+                              </Button>
+                            ))}
+                          </Flex>
+                        ) : (
+                          <Text fontSize="xs" color={dark.muted} mb={2}>
+                            No options added yet.
+                          </Text>
+                        )}
+                        <Flex gap={2}>
+                          <Input
+                            size="sm"
+                            value={newFieldOptionDraft}
+                            onChange={(e) => setNewFieldOptionDraft(e.target.value)}
+                            placeholder="Type one option"
+                            bg={dark.inputBg}
+                            borderColor={dark.borderSubtle}
+                            color="white"
+                            _placeholder={{ color: dark.placeholder }}
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            borderColor={dark.borderSubtle}
+                            color="white"
+                            _hover={{ bg: 'whiteAlpha.100' }}
+                            onClick={addNewFieldOption}
+                          >
+                            Add
+                          </Button>
+                        </Flex>
+                        <Text mt={1} fontSize="xs" color={dark.muted}>
+                          Add one option at a time. Click an option chip to remove it.
+                        </Text>
+                      </Box>
+                    </>}
                   <Button
                     bg="brand.500"
                     color="white"
@@ -1616,7 +1742,7 @@ export function GmToolsPanel() {
                       <option value="">Select…</option>
                       {allFieldTemplates.map((f) => (
                         <option key={f.key} value={f.key}>
-                          {f.fieldName} ({f.fieldType}) {f.isRequired ? '[required]' : '[optional]'}
+                          {f.fieldName} ({f.fieldType}{f.fieldType === 'select' ? `, ${resolveEffectiveSelectMode(f.fieldName, f.selectMode)}` : ''}) {f.isRequired ? '[required]' : '[optional]'}
                         </option>
                       ))}
                     </select>
@@ -1704,6 +1830,11 @@ export function GmToolsPanel() {
                             <Text color={dark.muted} fontSize="xs">
                               type={fieldRow.fieldType} required={fieldRow.isRequired ? 'yes' : 'no'}
                             </Text>
+                            {fieldRow.fieldType === 'select' && (
+                              <Text color={dark.muted} fontSize="xs">
+                                select mode: {resolveEffectiveSelectMode(fieldRow.fieldName, fieldRow.selectMode)}
+                              </Text>
+                            )}
                             <Text color={dark.muted} fontSize="xs">
                               {fieldRow.isInherited
                                 ? `inherited from main category (default) - source #${fieldRow.categoryId} ${categoryNameById.get(fieldRow.categoryId) ?? 'unknown'}`
@@ -1714,7 +1845,12 @@ export function GmToolsPanel() {
                                 options: {(fieldRow.options ?? []).join(', ')}
                               </Text>
                             )}
-                            {!fieldRow.isInherited && (
+                            {!fieldRow.isInherited && isProtectedDefaultFilterFieldName(fieldRow.fieldName) && (
+                              <Text color="orange.300" fontSize="xs">
+                                Protected default filter (cannot remove from GM panel)
+                              </Text>
+                            )}
+                            {!fieldRow.isInherited && !isProtectedDefaultFilterFieldName(fieldRow.fieldName) && (
                               <Flex mt={1}>
                                 <Button
                                   size="xs"

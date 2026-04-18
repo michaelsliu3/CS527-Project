@@ -11,6 +11,11 @@ namespace PlzBuyMe.Api.Controllers;
 [Route("api/categories")]
 public class CategoriesController : ControllerBase
 {
+    private static readonly JsonSerializerOptions JsonCaseInsensitiveOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private readonly AppDbContext _db;
 
     public CategoriesController(AppDbContext db)
@@ -93,18 +98,7 @@ public class CategoriesController : ControllerBase
 
     private static CategoryFieldDto ToCategoryFieldDto(CategoryField f, bool isInherited)
     {
-        List<string>? options = null;
-        if (!string.IsNullOrWhiteSpace(f.Options))
-        {
-            try
-            {
-                options = JsonSerializer.Deserialize<List<string>>(f.Options!) ?? new List<string>();
-            }
-            catch (JsonException)
-            {
-                options = new List<string>();
-            }
-        }
+        var (options, selectMode) = DeserializeFieldOptionsPayload(f.Options);
 
         return new CategoryFieldDto
         {
@@ -114,8 +108,54 @@ public class CategoriesController : ControllerBase
             FieldType = f.FieldType.ToString().ToLowerInvariant(),
             IsRequired = f.IsRequired,
             Options = options,
+            SelectMode = selectMode,
             IsInherited = isInherited,
         };
+    }
+
+    private static (List<string>? Options, string? SelectMode) DeserializeFieldOptionsPayload(string? rawOptionsJson)
+    {
+        if (string.IsNullOrWhiteSpace(rawOptionsJson))
+            return (null, null);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(rawOptionsJson);
+            if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            {
+                var options = JsonSerializer.Deserialize<List<string>>(rawOptionsJson) ?? new List<string>();
+                return (options, null);
+            }
+
+            if (doc.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                var payload = JsonSerializer.Deserialize<SelectFieldOptionsPayload>(
+                    rawOptionsJson,
+                    JsonCaseInsensitiveOptions);
+                var options = payload?.Options ?? new List<string>();
+                var selectMode = NormalizeSelectMode(payload?.SelectMode);
+                return (options, selectMode);
+            }
+        }
+        catch (JsonException)
+        {
+            // Fall through to empty options.
+        }
+
+        return (new List<string>(), null);
+    }
+
+    private static string? NormalizeSelectMode(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+        return raw.Trim().ToLowerInvariant();
+    }
+
+    private sealed record SelectFieldOptionsPayload
+    {
+        public List<string> Options { get; init; } = new();
+        public string? SelectMode { get; init; }
     }
 
     private static HashSet<int> ResolveEffectiveFieldOwnerCategoryIds(

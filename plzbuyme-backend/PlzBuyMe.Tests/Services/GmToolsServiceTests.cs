@@ -434,6 +434,57 @@ public class GmToolsServiceTests
     }
 
     [Fact]
+    public async Task CreateCategoryField_SelectWithIncrementalMode_PersistsSelectMode()
+    {
+        await using var db = CreateDb();
+        var category = new Category { Name = "Cars", StringKey = "cars" };
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+        var svc = CreateService(db);
+
+        var (error, data) = await svc.CreateCategoryFieldAsync(
+            1,
+            category.Id,
+            new GmCreateCategoryFieldDto
+            {
+                FieldName = "Condition",
+                FieldType = "select",
+                IsRequired = false,
+                Options = new List<string> { "Poor", "Fair", "Good", "Excellent" },
+                SelectMode = "incremental",
+            });
+
+        error.Should().BeNull();
+        data.Should().NotBeNull();
+        data!.SelectMode.Should().Be("incremental");
+    }
+
+    [Fact]
+    public async Task CreateCategoryField_ConditionDefaultsToIncrementalSelectMode()
+    {
+        await using var db = CreateDb();
+        var category = new Category { Name = "Cars", StringKey = "cars" };
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+        var svc = CreateService(db);
+
+        var (error, data) = await svc.CreateCategoryFieldAsync(
+            1,
+            category.Id,
+            new GmCreateCategoryFieldDto
+            {
+                FieldName = "Condition",
+                FieldType = "select",
+                IsRequired = false,
+                Options = new List<string> { "Poor", "Fair", "Good", "Excellent" },
+            });
+
+        error.Should().BeNull();
+        data.Should().NotBeNull();
+        data!.SelectMode.Should().Be("incremental");
+    }
+
+    [Fact]
     public async Task UpdateCategoryField_ReturnsImmutableError()
     {
         await using var db = CreateDb();
@@ -519,6 +570,32 @@ public class GmToolsServiceTests
         var (error, data) = await svc.DeleteCategoryFieldAsync(1, field.Id);
 
         error.Should().Be("Cannot delete a category field that has item values.");
+        data.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteCategoryField_WhenDefaultFilter_ReturnsProtectedError()
+    {
+        await using var db = CreateDb();
+        var category = new Category { Name = "Cars", StringKey = "cars" };
+        db.Categories.Add(category);
+        await db.SaveChangesAsync();
+
+        var field = new CategoryField
+        {
+            CategoryId = category.Id,
+            FieldName = "Condition",
+            FieldType = FieldType.Select,
+            IsRequired = false,
+            Options = "[\"Poor\",\"Fair\",\"Good\"]"
+        };
+        db.CategoryFields.Add(field);
+        await db.SaveChangesAsync();
+
+        var svc = CreateService(db);
+        var (error, data) = await svc.DeleteCategoryFieldAsync(1, field.Id);
+
+        error.Should().Be("Cannot delete protected default filters from GM tools.");
         data.Should().BeNull();
     }
 }

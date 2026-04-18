@@ -8,6 +8,7 @@ public record CategoryFieldDto
     public string FieldType { get; init; } = string.Empty;
     public bool IsRequired { get; init; }
     public List<string>? Options { get; init; }
+    public string? SelectMode { get; init; }
     public bool IsInherited { get; init; }
 }
 

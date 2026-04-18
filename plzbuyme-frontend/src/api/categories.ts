@@ -16,6 +16,7 @@ export interface CategoryFieldDto {
   fieldType: 'text' | 'number' | 'select'
   isRequired: boolean
   options?: string[] | null
+  selectMode?: 'single' | 'multi' | 'incremental' | null
   isInherited: boolean
 }
 

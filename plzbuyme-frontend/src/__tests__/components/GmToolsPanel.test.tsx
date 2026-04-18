@@ -206,6 +206,135 @@ describe('GmToolsPanel', () => {
       )
     })
   })
+
+  it('creates a select field with incremental select mode', async () => {
+    const user = userEvent.setup()
+    vi.mocked(gmApi.gmCreateCategoryField).mockResolvedValue({
+      data: {
+        id: 100,
+        categoryId: 1,
+        fieldName: 'Condition',
+        fieldType: 'select',
+        isRequired: true,
+        options: ['Poor', 'Fair', 'Good'],
+        selectMode: 'incremental',
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as never,
+    })
+
+    renderPanel()
+    await user.click(screen.getByRole('tab', { name: /^Fields$/i }))
+    await user.selectOptions(screen.getByTestId('gm-field-create-category'), '1')
+    await user.type(screen.getByPlaceholderText('e.g. Engine Size'), 'Condition')
+    const fieldTypeSelect = screen
+      .getAllByRole('combobox')
+      .find((el) => Array.from((el as HTMLSelectElement).options).some((option) => option.value === 'number'))
+    expect(fieldTypeSelect).toBeDefined()
+    await user.selectOptions(fieldTypeSelect as HTMLSelectElement, 'select')
+
+    const selectModeSelect = screen
+      .getAllByRole('combobox')
+      .find((el) => Array.from((el as HTMLSelectElement).options).some((option) => option.value === 'incremental'))
+    expect(selectModeSelect).toBeDefined()
+    await user.selectOptions(selectModeSelect as HTMLSelectElement, 'incremental')
+    await user.type(screen.getByPlaceholderText('Type one option'), 'Poor')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.type(screen.getByPlaceholderText('Type one option'), 'Fair')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.type(screen.getByPlaceholderText('Type one option'), 'Good')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.click(screen.getByRole('button', { name: /Add field/i }))
+
+    await waitFor(() => {
+      expect(gmApi.gmCreateCategoryField).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          fieldName: 'Condition',
+          fieldType: 'select',
+          selectMode: 'incremental',
+        }),
+      )
+    })
+  })
+
+  it('defaults Condition select mode to incremental', async () => {
+    const user = userEvent.setup()
+    vi.mocked(gmApi.gmCreateCategoryField).mockResolvedValue({
+      data: {
+        id: 101,
+        categoryId: 1,
+        fieldName: 'Condition',
+        fieldType: 'select',
+        isRequired: true,
+        options: ['Poor', 'Fair', 'Good'],
+        selectMode: 'incremental',
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as never,
+    })
+
+    renderPanel()
+    await user.click(screen.getByRole('tab', { name: /^Fields$/i }))
+    await user.selectOptions(screen.getByTestId('gm-field-create-category'), '1')
+    await user.type(screen.getByPlaceholderText('e.g. Engine Size'), 'Condition')
+    const fieldTypeSelect = screen
+      .getAllByRole('combobox')
+      .find((el) => Array.from((el as HTMLSelectElement).options).some((option) => option.value === 'number'))
+    expect(fieldTypeSelect).toBeDefined()
+    await user.selectOptions(fieldTypeSelect as HTMLSelectElement, 'select')
+    await user.type(screen.getByPlaceholderText('Type one option'), 'Poor')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.type(screen.getByPlaceholderText('Type one option'), 'Fair')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await user.click(screen.getByRole('button', { name: /Add field/i }))
+
+    await waitFor(() => {
+      expect(gmApi.gmCreateCategoryField).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          fieldName: 'Condition',
+          fieldType: 'select',
+          selectMode: 'incremental',
+        }),
+      )
+    })
+  })
+
+  it('does not allow removing protected default filter fields', async () => {
+    const user = userEvent.setup()
+    vi.mocked(categoriesApi.fetchCategoryFields).mockResolvedValue({
+      data: [
+        {
+          id: 5,
+          categoryId: 1,
+          fieldName: 'Condition',
+          fieldType: 'select',
+          isRequired: true,
+          options: ['Poor', 'Fair', 'Good'],
+          selectMode: 'incremental',
+          isInherited: false,
+        },
+      ],
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as never,
+    })
+
+    renderPanel()
+    await user.click(screen.getByRole('tab', { name: /^Fields$/i }))
+    await user.selectOptions(screen.getByTestId('gm-field-assign-category'), '1')
+
+    await waitFor(() => {
+      expect(screen.getByText(/Protected default filter/i)).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('button', { name: /Remove assignment/i })).not.toBeInTheDocument()
+  })
 })
 
 describe('GmToolsDockProvider', () => {
