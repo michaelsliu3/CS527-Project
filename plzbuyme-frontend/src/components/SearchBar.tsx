@@ -104,14 +104,6 @@ function getConditionIndexFromSearchParams(searchParams: URLSearchParams): numbe
 }
 
 type SearchBarVariant = 'full' | 'top' | 'filters'
-type FilterSectionKey =
-  | 'category'
-  | 'price'
-  | 'listing'
-  | 'carBasics'
-  | 'condition'
-  | 'transmission'
-  | 'fuelType'
 
 interface SearchBarProps {
   variant?: SearchBarVariant
@@ -154,7 +146,8 @@ function findTopRootCategoryId(categories: CategoryDto[], categoryId: number): n
   return cursor.id
 }
 
-type DynamicSectionKey = 'carBasics' | 'condition' | 'transmission' | 'fuelType'
+type DefaultDynamicSectionKey = 'carBasics' | 'condition' | 'transmission' | 'fuelType'
+type DynamicSectionKey = DefaultDynamicSectionKey | `custom:${number}`
 
 type DynamicFieldSection = {
   key: DynamicSectionKey
@@ -162,42 +155,72 @@ type DynamicFieldSection = {
   fields: CategoryFieldDto[]
 }
 
+function isCustomDynamicSectionKey(key: DynamicSectionKey): key is `custom:${number}` {
+  return key.startsWith('custom:')
+}
+
 function resolveDynamicFieldSection(field: CategoryFieldDto): DynamicSectionKey {
   const normalizedName = normalizeKey(field.fieldName)
-  if (field.fieldType === 'select') {
-    if (normalizedName.includes('condition')) return 'condition'
-    if (normalizedName.includes('transmission')) return 'transmission'
-    if (normalizedName.includes('fuel')) return 'fuelType'
+  switch (normalizedName) {
+    case 'make':
+    case 'model':
+    case 'year':
+    case 'mileage':
+    case 'exterior color':
+      return 'carBasics'
+    case 'condition':
+      return 'condition'
+    case 'transmission':
+      return 'transmission'
+    case 'fuel type':
+      return 'fuelType'
+    default:
+      return `custom:${field.id}`
   }
-  return 'carBasics'
 }
 
 function buildDynamicFieldSections(fields: CategoryFieldDto[]): DynamicFieldSection[] {
-  const grouped: Record<DynamicSectionKey, CategoryFieldDto[]> = {
+  const grouped: Record<DefaultDynamicSectionKey, CategoryFieldDto[]> = {
     carBasics: [],
     condition: [],
     transmission: [],
     fuelType: [],
   }
+  const customFields: CategoryFieldDto[] = []
   fields.forEach((field) => {
-    grouped[resolveDynamicFieldSection(field)].push(field)
+    const sectionKey = resolveDynamicFieldSection(field)
+    if (isCustomDynamicSectionKey(sectionKey)) {
+      customFields.push(field)
+      return
+    }
+    grouped[sectionKey].push(field)
   })
 
-  const orderedKeys: DynamicSectionKey[] = ['carBasics', 'condition', 'transmission', 'fuelType']
-  const titleByKey: Record<DynamicSectionKey, string> = {
+  const orderedKeys: DefaultDynamicSectionKey[] = ['carBasics', 'condition', 'transmission', 'fuelType']
+  const titleByKey: Record<DefaultDynamicSectionKey, string> = {
     carBasics: 'Vehicle Details',
     condition: 'Condition',
     transmission: 'Transmission',
     fuelType: 'Fuel Type',
   }
 
-  return orderedKeys
+  const groupedSections = orderedKeys
     .filter((key) => grouped[key].length > 0)
     .map((key) => ({
       key,
       title: titleByKey[key],
       fields: grouped[key],
     }))
+
+  const customSections = [...customFields]
+    .sort((a, b) => a.fieldName.localeCompare(b.fieldName, undefined, { sensitivity: 'base' }))
+    .map((field) => ({
+      key: `custom:${field.id}` as const,
+      title: field.fieldName,
+      fields: [field],
+    }))
+
+  return [...groupedSections, ...customSections]
 }
 
 function isIncrementalSelectField(field: CategoryFieldDto): boolean {
@@ -445,7 +468,7 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
   const [dynamicFieldDrafts, setDynamicFieldDrafts] = useState<Record<number, DynamicFieldDraft>>(() =>
     parseFieldFiltersFromSearchParams(searchParams),
   )
-  const [openSections, setOpenSections] = useState<Record<FilterSectionKey, boolean>>({
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     category: false,
     price: false,
     listing: false,
@@ -606,10 +629,10 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
   const selectedCategoryNumeric =
     typeof selectedCategoryId === 'number' ? selectedCategoryId : Number.parseInt(searchParams.get('categoryId') ?? '', 10)
   const fieldOwnerCategoryId =
-    typeof selectedRootId === 'number'
-      ? selectedRootId
-      : Number.isFinite(selectedCategoryNumeric)
-        ? selectedCategoryNumeric
+    Number.isFinite(selectedCategoryNumeric)
+      ? selectedCategoryNumeric
+      : typeof selectedRootId === 'number'
+        ? selectedRootId
         : Number.NaN
 
   useEffect(() => {
@@ -634,7 +657,7 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
     return () => {
       isMounted = false
     }
-  }, [fieldOwnerCategoryId])
+  }, [fieldOwnerCategoryId, categoriesRefreshToken])
 
   const activeTopCategoryId =
     typeof selectedCategoryId === 'number' && searchHubRoot
@@ -887,7 +910,7 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
     })
   }
 
-  const toggleSection = (section: FilterSectionKey) => {
+  const toggleSection = (section: string) => {
     setOpenSections((prev) => ({
       ...prev,
       [section]: !prev[section],

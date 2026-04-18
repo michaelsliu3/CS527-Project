@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Box, Button, Checkbox, Flex, Icon, Input, Menu, Tabs, Text } from '@chakra-ui/react'
+import { Badge, Box, Button, Checkbox, Flex, Icon, Input, Menu, Tabs, Text } from '@chakra-ui/react'
 import { isAxiosError } from 'axios'
 import { apiClient } from '../api/client'
 import { fetchCategories, fetchCategoryFields, type CategoryDto, type CategoryFieldDto } from '../api/categories'
@@ -1556,7 +1556,18 @@ export function GmToolsPanel() {
                   ) : (
                     <Flex direction="column" gap={2}>
                       {allFieldTemplates.map((fieldRow) => (
-                        <Box key={fieldRow.key} borderWidth="1px" borderColor={dark.borderSubtle} borderRadius="md" p={2}>
+                        <Box key={fieldRow.key} borderWidth="1px" borderColor={dark.borderSubtle} borderRadius="md" p={2} position="relative">
+                          <Badge
+                            position="absolute"
+                            top={2}
+                            right={2}
+                            colorPalette={isProtectedDefaultFilterFieldName(fieldRow.fieldName) ? 'purple' : 'blue'}
+                            variant="subtle"
+                            fontSize="10px"
+                          >
+                            {isProtectedDefaultFilterFieldName(fieldRow.fieldName) ? 'Default' : 'Source'}:{' '}
+                            {categoryNameById.get(fieldRow.sourceCategoryId) ?? `#${fieldRow.sourceCategoryId}`}
+                          </Badge>
                           <Flex direction="column" gap={1}>
                             <Text color="white" fontSize="sm">
                               {fieldRow.fieldName}
@@ -1822,7 +1833,24 @@ export function GmToolsPanel() {
                   ) : (
                     <Flex direction="column" gap={2}>
                       {categoryFields.map((fieldRow) => (
-                        <Box key={fieldRow.id} borderWidth="1px" borderColor={dark.borderSubtle} borderRadius="md" p={2}>
+                        <Box key={fieldRow.id} borderWidth="1px" borderColor={dark.borderSubtle} borderRadius="md" p={2} position="relative">
+                          <Badge
+                            position="absolute"
+                            top={2}
+                            right={2}
+                            colorPalette={
+                              fieldRow.isInherited || isProtectedDefaultFilterFieldName(fieldRow.fieldName)
+                                ? 'purple'
+                                : 'blue'
+                            }
+                            variant="subtle"
+                            fontSize="10px"
+                          >
+                            {fieldRow.isInherited || isProtectedDefaultFilterFieldName(fieldRow.fieldName)
+                              ? 'Default'
+                              : 'Source'}
+                            : {categoryNameById.get(fieldRow.categoryId) ?? `#${fieldRow.categoryId}`}
+                          </Badge>
                           <Flex direction="column" gap={1}>
                             <Text color="white" fontSize="sm">
                               #{fieldRow.id} {fieldRow.fieldName}

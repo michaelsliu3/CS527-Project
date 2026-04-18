@@ -139,7 +139,7 @@ describe('SearchBar', () => {
   it('fetches dynamic category fields when category is selected', async () => {
     renderSearchBar('/auctions?categoryId=2', 'filters')
     await waitFor(() => {
-      expect(categoriesApi.fetchCategoryFields).toHaveBeenCalledWith(1)
+      expect(categoriesApi.fetchCategoryFields).toHaveBeenCalledWith(2)
     })
   })
 
