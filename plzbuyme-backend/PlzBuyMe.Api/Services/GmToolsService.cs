@@ -1127,4 +1127,156 @@ public class GmToolsService : IGmToolsService
         _logger.LogWarning("GM tools: admin {AdminId} deleted category {CategoryId}", adminUserId, categoryId);
         return (null, new GmDeleteCategoryResultDto { Id = categoryId, Deleted = true });
     }
+
+    public async Task<(string? Error, GmCategoryFieldMutationResultDto? Data)> CreateCategoryFieldAsync(
+        int adminUserId,
+        int categoryId,
+        GmCreateCategoryFieldDto dto)
+    {
+        var categoryExists = await _db.Categories.AnyAsync(c => c.Id == categoryId);
+        if (!categoryExists)
+            return ("Category not found.", null);
+
+        var fieldName = dto.FieldName.Trim();
+        if (fieldName.Length is < 1 or > 64)
+            return ("Field name is required and must be at most 64 characters.", null);
+
+        if (!TryParseFieldType(dto.FieldType, out var fieldType))
+            return ("Field type must be one of: text, number, select.", null);
+
+        var duplicateNameExists = await _db.CategoryFields.AnyAsync(f =>
+            f.CategoryId == categoryId &&
+            f.FieldName.ToLower() == fieldName.ToLower());
+        if (duplicateNameExists)
+            return ("A field with this name already exists in this category.", null);
+
+        var (optionsError, optionsJson, normalizedOptions) = NormalizeFieldOptions(fieldType, dto.Options);
+        if (optionsError != null)
+            return (optionsError, null);
+
+        var row = new CategoryField
+        {
+            CategoryId = categoryId,
+            FieldName = fieldName,
+            FieldType = fieldType,
+            IsRequired = dto.IsRequired,
+            Options = optionsJson
+        };
+
+        _db.CategoryFields.Add(row);
+        await _db.SaveChangesAsync();
+
+        _logger.LogWarning(
+            "GM tools: admin {AdminId} created category field {FieldId} in category {OwnerCategoryId} (requested category {RequestedCategoryId})",
+            adminUserId,
+            row.Id,
+            categoryId,
+            categoryId);
+
+        return (null, ToCategoryFieldMutationResult(row, normalizedOptions));
+    }
+
+    public Task<(string? Error, GmCategoryFieldMutationResultDto? Data)> UpdateCategoryFieldAsync(
+        int adminUserId,
+        int fieldId,
+        GmUpdateCategoryFieldDto dto)
+    {
+        _ = adminUserId;
+        _ = fieldId;
+        _ = dto;
+        return Task.FromResult<(string? Error, GmCategoryFieldMutationResultDto? Data)>(
+            ("Category fields are immutable after creation. Create a new field for customizations.", null));
+    }
+
+    public async Task<(string? Error, GmDeleteCategoryFieldResultDto? Data)> DeleteCategoryFieldAsync(
+        int adminUserId,
+        int fieldId)
+    {
+        var row = await _db.CategoryFields.FirstOrDefaultAsync(f => f.Id == fieldId);
+        if (row == null)
+            return ("Category field not found.", null);
+
+        if (await _db.ItemFieldValues.AnyAsync(iv => iv.FieldId == fieldId))
+            return ("Cannot delete a category field that has item values.", null);
+
+        _db.CategoryFields.Remove(row);
+        await _db.SaveChangesAsync();
+
+        _logger.LogWarning(
+            "GM tools: admin {AdminId} deleted category field {FieldId}",
+            adminUserId,
+            fieldId);
+
+        return (null, new GmDeleteCategoryFieldResultDto
+        {
+            Id = fieldId,
+            Deleted = true
+        });
+    }
+
+    private static bool TryParseFieldType(string? raw, out FieldType fieldType)
+    {
+        var normalized = raw?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            fieldType = default;
+            return false;
+        }
+
+        return Enum.TryParse(normalized, true, out fieldType);
+    }
+
+    private static (string? Error, string? OptionsJson, List<string>? Options) NormalizeFieldOptions(
+        FieldType fieldType,
+        List<string>? options)
+    {
+        if (fieldType != FieldType.Select)
+        {
+            if (options != null && options.Any(o => !string.IsNullOrWhiteSpace(o)))
+                return ("Options are only supported for select fields.", null, null);
+            return (null, null, null);
+        }
+
+        if (options == null || options.Count == 0)
+            return ("Select fields require at least one option.", null, null);
+
+        var cleaned = options
+            .Select(o => o?.Trim() ?? string.Empty)
+            .Where(o => o.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (cleaned.Count == 0)
+            return ("Select fields require at least one option.", null, null);
+
+        return (null, JsonSerializer.Serialize(cleaned), cleaned);
+    }
+
+    private static GmCategoryFieldMutationResultDto ToCategoryFieldMutationResult(CategoryField row, List<string>? options)
+    {
+        return new GmCategoryFieldMutationResultDto
+        {
+            Id = row.Id,
+            CategoryId = row.CategoryId,
+            FieldName = row.FieldName,
+            FieldType = row.FieldType.ToString().ToLowerInvariant(),
+            IsRequired = row.IsRequired,
+            Options = options
+        };
+    }
+
+    private static List<string>? DeserializeOptions(string? optionsJson)
+    {
+        if (string.IsNullOrWhiteSpace(optionsJson))
+            return null;
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(optionsJson) ?? new List<string>();
+        }
+        catch (JsonException)
+        {
+            return new List<string>();
+        }
+    }
+
 }

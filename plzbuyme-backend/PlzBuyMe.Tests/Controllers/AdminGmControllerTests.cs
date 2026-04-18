@@ -224,6 +224,112 @@ public class AdminGmControllerTests
         body!.Count.Should().BeLessOrEqualTo(3);
     }
 
+    [Fact]
+    public async Task CategoryFieldCrud_AsAdmin_CreateAndDelete_ReturnsOk()
+    {
+        var factory = new PlzBuyMeWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var loginResponse = await client.PostAsJsonAsync("api/auth/login", new { username = "admin", password = "admin123" });
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var auth = await loginResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+        auth.Should().NotBeNull();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth!.Token);
+
+        var categories = await client.GetFromJsonAsync<List<CategoryResponseStub>>("api/categories");
+        categories.Should().NotBeNull();
+        var categoryId = FindFirstLeafCategoryId(categories!);
+        categoryId.Should().BeGreaterThan(0);
+        var createResponse = await client.PostAsJsonAsync(
+            $"api/admin/gm/categories/{categoryId}/fields",
+            new
+            {
+                fieldName = "Length",
+                fieldType = "number",
+                isRequired = false
+            });
+
+        createResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var created = await createResponse.Content.ReadFromJsonAsync<CategoryFieldMutationResponseStub>();
+        created.Should().NotBeNull();
+        created!.Id.Should().BeGreaterThan(0);
+        created.FieldType.Should().Be("number");
+        created.CategoryId.Should().Be(categoryId);
+
+        var rootFields = await client.GetFromJsonAsync<List<CategoryFieldResponseStub>>($"api/categories/{categoryId}/fields");
+        rootFields.Should().NotBeNull();
+        rootFields!.Any(f => f.Id == created.Id).Should().BeTrue();
+
+        var deleteResponse = await client.DeleteAsync($"api/admin/gm/fields/{created.Id}");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task CategoryFieldDelete_WhenCalled_ReturnsBadRequest()
+    {
+        var factory = new PlzBuyMeWebApplicationFactory();
+        var client = factory.CreateClient();
+
+        var loginResponse = await client.PostAsJsonAsync("api/auth/login", new { username = "admin", password = "admin123" });
+        loginResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var auth = await loginResponse.Content.ReadFromJsonAsync<AuthResponseDto>();
+        auth.Should().NotBeNull();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth!.Token);
+
+        var categories = await client.GetFromJsonAsync<List<CategoryResponseStub>>("api/categories");
+        categories.Should().NotBeNull();
+        var categoryId = FindFirstLeafCategoryId(categories!);
+        categoryId.Should().BeGreaterThan(0);
+
+        var fields = await client.GetFromJsonAsync<List<CategoryFieldResponseStub>>($"api/categories/{categoryId}/fields");
+        if (fields == null || fields.Count == 0)
+        {
+            var allIds = FlattenCategoryIds(categories!);
+            foreach (var id in allIds)
+            {
+                var candidate = await client.GetFromJsonAsync<List<CategoryFieldResponseStub>>($"api/categories/{id}/fields");
+                if (candidate is { Count: > 0 })
+                {
+                    fields = candidate;
+                    break;
+                }
+            }
+        }
+        fields.Should().NotBeNull();
+        var existingFieldId = fields!.Select(f => f.Id).FirstOrDefault(id => id > 0);
+        existingFieldId.Should().BeGreaterThan(0);
+
+        var deleteResponse = await client.DeleteAsync($"api/admin/gm/fields/{existingFieldId}");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    private static int FindFirstLeafCategoryId(List<CategoryResponseStub> roots)
+    {
+        foreach (var category in roots)
+        {
+            if (category.Children == null || category.Children.Count == 0)
+                return category.Id;
+
+            var nested = FindFirstLeafCategoryId(category.Children);
+            if (nested > 0)
+                return nested;
+        }
+
+        return 0;
+    }
+
+    private static List<int> FlattenCategoryIds(List<CategoryResponseStub> nodes)
+    {
+        var ids = new List<int>();
+        foreach (var node in nodes)
+        {
+            ids.Add(node.Id);
+            if (node.Children.Count > 0)
+                ids.AddRange(FlattenCategoryIds(node.Children));
+        }
+        return ids;
+    }
+
     private sealed class SeedAuctionsResponseStub
     {
         public int CreatedCount { get; set; }
@@ -252,5 +358,23 @@ public class AdminGmControllerTests
         public int CreatedSoldCount { get; set; }
         public int CreatedClosedCount { get; set; }
         public int TotalBids { get; set; }
+    }
+
+    private sealed class CategoryResponseStub
+    {
+        public int Id { get; set; }
+        public List<CategoryResponseStub> Children { get; set; } = new();
+    }
+
+    private sealed class CategoryFieldResponseStub
+    {
+        public int Id { get; set; }
+    }
+
+    private sealed class CategoryFieldMutationResponseStub
+    {
+        public int Id { get; set; }
+        public string FieldType { get; set; } = string.Empty;
+        public int CategoryId { get; set; }
     }
 }

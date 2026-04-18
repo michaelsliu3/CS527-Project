@@ -23,7 +23,7 @@ import {
 import { useSearchParams } from 'react-router-dom'
 import { getFieldValues } from '../api/auctions'
 import { dark } from '../theme/colors'
-import { fetchCategories, type CategoryDto } from '../api/categories'
+import { fetchCategories, fetchCategoryFields, type CategoryDto, type CategoryFieldDto } from '../api/categories'
 import { resolveLucideIconForKey } from '../constants/categoryLucideIcons'
 import { subscribeAuctionListRefresh } from '../utils/auctionListRefresh'
 
@@ -34,12 +34,7 @@ const SORT_OPTIONS = [
   { value: 'price_asc', label: 'Price: low to high' },
   { value: 'price_desc', label: 'Price: high to low' },
   { value: 'most_bids', label: 'Most bids' },
-]
-const CAR_SORT_OPTIONS = [
-  { value: 'year_newest', label: 'Year: newest' },
-  { value: 'year_oldest', label: 'Year: oldest' },
-  { value: 'mileage_low', label: 'Mileage: low to high' },
-  { value: 'mileage_high', label: 'Mileage: high to low' },
+  { value: 'relevance', label: 'Relevance' },
 ]
 
 const STATUS_OPTIONS = [
@@ -144,6 +139,65 @@ function pickCarsSearchHubRoot(roots: CategoryDto[]): CategoryDto | undefined {
   const byStringKey = roots.find((c) => normalizeKey(c.stringKey) === 'cars')
   if (byStringKey) return byStringKey
   return roots.find((c) => normalizeKey(c.name) === 'cars')
+}
+
+function findTopRootCategoryId(categories: CategoryDto[], categoryId: number): number | null {
+  const byId = new Map(categories.map((category) => [category.id, category]))
+  let cursor = byId.get(categoryId)
+  if (!cursor) return null
+
+  while (cursor.parentId !== null) {
+    const parent = byId.get(cursor.parentId)
+    if (!parent) break
+    cursor = parent
+  }
+  return cursor.id
+}
+
+type DynamicSectionKey = 'carBasics' | 'condition' | 'transmission' | 'fuelType'
+
+type DynamicFieldSection = {
+  key: DynamicSectionKey
+  title: string
+  fields: CategoryFieldDto[]
+}
+
+function resolveDynamicFieldSection(field: CategoryFieldDto): DynamicSectionKey {
+  const normalizedName = normalizeKey(field.fieldName)
+  if (field.fieldType === 'select') {
+    if (normalizedName.includes('condition')) return 'condition'
+    if (normalizedName.includes('transmission')) return 'transmission'
+    if (normalizedName.includes('fuel')) return 'fuelType'
+  }
+  return 'carBasics'
+}
+
+function buildDynamicFieldSections(fields: CategoryFieldDto[]): DynamicFieldSection[] {
+  const grouped: Record<DynamicSectionKey, CategoryFieldDto[]> = {
+    carBasics: [],
+    condition: [],
+    transmission: [],
+    fuelType: [],
+  }
+  fields.forEach((field) => {
+    grouped[resolveDynamicFieldSection(field)].push(field)
+  })
+
+  const orderedKeys: DynamicSectionKey[] = ['carBasics', 'condition', 'transmission', 'fuelType']
+  const titleByKey: Record<DynamicSectionKey, string> = {
+    carBasics: 'Vehicle Details',
+    condition: 'Condition',
+    transmission: 'Transmission',
+    fuelType: 'Fuel Type',
+  }
+
+  return orderedKeys
+    .filter((key) => grouped[key].length > 0)
+    .map((key) => ({
+      key,
+      title: titleByKey[key],
+      fields: grouped[key],
+    }))
 }
 
 interface DateFilterPickerProps {
@@ -277,6 +331,76 @@ function DateFilterPicker({
   )
 }
 
+type DynamicFieldDraft = {
+  text?: string
+  min?: string
+  max?: string
+  options?: string[]
+}
+
+function parseFieldFiltersFromSearchParams(searchParams: URLSearchParams): Record<number, DynamicFieldDraft> {
+  const raw = searchParams.get('fieldFilters')
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const next: Record<number, DynamicFieldDraft> = {}
+    Object.entries(parsed).forEach(([key, value]) => {
+      const fieldId = Number.parseInt(key, 10)
+      if (!Number.isFinite(fieldId)) return
+      if (typeof value === 'string') {
+        next[fieldId] = { text: value }
+        return
+      }
+      if (Array.isArray(value)) {
+        next[fieldId] = {
+          options: value.filter((entry): entry is string => typeof entry === 'string'),
+        }
+        return
+      }
+      if (value && typeof value === 'object') {
+        const valueObj = value as { min?: number | string; max?: number | string }
+        next[fieldId] = {
+          min: valueObj.min === undefined ? '' : String(valueObj.min),
+          max: valueObj.max === undefined ? '' : String(valueObj.max),
+        }
+      }
+    })
+    return next
+  } catch {
+    return {}
+  }
+}
+
+function buildFieldFiltersJson(
+  fields: CategoryFieldDto[],
+  drafts: Record<number, DynamicFieldDraft>,
+): string | undefined {
+  const payload: Record<string, unknown> = {}
+  fields.forEach((fieldDef) => {
+    const draft = drafts[fieldDef.id]
+    if (!draft) return
+    if (fieldDef.fieldType === 'text') {
+      const value = draft.text?.trim() ?? ''
+      if (value) payload[String(fieldDef.id)] = value
+      return
+    }
+    if (fieldDef.fieldType === 'number') {
+      const min = draft.min?.trim() ?? ''
+      const max = draft.max?.trim() ?? ''
+      const next: { min?: number; max?: number } = {}
+      if (min !== '' && Number.isFinite(Number(min))) next.min = Number(min)
+      if (max !== '' && Number.isFinite(Number(max))) next.max = Number(max)
+      if (next.min !== undefined || next.max !== undefined) payload[String(fieldDef.id)] = next
+      return
+    }
+    if (fieldDef.fieldType === 'select') {
+      const options = (draft.options ?? []).filter((entry) => entry.trim().length > 0)
+      if (options.length > 0) payload[String(fieldDef.id)] = options
+    }
+  })
+  return Object.keys(payload).length > 0 ? JSON.stringify(payload) : undefined
+}
+
 export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   const hasInitializedDefaultStatus = useRef(false)
@@ -304,6 +428,10 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
   )
   const [selectedFuelType, setSelectedFuelType] = useState(() =>
     searchParams.get('fuelType') ?? ''
+  )
+  const [dynamicCategoryFields, setDynamicCategoryFields] = useState<CategoryFieldDto[]>([])
+  const [dynamicFieldDrafts, setDynamicFieldDrafts] = useState<Record<number, DynamicFieldDraft>>(() =>
+    parseFieldFiltersFromSearchParams(searchParams),
   )
   const [openSections, setOpenSections] = useState<Record<FilterSectionKey, boolean>>({
     category: false,
@@ -376,8 +504,8 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
             const child = flatFromResponse.find((c) => c.id === idNum)
             if (child) {
               setSelectedCategoryId(child.id)
-              const parent = child.parentId != null ? flatFromResponse.find((c) => c.id === child.parentId) : undefined
-              if (parent) setSelectedRootId(parent.id)
+              const rootId = findTopRootCategoryId(flatFromResponse, child.id)
+              if (rootId !== null) setSelectedRootId(rootId)
             }
           }
         } else if (searchHubRoot) {
@@ -430,6 +558,10 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
     setIsConditionSelected(true)
   }, [searchParams])
 
+  useEffect(() => {
+    setDynamicFieldDrafts(parseFieldFiltersFromSearchParams(searchParams))
+  }, [searchParams])
+
   const rootCategories = categories.filter((c) => c.parentId === null)
   const searchHubRoot = pickCarsSearchHubRoot(rootCategories)
 
@@ -457,6 +589,40 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
     typeof selectedRootId === 'number'
       ? rootCategories.find((c) => c.id === selectedRootId)
       : undefined
+  const dynamicFieldSections = buildDynamicFieldSections(dynamicCategoryFields)
+
+  const selectedCategoryNumeric =
+    typeof selectedCategoryId === 'number' ? selectedCategoryId : Number.parseInt(searchParams.get('categoryId') ?? '', 10)
+  const fieldOwnerCategoryId =
+    typeof selectedRootId === 'number'
+      ? selectedRootId
+      : Number.isFinite(selectedCategoryNumeric)
+        ? selectedCategoryNumeric
+        : Number.NaN
+
+  useEffect(() => {
+    if (!Number.isFinite(fieldOwnerCategoryId)) {
+      setDynamicCategoryFields([])
+      return
+    }
+
+    let isMounted = true
+    const loadFields = async () => {
+      try {
+        const res = await fetchCategoryFields(fieldOwnerCategoryId)
+        if (!isMounted) return
+        setDynamicCategoryFields(Array.isArray(res.data) ? res.data : [])
+      } catch {
+        if (!isMounted) return
+        setDynamicCategoryFields([])
+      }
+    }
+
+    void loadFields()
+    return () => {
+      isMounted = false
+    }
+  }, [fieldOwnerCategoryId])
 
   const activeTopCategoryId =
     typeof selectedCategoryId === 'number' && searchHubRoot
@@ -559,6 +725,70 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
     setSelectedFuelType(searchParams.get('fuelType') ?? '')
   }, [searchParams])
 
+  useEffect(() => {
+    if (dynamicCategoryFields.length === 0) return
+    const hasLegacyParams =
+      searchParams.has('make') ||
+      searchParams.has('model') ||
+      searchParams.has('yearMin') ||
+      searchParams.has('yearMax') ||
+      searchParams.has('mileageMax') ||
+      searchParams.has('exteriorColor') ||
+      searchParams.has('condition') ||
+      searchParams.has('transmission') ||
+      searchParams.has('fuelType')
+    if (!hasLegacyParams) return
+
+    const fieldIdByName = new Map(
+      dynamicCategoryFields.map((fieldDef) => [fieldDef.fieldName.toLowerCase(), fieldDef.id]),
+    )
+    const legacyPayload: Record<string, unknown> = {}
+    const setText = (name: string, value: string | null) => {
+      const fieldId = fieldIdByName.get(name.toLowerCase())
+      const trimmed = value?.trim() ?? ''
+      if (fieldId && trimmed) legacyPayload[String(fieldId)] = trimmed
+    }
+    const setRange = (name: string, minRaw: string | null, maxRaw: string | null) => {
+      const fieldId = fieldIdByName.get(name.toLowerCase())
+      if (!fieldId) return
+      const min = minRaw?.trim() ?? ''
+      const max = maxRaw?.trim() ?? ''
+      const next: { min?: number; max?: number } = {}
+      if (min !== '' && Number.isFinite(Number(min))) next.min = Number(min)
+      if (max !== '' && Number.isFinite(Number(max))) next.max = Number(max)
+      if (next.min !== undefined || next.max !== undefined) legacyPayload[String(fieldId)] = next
+    }
+    const setSelect = (name: string, values: string[]) => {
+      const fieldId = fieldIdByName.get(name.toLowerCase())
+      const cleaned = values.map((v) => v.trim()).filter(Boolean)
+      if (fieldId && cleaned.length) legacyPayload[String(fieldId)] = cleaned
+    }
+
+    setText('Make', searchParams.get('make'))
+    setText('Model', searchParams.get('model'))
+    setRange('Year', searchParams.get('yearMin'), searchParams.get('yearMax'))
+    setRange('Mileage', null, searchParams.get('mileageMax'))
+    setText('Exterior Color', searchParams.get('exteriorColor'))
+    setSelect('Condition', searchParams.getAll('condition'))
+    setSelect('Transmission', searchParams.getAll('transmission'))
+    setSelect('Fuel Type', searchParams.getAll('fuelType'))
+
+    const next = new URLSearchParams(searchParams)
+    next.delete('make')
+    next.delete('model')
+    next.delete('yearMin')
+    next.delete('yearMax')
+    next.delete('mileageMax')
+    next.delete('exteriorColor')
+    next.delete('condition')
+    next.delete('transmission')
+    next.delete('fuelType')
+    if (Object.keys(legacyPayload).length > 0) {
+      next.set('fieldFilters', JSON.stringify(legacyPayload))
+    }
+    setSearchParams(next, { replace: true })
+  }, [dynamicCategoryFields, searchParams, setSearchParams])
+
   function applyFilters(values: Record<string, string | string[] | undefined>) {
     const next = new URLSearchParams(searchParams)
     next.delete('make')
@@ -578,6 +808,7 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
     next.delete('closingBefore')
     next.delete('closingAfter')
     next.delete('seller')
+    next.delete('fieldFilters')
     next.delete('sort')
     next.delete('page')
     next.delete('pageSize')
@@ -597,14 +828,7 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const form = e.target as HTMLFormElement
-    const condition =
-      isConditionSelected && CONDITION_OPTIONS[conditionSliderIndex]
-        ? [CONDITION_OPTIONS[conditionSliderIndex]]
-        : []
-    const transmissionValue = selectedTransmission || undefined
-    const transmission: string[] = transmissionValue ? [transmissionValue] : []
-    const fuelTypeValue = selectedFuelType || undefined
-    const fuelType: string[] = fuelTypeValue ? [fuelTypeValue] : []
+    const hasDynamicFields = dynamicCategoryFields.length > 0
     const minPriceFromForm = (form.elements.namedItem('minPrice') as HTMLInputElement)?.value || undefined
     const maxPriceFromForm = (form.elements.namedItem('maxPrice') as HTMLInputElement)?.value || undefined
     const minPrice =
@@ -619,6 +843,14 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
           ? String(priceRange[1])
           : undefined
         : maxPriceFromForm
+    const fieldFilters = hasDynamicFields
+      ? buildFieldFiltersJson(dynamicCategoryFields, dynamicFieldDrafts)
+      : undefined
+    const yearMin = (form.elements.namedItem('yearMin') as HTMLInputElement)?.value?.trim() || undefined
+    const yearMax = (form.elements.namedItem('yearMax') as HTMLInputElement)?.value?.trim() || undefined
+    const mileageMax = (form.elements.namedItem('mileageMax') as HTMLInputElement)?.value?.trim() || undefined
+    const exteriorColor = (form.elements.namedItem('exteriorColor') as HTMLInputElement)?.value?.trim() || undefined
+    const selectedCondition = isConditionSelected ? CONDITION_OPTIONS[conditionSliderIndex] : undefined
 
     applyFilters({
       q: (form.elements.namedItem('q') as HTMLInputElement)?.value?.trim() || undefined,
@@ -630,15 +862,16 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
       closingAfter: closingAfter || undefined,
       seller: (form.elements.namedItem('seller') as HTMLInputElement)?.value?.trim() || undefined,
       sort: (form.elements.namedItem('sort') as HTMLSelectElement)?.value || undefined,
-      make: makeInput.trim() || undefined,
-      model: modelInput.trim() || undefined,
-      yearMin: (form.elements.namedItem('yearMin') as HTMLInputElement)?.value || undefined,
-      yearMax: (form.elements.namedItem('yearMax') as HTMLInputElement)?.value || undefined,
-      mileageMax: (form.elements.namedItem('mileageMax') as HTMLInputElement)?.value || undefined,
-      exteriorColor: (form.elements.namedItem('exteriorColor') as HTMLInputElement)?.value?.trim() || undefined,
-      condition: condition.length ? condition : undefined,
-      transmission: transmission.length ? transmission : undefined,
-      fuelType: fuelType.length ? fuelType : undefined,
+      fieldFilters,
+      make: hasDynamicFields ? undefined : makeInput.trim() || undefined,
+      model: hasDynamicFields ? undefined : modelInput.trim() || undefined,
+      yearMin: hasDynamicFields ? undefined : yearMin,
+      yearMax: hasDynamicFields ? undefined : yearMax,
+      mileageMax: hasDynamicFields ? undefined : mileageMax,
+      exteriorColor: hasDynamicFields ? undefined : exteriorColor,
+      condition: hasDynamicFields ? undefined : selectedCondition ? [selectedCondition] : undefined,
+      transmission: hasDynamicFields ? undefined : selectedTransmission || undefined,
+      fuelType: hasDynamicFields ? undefined : selectedFuelType || undefined,
     })
   }
 
@@ -718,17 +951,7 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
     setSearchParams(next)
   }
 
-  const isCarsContext = Boolean(
-    searchHubRoot &&
-      (selectedRootId === searchHubRoot.id ||
-        (typeof selectedCategoryId === 'number' &&
-          (selectedCategoryId === searchHubRoot.id ||
-            searchHubRoot.children?.some((child) => child.id === selectedCategoryId))))
-  )
-
-  const allSortOptions = isCarsContext
-    ? [...SORT_OPTIONS, ...CAR_SORT_OPTIONS]
-    : SORT_OPTIONS
+  const allSortOptions = SORT_OPTIONS
   const showTopBar = variant !== 'filters'
   const showFilters = variant !== 'top'
   const formColumns = variant === 'filters' ? 1 : { base: 1, md: 2, lg: 4 }
@@ -1211,7 +1434,198 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
               </Box>
             </Box>
 
-            <>
+            {dynamicCategoryFields.length > 0 ? (
+              <>
+                <Box py={3}>
+                  <Wrap gap={2}>
+                    {dynamicCategoryFields.map((fieldDef) => {
+                      const draft = dynamicFieldDrafts[fieldDef.id] ?? {}
+                      const textValue = draft.text?.trim() ?? ''
+                      const minValue = draft.min?.trim() ?? ''
+                      const maxValue = draft.max?.trim() ?? ''
+                      const selectedOptions = draft.options ?? []
+                      let label = ''
+                      if (fieldDef.fieldType === 'text' && textValue) {
+                        label = `${fieldDef.fieldName}: ${textValue}`
+                      } else if (
+                        fieldDef.fieldType === 'number' &&
+                        (minValue.length > 0 || maxValue.length > 0)
+                      ) {
+                        label = `${fieldDef.fieldName}: ${minValue || 'Any'}-${maxValue || 'Any'}`
+                      } else if (fieldDef.fieldType === 'select' && selectedOptions.length > 0) {
+                        label = `${fieldDef.fieldName}: ${selectedOptions.join(', ')}`
+                      }
+                      if (!label) return null
+                      return (
+                        <WrapItem key={`chip-${fieldDef.id}`}>
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="outline"
+                            borderColor={dark.borderSubtle}
+                            color="white"
+                            _hover={{ bg: 'whiteAlpha.100' }}
+                            onClick={() =>
+                              setDynamicFieldDrafts((prev) => {
+                                const next = { ...prev }
+                                delete next[fieldDef.id]
+                                return next
+                              })
+                            }
+                          >
+                            {label} x
+                          </Button>
+                        </WrapItem>
+                      )
+                    })}
+                  </Wrap>
+                </Box>
+                {dynamicFieldSections.map((section) => (
+                  <Box key={section.key} borderBottomWidth="1px" borderColor={dark.borderSubtle}>
+                    <Button
+                      type="button"
+                      {...sectionToggleButtonProps}
+                      onClick={() => toggleSection(section.key)}
+                      aria-expanded={openSections[section.key]}
+                    >
+                      {section.title}
+                      <Icon
+                        as={HiChevronDown}
+                        boxSize={5}
+                        color={dark.muted}
+                        transition="transform 320ms cubic-bezier(0.22, 1, 0.36, 1)"
+                        transform={openSections[section.key] ? 'rotate(180deg)' : 'rotate(0deg)'}
+                      />
+                    </Button>
+                    <Box {...sectionAnimationProps(openSections[section.key])}>
+                      <Flex
+                        direction="column"
+                        gap={3}
+                        pt={openSections[section.key] ? sectionContentPadding.pt : 0}
+                        pb={openSections[section.key] ? sectionContentPadding.pb : 0}
+                        overflow="hidden"
+                        minH={0}
+                      >
+                        {section.fields.map((fieldDef) => {
+                          const draft = dynamicFieldDrafts[fieldDef.id] ?? {}
+                          if (fieldDef.fieldType === 'text') {
+                            return (
+                              <Box key={fieldDef.id}>
+                                <Text fontSize="xs" color={dark.muted} mb={1}>
+                                  {fieldDef.fieldName}
+                                </Text>
+                                <Input
+                                  value={draft.text ?? ''}
+                                  onChange={(e) =>
+                                    setDynamicFieldDrafts((prev) => ({
+                                      ...prev,
+                                      [fieldDef.id]: { ...prev[fieldDef.id], text: e.target.value },
+                                    }))
+                                  }
+                                  bg={dark.inputBg}
+                                  borderColor={dark.borderSubtle}
+                                  color="white"
+                                  _placeholder={{ color: dark.placeholder }}
+                                />
+                              </Box>
+                            )
+                          }
+                          if (fieldDef.fieldType === 'number') {
+                            return (
+                              <Box key={fieldDef.id}>
+                                <Text fontSize="xs" color={dark.muted} mb={1}>
+                                  {fieldDef.fieldName} range
+                                </Text>
+                                <Flex gap={2}>
+                                  <Input
+                                    placeholder="Min"
+                                    type="number"
+                                    value={draft.min ?? ''}
+                                    onChange={(e) =>
+                                      setDynamicFieldDrafts((prev) => ({
+                                        ...prev,
+                                        [fieldDef.id]: { ...prev[fieldDef.id], min: e.target.value },
+                                      }))
+                                    }
+                                    bg={dark.inputBg}
+                                    borderColor={dark.borderSubtle}
+                                    color="white"
+                                    _placeholder={{ color: dark.placeholder }}
+                                  />
+                                  <Input
+                                    placeholder="Max"
+                                    type="number"
+                                    value={draft.max ?? ''}
+                                    onChange={(e) =>
+                                      setDynamicFieldDrafts((prev) => ({
+                                        ...prev,
+                                        [fieldDef.id]: { ...prev[fieldDef.id], max: e.target.value },
+                                      }))
+                                    }
+                                    bg={dark.inputBg}
+                                    borderColor={dark.borderSubtle}
+                                    color="white"
+                                    _placeholder={{ color: dark.placeholder }}
+                                  />
+                                </Flex>
+                              </Box>
+                            )
+                          }
+                          const selectedOptions = draft.options ?? []
+                          return (
+                            <Box key={fieldDef.id}>
+                              <Text fontSize="xs" color={dark.muted} mb={1}>
+                                {fieldDef.fieldName}
+                              </Text>
+                              <Wrap gap={2}>
+                                {(fieldDef.options ?? []).map((option) => {
+                                  const isActive = selectedOptions.includes(option)
+                                  return (
+                                    <WrapItem key={option}>
+                                      <Button
+                                        type="button"
+                                        size="xs"
+                                        px={3}
+                                        borderRadius="full"
+                                        bg={isActive ? 'brand.500' : dark.inputBg}
+                                        color={isActive ? 'white' : dark.muted}
+                                        borderWidth="1px"
+                                        borderColor={isActive ? 'brand.500' : dark.borderSubtle}
+                                        _hover={{
+                                          bg: isActive ? 'brand.400' : 'whiteAlpha.100',
+                                          color: 'white',
+                                        }}
+                                        onClick={() =>
+                                          setDynamicFieldDrafts((prev) => {
+                                            const existing = prev[fieldDef.id]?.options ?? []
+                                            const nextOptions = existing.includes(option)
+                                              ? existing.filter((entry) => entry !== option)
+                                              : [...existing, option]
+                                            return {
+                                              ...prev,
+                                              [fieldDef.id]: { ...prev[fieldDef.id], options: nextOptions },
+                                            }
+                                          })
+                                        }
+                                      >
+                                        {option}
+                                      </Button>
+                                    </WrapItem>
+                                  )
+                                })}
+                              </Wrap>
+                            </Box>
+                          )
+                        })}
+                      </Flex>
+                    </Box>
+                  </Box>
+                ))}
+              </>
+            ) : null}
+
+            {dynamicCategoryFields.length === 0 && (
+              <>
                 <Box borderBottomWidth="1px" borderColor={dark.borderSubtle}>
                   <Button
                     type="button"
@@ -1531,7 +1945,8 @@ export function SearchBar({ variant = 'full', topMarginBottom = 3 }: SearchBarPr
                     </Box>
                   </Box>
                 </Box>
-            </>
+              </>
+            )}
           </Box>
         </Box>
       ) : (

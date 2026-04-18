@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Box, Button, Checkbox, Flex, Icon, Input, Menu, Tabs, Text } from '@chakra-ui/react'
 import { isAxiosError } from 'axios'
 import { apiClient } from '../api/client'
-import { fetchCategories, type CategoryDto } from '../api/categories'
+import { fetchCategories, fetchCategoryFields, type CategoryDto, type CategoryFieldDto } from '../api/categories'
 import {
   bulkGmUsers,
   gmBulkCloseActiveAuctions,
+  gmCreateCategoryField,
   gmCreateCategory,
+  gmDeleteCategoryField,
   gmDeleteAllAuctions,
   gmDeleteCategory,
   gmRunCloseSweep,
@@ -49,6 +51,38 @@ function parseUserIds(raw: string): number[] {
     .filter(Boolean)
     .map((s) => Number.parseInt(s, 10))
     .filter((n) => Number.isFinite(n))
+}
+
+function parseFieldOptions(raw: string): string[] {
+  return raw
+    .split('\n')
+    .flatMap((line) => line.split(','))
+    .map((value) => value.trim())
+    .filter(Boolean)
+}
+
+type GmFieldTemplate = {
+  key: string
+  fieldName: string
+  fieldType: 'text' | 'number' | 'select'
+  isRequired: boolean
+  options: string[] | null
+  sourceCategoryId: number
+  usageCount: number
+}
+
+function buildTemplateKey(
+  fieldName: string,
+  fieldType: CategoryFieldDto['fieldType'],
+  isRequired: boolean,
+  options: string[] | null | undefined,
+): string {
+  return [
+    fieldName.trim().toLowerCase(),
+    fieldType,
+    isRequired ? 'req' : 'opt',
+    (options ?? []).map((v) => v.trim().toLowerCase()).sort().join('|'),
+  ].join('::')
 }
 
 function flattenCategoryDtos(roots: CategoryDto[]): CategoryDto[] {
@@ -314,8 +348,27 @@ export function GmToolsPanel() {
   const [uLucideCustom, setULucideCustom] = useState('')
 
   const [dCatId, setDCatId] = useState('')
+  const [selectedFieldCategoryId, setSelectedFieldCategoryId] = useState('')
+  const [categoryFields, setCategoryFields] = useState<CategoryFieldDto[]>([])
+  const [fieldsLoading, setFieldsLoading] = useState(false)
+  const [allFieldTemplates, setAllFieldTemplates] = useState<GmFieldTemplate[]>([])
+  const [allFieldsLoading, setAllFieldsLoading] = useState(false)
+  const [createFieldCategoryId, setCreateFieldCategoryId] = useState('')
+  const [assignFieldTemplateKey, setAssignFieldTemplateKey] = useState('')
+  const [assignFieldCategoryId, setAssignFieldCategoryId] = useState('')
+  const [newFieldName, setNewFieldName] = useState('')
+  const [newFieldType, setNewFieldType] = useState<'text' | 'number' | 'select'>('text')
+  const [newFieldRequired, setNewFieldRequired] = useState(true)
+  const [newFieldOptions, setNewFieldOptions] = useState('')
 
   const flatCategories = useMemo(() => flattenCategoryDtos(categoryTree), [categoryTree])
+  const categoryNameById = useMemo(() => {
+    const map = new Map<number, string>()
+    for (const category of flatCategories) {
+      map.set(category.id, category.name)
+    }
+    return map
+  }, [flatCategories])
 
   const loadGmCategories = useCallback(async () => {
     setCategoriesLoading(true)
@@ -336,6 +389,88 @@ export function GmToolsPanel() {
   useEffect(() => {
     void loadGmCategories()
   }, [loadGmCategories])
+
+  const loadCategoryFields = useCallback(async (categoryId: number) => {
+    setFieldsLoading(true)
+    try {
+      const res = await fetchCategoryFields(categoryId)
+      setCategoryFields(Array.isArray(res.data) ? res.data : [])
+    } catch (err) {
+      setCategoryFields([])
+      showErrorToast('GM tools', formatCategoriesLoadError(err))
+    } finally {
+      setFieldsLoading(false)
+    }
+  }, [])
+
+  const loadAllFieldTemplates = useCallback(async () => {
+    if (flatCategories.length === 0) {
+      setAllFieldTemplates([])
+      return
+    }
+    setAllFieldsLoading(true)
+    try {
+      const rows = await Promise.all(
+        flatCategories.map(async (category) => {
+          const res = await fetchCategoryFields(category.id)
+          return { categoryId: category.id, fields: Array.isArray(res.data) ? res.data : [] }
+        }),
+      )
+      const templates = new Map<string, GmFieldTemplate>()
+      for (const row of rows) {
+        for (const fieldRow of row.fields) {
+          if (fieldRow.isInherited) continue
+          const key = buildTemplateKey(
+            fieldRow.fieldName,
+            fieldRow.fieldType,
+            fieldRow.isRequired,
+            fieldRow.options ?? null,
+          )
+          const existing = templates.get(key)
+          if (existing) {
+            existing.usageCount += 1
+            continue
+          }
+          templates.set(key, {
+            key,
+            fieldName: fieldRow.fieldName,
+            fieldType: fieldRow.fieldType,
+            isRequired: fieldRow.isRequired,
+            options: fieldRow.options ?? null,
+            sourceCategoryId: row.categoryId,
+            usageCount: 1,
+          })
+        }
+      }
+      const sorted = Array.from(templates.values()).sort((a, b) =>
+        a.fieldName.localeCompare(b.fieldName, undefined, { sensitivity: 'base' }),
+      )
+      setAllFieldTemplates(sorted)
+      if (sorted.length === 0) {
+        setAssignFieldTemplateKey('')
+      } else if (!sorted.some((t) => t.key === assignFieldTemplateKey)) {
+        setAssignFieldTemplateKey(sorted[0]!.key)
+      }
+    } catch (err) {
+      showErrorToast('GM tools', formatCategoriesLoadError(err))
+      setAllFieldTemplates([])
+    } finally {
+      setAllFieldsLoading(false)
+    }
+  }, [assignFieldTemplateKey, flatCategories])
+
+  useEffect(() => {
+    const parsedId = Number.parseInt(selectedFieldCategoryId, 10)
+    if (!Number.isFinite(parsedId)) {
+      setCategoryFields([])
+      return
+    }
+    void loadCategoryFields(parsedId)
+  }, [loadCategoryFields, selectedFieldCategoryId])
+
+  useEffect(() => {
+    void loadAllFieldTemplates()
+  }, [loadAllFieldTemplates])
 
   const nativeSelectSx = {
     width: '100%',
@@ -780,6 +915,100 @@ export function GmToolsPanel() {
       }
     })
 
+  const onCreateCategoryField = () =>
+    run('fieldCreate', async () => {
+      const categoryId = Number.parseInt(createFieldCategoryId, 10)
+      if (!Number.isFinite(categoryId)) {
+        showErrorToast('GM tools', 'Select a category for the new field.')
+        return
+      }
+      if (!newFieldName.trim()) {
+        showErrorToast('GM tools', 'Field name is required.')
+        return
+      }
+
+      try {
+        const options = parseFieldOptions(newFieldOptions)
+        await gmCreateCategoryField(categoryId, {
+          fieldName: newFieldName.trim(),
+          fieldType: newFieldType,
+          isRequired: newFieldRequired,
+          options: newFieldType === 'select' ? options : null,
+        })
+        showSuccessToast('Category field created', newFieldName.trim())
+        setNewFieldName('')
+        setNewFieldType('text')
+        setNewFieldRequired(true)
+        setNewFieldOptions('')
+        await loadAllFieldTemplates()
+        await loadCategoryFields(categoryId)
+        notifyAuctionListRefresh()
+      } catch (err) {
+        if (isAxiosError(err) && err.response?.data) {
+          const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
+          showErrorToast('GM tools', msg)
+        } else {
+          showErrorToast('GM tools', 'Request failed.')
+        }
+      }
+    })
+
+  const onAssignExistingField = () =>
+    run('fieldAssign', async () => {
+      const categoryId = Number.parseInt(assignFieldCategoryId, 10)
+      if (!Number.isFinite(categoryId)) {
+        showErrorToast('GM tools', 'Select a category to assign this field.')
+        return
+      }
+      const template = allFieldTemplates.find((t) => t.key === assignFieldTemplateKey)
+      if (!template) {
+        showErrorToast('GM tools', 'Select a field to assign.')
+        return
+      }
+      try {
+        await gmCreateCategoryField(categoryId, {
+          fieldName: template.fieldName,
+          fieldType: template.fieldType,
+          isRequired: template.isRequired,
+          options: template.fieldType === 'select' ? template.options ?? [] : null,
+        })
+        showSuccessToast('Field assigned', `${template.fieldName} added to category #${categoryId}.`)
+        await loadAllFieldTemplates()
+        await loadCategoryFields(categoryId)
+        notifyAuctionListRefresh()
+      } catch (err) {
+        if (isAxiosError(err) && err.response?.data) {
+          const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
+          showErrorToast('GM tools', msg)
+        } else {
+          showErrorToast('GM tools', 'Request failed.')
+        }
+      }
+    })
+
+  const onDeleteCategoryField = (fieldId: number, fieldName: string) =>
+    run('fieldDelete', async () => {
+      if (!window.confirm(`Remove field #${fieldId} (${fieldName}) from this category?`)) {
+        return
+      }
+      try {
+        await gmDeleteCategoryField(fieldId)
+        showSuccessToast('Category field removed', `#${fieldId}`)
+        const categoryId = Number.parseInt(selectedFieldCategoryId, 10)
+        if (Number.isFinite(categoryId)) {
+          await loadCategoryFields(categoryId)
+        }
+        notifyAuctionListRefresh()
+      } catch (err) {
+        if (isAxiosError(err) && err.response?.data) {
+          const msg = typeof err.response.data === 'string' ? err.response.data : 'Request failed.'
+          showErrorToast('GM tools', msg)
+        } else {
+          showErrorToast('GM tools', 'Request failed.')
+        }
+      }
+    })
+
   const field = (
     label: string,
     value: string,
@@ -846,6 +1075,9 @@ export function GmToolsPanel() {
             </Tabs.Trigger>
             <Tabs.Trigger value="categories" color="white" flexShrink={0}>
               Categories
+            </Tabs.Trigger>
+            <Tabs.Trigger value="fields" color="white" flexShrink={0}>
+              Fields
             </Tabs.Trigger>
             <Tabs.Trigger value="history" color="white" flexShrink={0}>
               History / reports
@@ -1226,6 +1458,283 @@ export function GmToolsPanel() {
                     Delete
                   </Button>
                 </Flex>
+              </Box>
+            </Flex>
+          </Tabs.Content>
+
+          <Tabs.Content value="fields">
+            <Flex direction="column" gap={6}>
+              <Box maxW="md">
+                <Text fontWeight="semibold" color="white" mb={2}>
+                  Field catalog
+                </Text>
+                <Text fontSize="sm" color={dark.label} mb={2}>
+                  List of all existing field definitions. Fields are immutable once created.
+                </Text>
+                <Flex justify="space-between" align="center" mb={2}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    borderColor={dark.borderSubtle}
+                    color="white"
+                    loading={allFieldsLoading}
+                    onClick={() => {
+                      void loadAllFieldTemplates()
+                    }}
+                  >
+                    Reload catalog
+                  </Button>
+                </Flex>
+                <Box
+                  borderWidth="1px"
+                  borderColor={dark.borderSubtle}
+                  borderRadius="md"
+                  p={2}
+                  maxH="220px"
+                  overflowY="auto"
+                >
+                  {allFieldTemplates.length === 0 ? (
+                    <Text color={dark.muted} fontSize="sm">
+                      No field definitions found.
+                    </Text>
+                  ) : (
+                    <Flex direction="column" gap={2}>
+                      {allFieldTemplates.map((fieldRow) => (
+                        <Box key={fieldRow.key} borderWidth="1px" borderColor={dark.borderSubtle} borderRadius="md" p={2}>
+                          <Flex direction="column" gap={1}>
+                            <Text color="white" fontSize="sm">
+                              {fieldRow.fieldName}
+                            </Text>
+                            <Text color={dark.muted} fontSize="xs">
+                              type={fieldRow.fieldType} required={fieldRow.isRequired ? 'yes' : 'no'}
+                            </Text>
+                            <Text color={dark.muted} fontSize="xs">
+                              used by {fieldRow.usageCount} categor{fieldRow.usageCount === 1 ? 'y' : 'ies'}; sample source #
+                              {fieldRow.sourceCategoryId} {categoryNameById.get(fieldRow.sourceCategoryId) ?? 'unknown'}
+                            </Text>
+                            {fieldRow.fieldType === 'select' && (
+                              <Text color={dark.muted} fontSize="xs">
+                                options: {(fieldRow.options ?? []).join(', ')}
+                              </Text>
+                            )}
+                          </Flex>
+                        </Box>
+                      ))}
+                    </Flex>
+                  )}
+                </Box>
+              </Box>
+
+              <Box maxW="md">
+                <Text fontWeight="semibold" color="white" mb={2}>
+                  Create field
+                </Text>
+                <Text fontSize="xs" color={dark.muted} mb={2}>
+                  Create a new immutable field definition and attach it to one category/subcategory.
+                </Text>
+                <Flex direction="column" gap={2}>
+                  <Box>
+                    <Text mb={1} color={dark.label} fontSize="xs">
+                      Create in category
+                    </Text>
+                    <select
+                      data-testid="gm-field-create-category"
+                      style={nativeSelectSx}
+                      value={createFieldCategoryId}
+                      onChange={(e) => setCreateFieldCategoryId(e.target.value)}
+                    >
+                      <option value="">Select…</option>
+                      {flatCategories.map((c) => (
+                        <option key={c.id} value={String(c.id)}>
+                          #{c.id} {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Box>
+                  {field('Field name', newFieldName, setNewFieldName, 'e.g. Engine Size')}
+                  <Box>
+                    <Text mb={1} color={dark.label} fontSize="xs">
+                      Type
+                    </Text>
+                    <select
+                      style={nativeSelectSx}
+                      value={newFieldType}
+                      onChange={(e) => setNewFieldType(e.target.value as 'text' | 'number' | 'select')}
+                    >
+                      <option value="text">text</option>
+                      <option value="number">number</option>
+                      <option value="select">select</option>
+                    </select>
+                  </Box>
+                  <Checkbox.Root
+                    checked={newFieldRequired}
+                    onCheckedChange={(d) => setNewFieldRequired(!!d.checked)}
+                  >
+                    <Checkbox.HiddenInput />
+                    <Checkbox.Control />
+                    <Checkbox.Label color={dark.label}>Required</Checkbox.Label>
+                  </Checkbox.Root>
+                  {newFieldType === 'select' &&
+                    field(
+                      'Options (comma separated)',
+                      newFieldOptions,
+                      setNewFieldOptions,
+                      'Option A, Option B',
+                    )}
+                  <Button
+                    bg="brand.500"
+                    color="white"
+                    _hover={{ bg: 'brand.400' }}
+                    loading={busy === 'fieldCreate'}
+                    onClick={onCreateCategoryField}
+                    alignSelf="flex-start"
+                  >
+                    Add field
+                  </Button>
+                </Flex>
+              </Box>
+
+              <Box maxW="md">
+                <Text fontWeight="semibold" color="white" mb={2}>
+                  Assign fields to categories/subcategories
+                </Text>
+                <Text fontSize="xs" color={dark.muted} mb={2}>
+                  Pick an existing field definition and attach it to a category. In subcategories, inherited fields are
+                  labeled as default from main category.
+                </Text>
+                <Flex direction="column" gap={2} mb={4}>
+                  <Box>
+                    <Text mb={1} color={dark.label} fontSize="xs">
+                      Field
+                    </Text>
+                    <select
+                      data-testid="gm-field-assign-field"
+                      style={nativeSelectSx}
+                      value={assignFieldTemplateKey}
+                      onChange={(e) => setAssignFieldTemplateKey(e.target.value)}
+                    >
+                      <option value="">Select…</option>
+                      {allFieldTemplates.map((f) => (
+                        <option key={f.key} value={f.key}>
+                          {f.fieldName} ({f.fieldType}) {f.isRequired ? '[required]' : '[optional]'}
+                        </option>
+                      ))}
+                    </select>
+                  </Box>
+                  <Box>
+                    <Text mb={1} color={dark.label} fontSize="xs">
+                      Target category/subcategory
+                    </Text>
+                    <select
+                      data-testid="gm-field-assign-category"
+                      style={nativeSelectSx}
+                      value={assignFieldCategoryId}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setAssignFieldCategoryId(value)
+                        setSelectedFieldCategoryId(value)
+                      }}
+                    >
+                      <option value="">Select…</option>
+                      {flatCategories.map((c) => (
+                        <option key={c.id} value={String(c.id)}>
+                          #{c.id} {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Box>
+                  <Button
+                    variant="outline"
+                    borderColor={dark.borderSubtle}
+                    color="white"
+                    _hover={{ bg: 'whiteAlpha.100' }}
+                    loading={busy === 'fieldAssign'}
+                    onClick={onAssignExistingField}
+                    alignSelf="flex-start"
+                  >
+                    Assign field
+                  </Button>
+                </Flex>
+
+                <Flex justify="space-between" align="center" mb={2}>
+                  <Text fontWeight="semibold" color="white">
+                    Assigned fields
+                  </Text>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    borderColor={dark.borderSubtle}
+                    color="white"
+                    loading={fieldsLoading}
+                    disabled={!selectedFieldCategoryId}
+                    onClick={() => {
+                      const categoryId = Number.parseInt(selectedFieldCategoryId, 10)
+                      if (Number.isFinite(categoryId)) {
+                        void loadCategoryFields(categoryId)
+                      }
+                    }}
+                  >
+                    Reload assigned
+                  </Button>
+                </Flex>
+                <Box
+                  borderWidth="1px"
+                  borderColor={dark.borderSubtle}
+                  borderRadius="md"
+                  p={2}
+                  maxH="220px"
+                  overflowY="auto"
+                >
+                  {!selectedFieldCategoryId ? (
+                    <Text color={dark.muted} fontSize="sm">
+                      Select a category/subcategory to view assignments.
+                    </Text>
+                  ) : categoryFields.length === 0 ? (
+                    <Text color={dark.muted} fontSize="sm">
+                      No assigned fields found.
+                    </Text>
+                  ) : (
+                    <Flex direction="column" gap={2}>
+                      {categoryFields.map((fieldRow) => (
+                        <Box key={fieldRow.id} borderWidth="1px" borderColor={dark.borderSubtle} borderRadius="md" p={2}>
+                          <Flex direction="column" gap={1}>
+                            <Text color="white" fontSize="sm">
+                              #{fieldRow.id} {fieldRow.fieldName}
+                            </Text>
+                            <Text color={dark.muted} fontSize="xs">
+                              type={fieldRow.fieldType} required={fieldRow.isRequired ? 'yes' : 'no'}
+                            </Text>
+                            <Text color={dark.muted} fontSize="xs">
+                              {fieldRow.isInherited
+                                ? `inherited from main category (default) - source #${fieldRow.categoryId} ${categoryNameById.get(fieldRow.categoryId) ?? 'unknown'}`
+                                : `direct assignment for selected category (#${fieldRow.categoryId})`}
+                            </Text>
+                            {fieldRow.fieldType === 'select' && (
+                              <Text color={dark.muted} fontSize="xs">
+                                options: {(fieldRow.options ?? []).join(', ')}
+                              </Text>
+                            )}
+                            {!fieldRow.isInherited && (
+                              <Flex mt={1}>
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  borderColor="red.400"
+                                  color="red.200"
+                                  _hover={{ bg: 'whiteAlpha.100' }}
+                                  loading={busy === 'fieldDelete'}
+                                  onClick={() => onDeleteCategoryField(fieldRow.id, fieldRow.fieldName)}
+                                >
+                                  Remove assignment
+                                </Button>
+                              </Flex>
+                            )}
+                          </Flex>
+                        </Box>
+                      ))}
+                    </Flex>
+                  )}
+                </Box>
               </Box>
             </Flex>
           </Tabs.Content>

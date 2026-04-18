@@ -7,6 +7,7 @@ import { GmToolsPanel } from '../../components/GmToolsPanel'
 import { GmToolsDockProvider } from '../../components/GmToolsDock'
 import { system } from '../../theme'
 import * as gmApi from '../../api/gm'
+import * as categoriesApi from '../../api/categories'
 import * as auctionListRefresh from '../../utils/auctionListRefresh'
 import { showErrorToast, showSuccessToast } from '../../components/ui/toaster'
 
@@ -22,6 +23,14 @@ vi.mock('../../api/gm', () => ({
   gmBulkCloseActiveAuctions: vi.fn(),
   gmRunCloseSweep: vi.fn(),
   gmDeleteAllAuctions: vi.fn(),
+  gmCreateCategoryField: vi.fn(),
+  gmUpdateCategoryField: vi.fn(),
+  gmDeleteCategoryField: vi.fn(),
+}))
+
+vi.mock('../../api/categories', () => ({
+  fetchCategories: vi.fn(),
+  fetchCategoryFields: vi.fn(),
 }))
 
 vi.mock('../../components/ui/toaster', () => ({
@@ -46,6 +55,20 @@ function renderPanel() {
 describe('GmToolsPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(categoriesApi.fetchCategories).mockResolvedValue({
+      data: [{ id: 1, name: 'Cars', parentId: null, children: [] }],
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as never,
+    })
+    vi.mocked(categoriesApi.fetchCategoryFields).mockResolvedValue({
+      data: [],
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as never,
+    })
   })
 
   it('renders intro copy, General tab, and Seed auctions tab', () => {
@@ -148,6 +171,40 @@ describe('GmToolsPanel', () => {
       'Custom sold auctions seeded',
       expect.stringContaining('Sold: 3, closed: 2'),
     )
+  })
+
+  it('creates a category field from Fields tab', async () => {
+    const user = userEvent.setup()
+    vi.mocked(gmApi.gmCreateCategoryField).mockResolvedValue({
+      data: {
+        id: 99,
+        categoryId: 1,
+        fieldName: 'Boat Length',
+        fieldType: 'number',
+        isRequired: true,
+        options: null,
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {} as never,
+    })
+
+    renderPanel()
+    await user.click(screen.getByRole('tab', { name: /^Fields$/i }))
+    await user.selectOptions(screen.getByTestId('gm-field-create-category'), '1')
+    await user.type(screen.getByPlaceholderText('e.g. Engine Size'), 'Boat Length')
+    await user.click(screen.getByRole('button', { name: /Add field/i }))
+
+    await waitFor(() => {
+      expect(gmApi.gmCreateCategoryField).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          fieldName: 'Boat Length',
+          fieldType: 'text',
+        }),
+      )
+    })
   })
 })
 

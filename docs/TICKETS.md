@@ -690,18 +690,34 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 **PR Title:** `[PBM-38] implement advanced auction search filters and ranking`
 
 - **Motivation:** The project gets more credit for supporting more complex searches. Current browse filters are solid but still mostly flat (single-dimension toggles with limited composition/scoring).
-- **Goal:** Add richer, composable filtering and ranking so users can run expressive queries across many auction dimensions in one request.
-- **Backend scope:** Extend browse API with advanced predicates, such as:
-  - multi-select include/exclude logic per field (e.g., include `BMW|Mercedes`, exclude `EV`);
-  - numeric range composition (`price`, `year`, `mileage`) with multiple disjoint ranges;
-  - recency windows (`listedWithinDays`, `closingWithinHours`);
-  - seller/auction quality signals (`minBidCount`, `sellerRatingMin` when available);
-  - optional weighted relevance scoring mode (text match + field overlap + recency + bid activity), with deterministic tie-breaks.
-- **Query contract:** Introduce a versioned, documented JSON filter schema (or strict query-params spec) and validate unknown/invalid operators with clear `400` messages.
-- **Frontend scope:** Build an advanced filter builder UI (chips/groups) with AND/OR grouping, include/exclude controls, saved presets, and URL/state persistence for shareable searches.
-- **Performance:** Add DB/index strategy and query-shape guards so complex filters remain performant under larger datasets (pagination + cap rules + safe defaults).
-- **Tests:** Add backend tests for operator semantics and ranking stability, plus frontend tests for composing/removing complex filters and preserving state through refresh/navigation.
-
+- **Goal:** Make browse filtering fully data-driven from category field definitions, so filter properties can be added/removed by admins without frontend code changes.
+- **Backend scope:**
+  - Add GM-admin CRUD endpoints for category field definitions:
+    - `POST /api/admin/gm/categories/{categoryId}/fields`
+    - `PATCH /api/admin/gm/fields/{fieldId}`
+    - `DELETE /api/admin/gm/fields/{fieldId}`
+  - Enforce validation:
+    - field name required and unique within a category (case-insensitive)
+    - `fieldType` supports `text | number | select`
+    - select fields require non-empty `options`
+    - field type is immutable after creation
+    - block delete if any `ItemFieldValue` rows reference the field
+  - Add `sort=relevance` to browse search; score should reward stronger matches (field-filter matches + keyword boosts) with deterministic tie-breakers.
+- **Frontend scope:**
+  - Add a new **Fields** panel in GM tools (after Categories) to manage category-specific item properties/filters dynamically.
+  - Build dynamic browse filters from `GET /api/categories/{id}/fields`:
+    - `text` -> text input
+    - `number` -> min/max range input
+    - `select` -> multi-select chips/options
+  - Show applied filter chips and allow removing individual filters.
+  - Submit dynamic filters through `fieldFilters` JSON, not hardcoded car params.
+  - Add URL migration that converts legacy car params (`make`, `model`, `yearMin`, etc.) to `fieldFilters` once fields are loaded.
+- **Data/default behavior:**
+  - Keep existing car fields (`Make`, `Model`, `Year`, `Mileage`, `Condition`, `Transmission`, `Fuel Type`, `Exterior Color`) as seeded defaults in `CategoryFields`.
+  - Treat filters as category-specific item properties owned by category field definitions in DB.
+- **Tests:**
+  - Backend: category-field CRUD validation and delete guard; relevance sort ordering.
+  - Frontend: GM field CRUD flow; dynamic filter rendering + submission; legacy URL migration; applied-chip removal behavior.
 ---
 
 ## PBM-39 — Profile privacy toggle for auction identity anonymization ✅

@@ -188,9 +188,9 @@ describe('SellItemModalContext', () => {
       if (categoryId === 20) {
         return {
           data: [
-            { id: 201, fieldName: 'Make', fieldType: 'text', isRequired: true },
-            { id: 202, fieldName: 'Model', fieldType: 'text', isRequired: true },
-            { id: 203, fieldName: 'Year', fieldType: 'number', isRequired: true },
+            { id: 201, categoryId: 20, fieldName: 'Make', fieldType: 'text', isRequired: true, isInherited: false },
+            { id: 202, categoryId: 20, fieldName: 'Model', fieldType: 'text', isRequired: true, isInherited: false },
+            { id: 203, categoryId: 20, fieldName: 'Year', fieldType: 'number', isRequired: true, isInherited: false },
           ],
           status: 200,
           statusText: 'OK',

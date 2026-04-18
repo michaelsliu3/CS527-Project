@@ -14,6 +14,7 @@ vi.mock('../../api/auctions', () => ({
 
 vi.mock('../../api/categories', () => ({
   fetchCategories: vi.fn(),
+  fetchCategoryFields: vi.fn(),
 }))
 
 function renderSearchBar(
@@ -66,6 +67,17 @@ describe('SearchBar', () => {
       headers: {},
       config: {},
     } as unknown as Awaited<ReturnType<typeof categoriesApi.fetchCategories>>)
+    vi.mocked(categoriesApi.fetchCategoryFields).mockResolvedValue({
+      data: [
+        { id: 10, categoryId: 1, fieldName: 'Make', fieldType: 'text', isRequired: true, options: null, isInherited: true },
+        { id: 11, categoryId: 1, fieldName: 'Year', fieldType: 'number', isRequired: false, options: null, isInherited: true },
+        { id: 12, categoryId: 1, fieldName: 'Fuel Type', fieldType: 'select', isRequired: false, options: ['Gasoline', 'Electric'], isInherited: true },
+      ],
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    } as unknown as Awaited<ReturnType<typeof categoriesApi.fetchCategoryFields>>)
   })
 
   it(
@@ -82,13 +94,25 @@ describe('SearchBar', () => {
     10_000,
   )
 
-  it('renders car-specific inputs when Cars subcategory is selected', () => {
-    renderSearchBar('/auctions?categoryId=2')
-    expect(screen.getByPlaceholderText(/e.g. Toyota/i)).toBeInTheDocument()
-    expect(screen.getByPlaceholderText(/e.g. Camry/i)).toBeInTheDocument()
+  it('renders dynamic field controls in filters variant', async () => {
+    renderSearchBar('/auctions?categoryId=2', 'filters')
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Vehicle Details/i })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /Fuel Type/i })).toBeInTheDocument()
+      expect(screen.getByText('Make')).toBeInTheDocument()
+      expect(screen.getByText('Year range')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Gasoline' })).toBeInTheDocument()
+    })
   })
 
-  it('fetches field-values endpoint for Make autocomplete', async () => {
+  it('fetches dynamic category fields when category is selected', async () => {
+    renderSearchBar('/auctions?categoryId=2', 'filters')
+    await waitFor(() => {
+      expect(categoriesApi.fetchCategoryFields).toHaveBeenCalledWith(1)
+    })
+  })
+
+  it('submits dynamic fieldFilters JSON on apply', async () => {
     vi.mocked(auctions.getFieldValues).mockResolvedValueOnce({
       data: ['Toyota', 'Honda'],
       status: 200,
@@ -97,25 +121,32 @@ describe('SearchBar', () => {
       config: {},
     } as unknown as Awaited<ReturnType<typeof auctions.getFieldValues>>)
     const user = userEvent.setup()
-    renderSearchBar('/auctions?categoryId=2')
-    const makeInput = screen.getByPlaceholderText(/e.g. Toyota/i)
-    await user.type(makeInput, 'To')
+    renderSearchBar('/auctions?categoryId=2', 'filters')
     await waitFor(() => {
-      expect(auctions.getFieldValues).toHaveBeenCalledWith(
-        'Make',
-        undefined,
-        'To'
-      )
+      expect(screen.getByRole('button', { name: /Vehicle Details/i })).toBeInTheDocument()
+    })
+    const vehicleDetailsToggle = screen.getByRole('button', { name: /Vehicle Details/i })
+    await user.click(vehicleDetailsToggle)
+    expect(vehicleDetailsToggle).toHaveAttribute('aria-expanded', 'true')
+    const makeInput = screen.getByText('Make').parentElement?.querySelector('input') as HTMLInputElement | null
+    expect(makeInput).not.toBeNull()
+    await user.type(makeInput!, 'To')
+    const fuelTypeToggle = screen.getByRole('button', { name: /Fuel Type/i })
+    await user.click(fuelTypeToggle)
+    expect(fuelTypeToggle).toHaveAttribute('aria-expanded', 'true')
+    await user.click(screen.getByRole('button', { name: 'Gasoline' }))
+    await user.click(screen.getByRole('button', { name: /Apply Filters/i }))
+    await waitFor(() => {
+      const search = screen.getByTestId('location-search').textContent ?? ''
+      expect(search).toContain('fieldFilters=')
     })
   })
 
-  it('shows car-specific sort options when cars context is active', async () => {
+  it('shows relevance sort option', async () => {
     renderSearchBar('/auctions?categoryId=2')
     await waitFor(() => {
-      expect(screen.getAllByRole('option', { name: /Year: newest/i }).length).toBeGreaterThan(0)
-      expect(screen.getAllByRole('option', { name: /Mileage: low to high/i }).length).toBeGreaterThan(0)
+      expect(screen.getAllByRole('option', { name: /Relevance/i }).length).toBeGreaterThan(0)
     })
-    expect(screen.getAllByRole('option', { name: /Newest/i }).length).toBeGreaterThan(0)
   })
 
   it('updates query params with selected sort on submit', async () => {
@@ -150,32 +181,27 @@ describe('SearchBar', () => {
 
     await user.click(screen.getByRole('tab', { name: /SUVs/i }))
 
-    expect(screen.getByPlaceholderText(/e.g. Toyota/i)).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /SUVs/i })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('resets transmission and fuel type dropdowns when Reset All Filters is clicked', async () => {
+  it('resets filters when Reset All Filters is clicked', async () => {
     const user = userEvent.setup()
-    renderSearchBar('/auctions?transmission=Manual&fuelType=Diesel', 'filters')
-
-    const fuelTypeSelect = screen.getAllByRole('combobox').find(
-      (el) => (el as HTMLSelectElement).name === 'fuelType'
-    ) as HTMLSelectElement | undefined
-    const transmissionByName = screen.getAllByRole('combobox').find(
-      (el) => (el as HTMLSelectElement).name === 'transmission'
-    ) as HTMLSelectElement | undefined
-
-    expect(transmissionByName).toBeDefined()
-    expect(fuelTypeSelect).toBeDefined()
-    expect(transmissionByName!.value).toBe('Manual')
-    expect(fuelTypeSelect!.value).toBe('Diesel')
+    renderSearchBar('/auctions?fieldFilters=%7B%2212%22%3A%5B%22Gasoline%22%5D%7D', 'filters')
 
     await user.click(screen.getByRole('button', { name: /Reset All Filters/i }))
-
-    expect(transmissionByName!.value).toBe('')
-    expect(fuelTypeSelect!.value).toBe('')
     await waitFor(() => {
       expect(screen.getByTestId('location-search').textContent).toContain('page=1')
       expect(screen.getByTestId('location-search').textContent).toContain('status=active')
+    })
+  })
+
+  it('migrates legacy car params into fieldFilters', async () => {
+    renderSearchBar('/auctions?categoryId=2&make=Toyota&yearMin=2020', 'filters')
+    await waitFor(() => {
+      const search = screen.getByTestId('location-search').textContent ?? ''
+      expect(search).toContain('fieldFilters=')
+      expect(search).not.toContain('make=')
+      expect(search).not.toContain('yearMin=')
     })
   })
 })
