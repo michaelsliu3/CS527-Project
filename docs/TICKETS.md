@@ -862,3 +862,20 @@ Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contra
 - **Implementation:** Persist a low-detail toggle (`localStorage`) exposed in GM Tools; wire auction-list pages to react to toggle changes without full reload.
 - **Rendering behavior:** When low-detail mode is enabled and a page contains several 3D-capable listings, render static 3D placeholders instead of live `Su7ThreeHero` previews; also disable timer/category glow effects.
 - **Validation:** Add frontend tests for low-detail toggle behavior, static 3D fallback rendering, and card-level low-detail visual flags.
+
+### PBM-DOC-1 — README onboarding, contribution guide, and grader notes
+
+**Layer:** Documentation + Dev Experience  
+**Branch:** `PBM-DOC-1/readme-onboarding-contrib-grader-notes`  
+**PR Title:** `[PBM-DOC-1] add complete README with setup, contribution flow, grader notes, and helper scripts`
+
+- **Scope:** Create or expand project documentation so a new developer/grader can clone, install dependencies, run both apps, understand the project purpose, and contribute with minimal setup friction.
+- **README content:**
+  - Project overview: brief platform description, architecture (frontend/backend), and key features.
+  - Installation instructions: prerequisites, environment variables, backend/frontend setup, database setup/seed, and run commands.
+  - Usage quickstart: local URLs, default seeded accounts (if appropriate), and core user flows to verify.
+  - Contribution guide: branch naming, commit/PR expectations, testing requirements, and code style/lint/test commands.
+  - Grader notes: assumptions, known limitations, demo credentials/test data guidance, and where to find key design docs.
+- **Dev-ex helper scripts (optional but recommended):** add cross-platform-friendly scripts (or npm/task wrappers) for common tasks such as install-all, start-all, test-all, and seed/reset to streamline first-time setup.
+- **Deliverables:** updated `README.md`, optional `CONTRIBUTING.md` and/or `docs/GRADER_NOTES.md`, plus any setup helper scripts referenced by docs.
+- **Validation:** Follow the README from a clean clone (or clean environment) and confirm setup/run/test flows work as documented without relying on undocumented steps.
