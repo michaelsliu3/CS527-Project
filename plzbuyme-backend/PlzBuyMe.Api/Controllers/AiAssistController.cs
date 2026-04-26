@@ -6,14 +6,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 
-namespace PlzBuyMe.Controllers
+namespace PlzBuyMe.Api.Controllers
 {
     /// <summary>
     /// NOVELTY FEATURE: Proxies AI description requests to the Anthropic API.
-    /// Keeps the API key server-side -- never exposed to the client.
-    /// Register in Program.cs:
-    ///   builder.Services.AddHttpClient();
-    ///   Add "Anthropic:ApiKey" to appsettings.json or user-secrets.
+    /// API key is kept server-side via Anthropic:ApiKey in appsettings.json.
     /// </summary>
     [ApiController]
     [Route("api/ai")]
@@ -33,11 +30,8 @@ namespace PlzBuyMe.Controllers
         [HttpPost("describe-item")]
         public async Task<IActionResult> DescribeItem([FromBody] DescribeItemRequest req)
         {
-            if (string.IsNullOrWhiteSpace(req.Prompt))
-                return BadRequest("Prompt is required.");
-            if (string.IsNullOrWhiteSpace(_apiKey))
-                return StatusCode(503, "AI service is not configured.");
-
+            if (string.IsNullOrWhiteSpace(req.Prompt)) return BadRequest("Prompt is required.");
+            if (string.IsNullOrWhiteSpace(_apiKey)) return StatusCode(503, "AI service not configured.");
             var client = _httpFactory.CreateClient();
             client.DefaultRequestHeaders.Add("x-api-key", _apiKey);
             client.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
