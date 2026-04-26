@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using PlzBuyMe.Models;
-using PlzBuyMe.Data;
+using PlzBuyMe.Api.Models;
+using PlzBuyMe.Api.Data;
 
-namespace PlzBuyMe.Services
+namespace PlzBuyMe.Api.Services
 {
     /// <summary>
     /// Returns similar auctions from the past 30 days.
-    /// Similarity score: same subcategory (+40), same category (+20),
+    /// Similarity: same subcategory (+40), same category (+20),
     /// price within 30% (+20), keyword overlap in title (+20 max).
     /// </summary>
     public class SimilarItemsService
