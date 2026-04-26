@@ -2,10 +2,10 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using PlzBuyMe.Models;
-using PlzBuyMe.Data;
+using PlzBuyMe.Api.Models;
+using PlzBuyMe.Api.Data;
 
-namespace PlzBuyMe.Services
+namespace PlzBuyMe.Api.Services
 {
     /// <summary>
     /// Automatic bidding engine. When a manual bid is placed, cascades
