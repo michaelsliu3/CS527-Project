@@ -1,4 +1,4 @@
-# plzbuy.me — Implementation Order
+# plzbuyme — Implementation Order
 
 Sequential task list. Each step becomes a PR (branch → review → merge to `main`).
 Refer to `TECH_DOC.md` for full specs, table schemas, pseudocode, and API contracts.
