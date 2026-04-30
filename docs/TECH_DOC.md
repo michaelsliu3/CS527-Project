@@ -1,7 +1,7 @@
 # plzbuy.me — Online Auction System Technical Document
 
 ## CS 527 Database Systems — Programming Project
-
+Team 9
 ---
 
 ## Table of Contents
@@ -171,7 +171,7 @@ CS527-Project/
 │  └─────┬──────┘  └────────────┘  └────────────┘ │
 │        │                                         │
 │  ┌─────▼──────────────────────────────────────┐  │
-│  │      Entity Framework Core (Pomelo)        │  │
+│  │      Entity Framework Core                 │  │
 │  └─────┬──────────────────────────────────────┘  │
 └────────┼─────────────────────────────────────────┘
          │  SQL
@@ -218,9 +218,11 @@ CS527-Project/
 
 ## 4. Database Design
 
-### 4.1 ER Diagram Summary
+### 4.1 ER Diagram
 
-> An ER diagram should be created using a tool like draw.io or dbdiagram.io and committed as `docs/er_diagram.png`.
+![plzbuy.me ER diagram](./er_diagram.png)
+
+Cardinality bubbles are read at the bubble nearest each entity (e.g. `N` next to `bids` and `1` next to `items` for `bids.item_id → items.id`). `*` marks unique columns and `?` marks nullable columns. Self-references (`categories.parent_id`, `question_replies.parent_reply_id`) are drawn as small loops on the right side of the entity.
 
 ### 4.2 Table Definitions
 
